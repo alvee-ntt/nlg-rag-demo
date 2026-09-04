@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+.git
+.DS_Store
+.pytest_cache
+.venv
+venv
+.vendor
+__pycache__
+*.py[cod]
+server.err.log
+server.out.log
+tmp
+dist
+build
+node_modules
