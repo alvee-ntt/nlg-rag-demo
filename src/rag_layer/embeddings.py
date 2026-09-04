@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+import time
+
 import urllib3
 import requests
 
 from .config import Settings
+
+# Azure OpenAI throttles with HTTP 429 (and occasionally 5xx) when the embedding
+# deployment's per-minute token/request quota is exceeded. Retry those with backoff
+# so a burst of chunks does not permanently drop documents from the index.
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+_MAX_RETRIES = 6
+_BACKOFF_BASE = 2.0
+_BACKOFF_CAP = 60.0
 
 
 class AzureOpenAIClient:
@@ -26,15 +36,41 @@ class AzureOpenAIClient:
         self.verify_ssl = settings.azure_storage_verify_ssl
 
     def post(self, path: str, payload: dict, timeout: tuple[int, int] = (10, 120)) -> dict:
-        response = self.session.post(
-            f"{self.base_url}{path}",
-            headers=self.headers,
-            json=payload,
-            timeout=timeout,
-            verify=self.verify_ssl,
-        )
-        response.raise_for_status()
-        return response.json()
+        url = f"{self.base_url}{path}"
+        last_error: Exception | None = None
+        for attempt in range(_MAX_RETRIES + 1):
+            response = self.session.post(
+                url,
+                headers=self.headers,
+                json=payload,
+                timeout=timeout,
+                verify=self.verify_ssl,
+            )
+            if response.status_code not in _RETRY_STATUS:
+                response.raise_for_status()
+                return response.json()
+
+            # Throttled or transient server error: back off and retry.
+            last_error = requests.HTTPError(
+                f"{response.status_code} {response.reason} for url: {url}", response=response
+            )
+            if attempt == _MAX_RETRIES:
+                break
+            time.sleep(self._retry_delay(response, attempt))
+
+        assert last_error is not None
+        raise last_error
+
+    @staticmethod
+    def _retry_delay(response: "requests.Response", attempt: int) -> float:
+        """Prefer the server's Retry-After hint; otherwise exponential backoff."""
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                return min(float(retry_after), _BACKOFF_CAP)
+            except ValueError:
+                pass
+        return min(_BACKOFF_BASE * (2 ** attempt), _BACKOFF_CAP)
 
 
 def get_openai_client(settings: Settings) -> AzureOpenAIClient:
