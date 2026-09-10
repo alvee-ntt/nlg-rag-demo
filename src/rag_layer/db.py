@@ -149,6 +149,67 @@ def search_chunks(conn, query_embedding: list[float], limit: int = 8) -> list[di
     )
 
 
+def list_documents(conn) -> list[dict[str, Any]]:
+    """Every ingested document with per-document chunk statistics.
+
+    Used by the corpus inspector to sanity-check the chunking strategy: chunk count,
+    character size spread against the configured target, and which structure metadata
+    (page / zone) actually made it through extraction.
+    """
+    return list(
+        conn.execute(
+            """
+            SELECT
+                d.id,
+                d.blob_name,
+                d.size_bytes,
+                d.updated_at,
+                count(c.id) AS chunk_count,
+                coalesce(sum(c.token_count), 0) AS words_total,
+                coalesce(round(avg(char_length(c.content)))::int, 0) AS chars_avg,
+                coalesce(min(char_length(c.content)), 0) AS chars_min,
+                coalesce(max(char_length(c.content)), 0) AS chars_max,
+                count(DISTINCT c.metadata->>'page')
+                    FILTER (WHERE c.metadata->>'page' IS NOT NULL) AS page_count,
+                coalesce(
+                    array_agg(DISTINCT c.metadata->>'zone')
+                        FILTER (WHERE c.metadata->>'zone' IS NOT NULL),
+                    ARRAY[]::text[]
+                ) AS zones
+            FROM rag_documents d
+            LEFT JOIN rag_chunks c ON c.document_id = d.id
+            GROUP BY d.id
+            ORDER BY d.blob_name
+            """
+        ).fetchall()
+    )
+
+
+def get_document_chunks(conn, document_id: int) -> dict[str, Any] | None:
+    """A single document's header plus all of its chunks in order."""
+    doc = conn.execute(
+        "SELECT id, blob_name, size_bytes, updated_at FROM rag_documents WHERE id = %s",
+        (document_id,),
+    ).fetchone()
+    if not doc:
+        return None
+    chunks = conn.execute(
+        """
+        SELECT
+            chunk_index,
+            content,
+            token_count AS words,
+            char_length(content) AS chars,
+            metadata
+        FROM rag_chunks
+        WHERE document_id = %s
+        ORDER BY chunk_index
+        """,
+        (document_id,),
+    ).fetchall()
+    return {"document": dict(doc), "chunks": [dict(row) for row in chunks]}
+
+
 def citation(row: dict[str, Any]) -> str:
     """Human-readable source locator: page and heading when the chunk carries them."""
     metadata = row.get("metadata") or {}

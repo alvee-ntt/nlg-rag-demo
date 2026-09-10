@@ -146,8 +146,93 @@
 
   .empty { text-align: center; color: var(--muted-2); padding: 50px 20px; }
   .empty svg { opacity: .3; margin-bottom: 12px; }
+
+  /* ---- view tabs ---- */
+  .viewtabs { display: inline-flex; gap: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 3px; margin-bottom: 18px; }
+  .vtab { padding: 6px 16px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; user-select: none; transition: all .15s ease; }
+  .vtab:hover { color: var(--text); }
+  .vtab.active { background: var(--accent-soft); color: #cfe0ff; }
+
+  /* ---- corpus inspector ---- */
+  .corpus-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; flex: 1; min-width: 120px; }
+  .stat b { display: block; font-size: 21px; font-weight: 650; letter-spacing: -0.5px; }
+  .stat span { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .stat.hint-target b { font-size: 15px; color: var(--muted); font-weight: 500; margin-top: 5px; }
+
+  .corpus-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .corpus-tools input { flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 9px; padding: 9px 13px; font-size: 13.5px; outline: none; font-family: var(--sans); }
+  .corpus-tools input:focus { border-color: var(--accent); }
+  .corpus-tools select { background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 9px; padding: 9px 11px; font-size: 13px; outline: none; }
+
+  .grouphdr { font-size: 11.5px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted-2); font-weight: 600; margin: 18px 2px 8px; }
+
+  .doc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+  .doc-head { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; transition: background .12s ease; }
+  .doc-head:hover { background: var(--panel-2); }
+  .doc-caret { color: var(--muted-2); transition: transform .15s ease; flex-shrink: 0; font-size: 11px; }
+  .doc.open .doc-caret { transform: rotate(90deg); }
+  .doc-name { font-size: 13.5px; font-weight: 500; word-break: break-all; flex: 1; min-width: 0; }
+  .doc-name .path { color: var(--muted-2); }
+  .doc-badges { display: flex; align-items: center; gap: 12px; flex-shrink: 0; font-size: 12px; color: var(--muted); }
+  .doc-badges .chunks-n { color: var(--text); font-weight: 600; }
+  .doc-badges .sz-bar { width: 66px; height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; position: relative; }
+  .doc-badges .sz-bar i { display: block; height: 100%; }
+  .zbadge { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .zbadge.disclosure { color: var(--amber); border-color: rgba(210,153,34,.4); }
+
+  .doc-body { border-top: 1px solid var(--border-soft); padding: 6px 10px 10px; display: none; background: var(--bg); }
+  .doc.open .doc-body { display: block; }
+  .chunk-loading { color: var(--muted); font-size: 12.5px; padding: 14px; }
+
+  .chunk { border: 1px solid var(--border-soft); border-left: 3px solid var(--border); border-radius: 8px; padding: 10px 13px; margin: 8px 4px; background: var(--panel); }
+  .chunk.runt { border-left-color: var(--amber); }
+  .chunk.oversized { border-left-color: var(--red); }
+  .chunk-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .chunk-idx { font-family: var(--mono); font-size: 11px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 7px; color: var(--muted); }
+  .chunk-size { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+  .chunk-size .flag { color: var(--amber); }
+  .chunk-size .flag.big { color: var(--red); }
+  .chunk-loc { font-size: 11px; color: var(--muted-2); margin-left: auto; text-align: right; }
+  .chunk-heading { font-size: 11px; color: #93b4ee; font-family: var(--mono); margin-bottom: 6px; word-break: break-all; }
+  .chunk-text { font-size: 12.5px; color: var(--muted); line-height: 1.55; white-space: pre-wrap; max-height: 4.6em; overflow: hidden; }
+  .chunk-text.open { max-height: none; }
+  .chunk-toggle { font-size: 11px; color: var(--accent); cursor: pointer; margin-top: 5px; display: inline-block; }
+  .legend { font-size: 11.5px; color: var(--muted-2); margin: 4px 2px 14px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
   .error { background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.4); color: #ffb4ae; border-radius: 10px; padding: 14px 16px; font-size: 13.5px; }
   .error code { font-family: var(--mono); font-size: 12px; }
+
+  /* ---- transcript checker ---- */
+  .tc-speaker { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+  .tc-speaker input { width: 96px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 5px 9px; font-size: 12.5px; outline: none; font-family: var(--sans); }
+  .tc-speaker input:focus { border-color: var(--accent); }
+  .tc-summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .tc-stat { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; flex: 1; min-width: 108px; }
+  .tc-stat b { display: block; font-size: 21px; font-weight: 650; letter-spacing: -0.5px; }
+  .tc-stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .tc-stat.sup b { color: var(--green); }
+  .tc-stat.con b { color: var(--red); }
+  .tc-stat.na b { color: var(--amber); }
+  .tc-warn { background: rgba(210,153,34,.12); border: 1px solid rgba(210,153,34,.4); color: var(--amber); border-radius: 10px; padding: 10px 14px; font-size: 12.5px; margin-bottom: 14px; }
+
+  .stmt { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 12px 15px; margin-bottom: 10px; }
+  .stmt.s-SUPPORTED { border-left-color: var(--green); }
+  .stmt.s-CONTRADICTED { border-left-color: var(--red); }
+  .stmt.s-NOT { border-left-color: var(--amber); }
+  .stmt.s-UNKNOWN { border-left-color: var(--slate); }
+  .stmt-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .vpill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 6px; letter-spacing: .3px; }
+  .vpill.v-SUPPORTED { background: rgba(63,185,80,.15); color: var(--green); }
+  .vpill.v-CONTRADICTED { background: rgba(248,81,73,.15); color: var(--red); }
+  .vpill.v-NOT { background: rgba(210,153,34,.15); color: var(--amber); }
+  .vpill.v-UNKNOWN { background: rgba(125,133,144,.15); color: var(--slate); }
+  .stmt-speaker { font-size: 11.5px; color: #cfe0ff; font-family: var(--mono); }
+  .stmt-idx { font-family: var(--mono); font-size: 11px; color: var(--muted-2); margin-left: auto; }
+  .stmt-text { font-size: 14.5px; line-height: 1.5; margin-bottom: 8px; }
+  .stmt-detail { border-top: 1px solid var(--border-soft); margin-top: 8px; padding-top: 4px; display: none; }
+  .stmt.open .stmt-detail { display: block; }
+  .stmt-toggle { font-size: 11.5px; color: var(--accent); cursor: pointer; display: inline-block; }
 </style>
 </head>
 <body>
@@ -161,6 +246,13 @@
     <div class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">checking…</span></div>
   </header>
 
+  <div class="viewtabs" id="viewtabs">
+    <div class="vtab active" data-view="query">Query</div>
+    <div class="vtab" data-view="transcript">Transcript</div>
+    <div class="vtab" data-view="corpus">Corpus</div>
+  </div>
+
+  <div id="queryView">
   <div class="modes" id="modes">
     <div class="mode active" data-mode="answer">Ask<small>grounded answer + sources</small></div>
     <div class="mode" data-mode="search">Search<small>raw retrieved chunks</small></div>
@@ -192,6 +284,48 @@
       <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <div>Ask a question to get a grounded answer with citations.</div>
     </div>
+  </div>
+  </div><!-- /queryView -->
+
+  <div id="transcriptView" hidden>
+    <div class="composer">
+      <textarea id="tcText" style="min-height:150px;" placeholder="Paste a call transcript, one turn per line…&#10;Agent: FlexLife has full downside protection, you can never lose money.&#10;Customer: So my account value never drops?&#10;Agent: Correct, and there's a guaranteed 8% return every year."></textarea>
+      <div class="composer-bar">
+        <label class="tc-speaker">only speaker
+          <input type="text" id="tcSpeaker" placeholder="all" />
+        </label>
+        <label class="limit">sources
+          <input type="range" id="tcLimit" min="1" max="20" value="6" />
+          <b id="tcLimitVal">6</b>
+        </label>
+        <button class="ask" id="tcRun">Check transcript</button>
+      </div>
+    </div>
+    <p class="hint">Each line is verified against the corpus. Set <b>only speaker</b> (e.g. <code>Agent</code>) to check just that person's statements. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to run · up to 50 statements per run.</p>
+
+    <div id="tcOut">
+      <div class="empty">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <div>Paste a transcript to verify each statement against the knowledge base.</div>
+      </div>
+    </div>
+  </div><!-- /transcriptView -->
+
+  <div id="corpusView" hidden>
+    <div class="corpus-stats" id="corpusStats"></div>
+    <div class="corpus-tools">
+      <input type="text" id="docFilter" placeholder="Filter documents by name…" />
+      <select id="groupBy">
+        <option value="prefix">Group by folder</option>
+        <option value="none">No grouping</option>
+      </select>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>near target size</span>
+      <span><i style="background:var(--amber)"></i>runt (&lt; 40% of target)</span>
+      <span><i style="background:var(--red)"></i>oversized (&gt; 110% of target)</span>
+    </div>
+    <div id="docList"><div class="chunk-loading">Loading corpus…</div></div>
   </div>
 </div>
 
@@ -318,6 +452,240 @@
       h += sourcesHtml(d.sources, dt);
     }
     $("out").innerHTML = h;
+  }
+
+  // ============ Corpus inspector ============
+  let corpusData = null;   // cached { totals, chunk_size, chunk_overlap, documents }
+  let corpusLoaded = false;
+
+  $("viewtabs").addEventListener("click", (e) => {
+    const el = e.target.closest(".vtab"); if (!el) return;
+    [...document.querySelectorAll(".vtab")].forEach(t => t.classList.remove("active"));
+    el.classList.add("active");
+    const view = el.dataset.view;
+    $("queryView").hidden = view !== "query";
+    $("transcriptView").hidden = view !== "transcript";
+    $("corpusView").hidden = view !== "corpus";
+    if (view === "corpus" && !corpusLoaded) loadCorpus();
+  });
+
+  // ============ Transcript checker ============
+  $("tcLimit").addEventListener("input", () => $("tcLimitVal").textContent = $("tcLimit").value);
+  $("tcRun").addEventListener("click", runTranscript);
+  $("tcText").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) runTranscript(); });
+
+  async function runTranscript() {
+    const transcript = $("tcText").value.trim();
+    if (!transcript) return;
+    const btn = $("tcRun");
+    const body = { transcript, limit: parseInt($("tcLimit").value, 10) };
+    const sp = $("tcSpeaker").value.trim();
+    if (sp) body.speaker = sp;
+
+    btn.disabled = true;
+    const saved = btn.textContent;
+    btn.innerHTML = '<span class="spinner"></span> Checking…';
+    $("tcOut").innerHTML = '<div class="card"><div class="answer-label">Checking transcript…</div><div style="color:var(--muted)">Splitting into statements and fact-checking each against the corpus. Long transcripts take a moment — one retrieval per line.</div></div>';
+
+    const t0 = performance.now();
+    try {
+      const r = await fetch(API + "/v1/transcript-check", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+      });
+      const dt = ((performance.now() - t0) / 1000).toFixed(1);
+      if (!r.ok) {
+        let detail = r.status + " " + r.statusText;
+        try { const j = await r.json(); if (j.detail) detail = j.detail; } catch {}
+        throw new Error(detail);
+      }
+      renderTranscript(await r.json(), dt);
+    } catch (err) {
+      const off = /Failed to fetch/i.test(err.message);
+      $("tcOut").innerHTML = '<div class="error"><strong>' + (off ? "Could not reach the API." : "Request failed.") + '</strong><br>' +
+        (off ? "Is the stack running on <code>localhost:8000</code>? Check Docker." : "<code>" + esc(err.message) + "</code>") + '</div>';
+    } finally {
+      btn.disabled = false; btn.textContent = saved;
+    }
+  }
+
+  function vShort(v) { return v === "NOT ADDRESSED" ? "NOT" : v; }
+
+  function srcMini(sources) {
+    if (!sources || !sources.length) return '<div class="sources-head"><h3>Sources</h3><span>none returned</span></div>';
+    let h = '<div class="sources-head"><h3>Sources</h3><span>' + sources.length + ' chunks</span></div>';
+    sources.forEach(s => {
+      const pct = Math.round((s.similarity || 0) * 100);
+      const meta = [s.blob_name, s.page != null ? "page " + s.page : null, s.zone && s.zone !== "body" ? s.zone : null].filter(Boolean).join("  ·  ");
+      h += '<div class="src">' +
+        '<div class="src-top"><span class="src-cite">' + esc(s.citation || s.blob_name) + '</span>' +
+        '<span class="src-sim">' + pct + '% <span class="bar"><i style="width:' + pct + '%"></i></span></span></div>' +
+        '<div class="src-meta">' + esc(meta) + '</div>' +
+        '<div class="src-preview open">' + esc(s.preview || "") + '</div>' +
+        '</div>';
+    });
+    return h;
+  }
+
+  function renderTranscript(d, dt) {
+    const s = d.summary || {}, c = s.counts || {};
+    const pct = Math.round((s.supported_ratio || 0) * 100);
+    let h = '<div class="tc-summary">' +
+      '<div class="tc-stat"><b>' + (s.statements_checked || 0) + '</b><span>checked · ' + dt + 's</span></div>' +
+      '<div class="tc-stat sup"><b>' + (c.SUPPORTED || 0) + '</b><span>supported</span></div>' +
+      '<div class="tc-stat con"><b>' + (c.CONTRADICTED || 0) + '</b><span>contradicted</span></div>' +
+      '<div class="tc-stat na"><b>' + (c["NOT ADDRESSED"] || 0) + '</b><span>not addressed</span></div>' +
+      '<div class="tc-stat"><b>' + pct + '%</b><span>supported</span></div>' +
+      '</div>';
+    if (s.truncated) h += '<div class="tc-warn">Only the first ' + (s.statements_checked || 0) + ' statements were checked — the transcript exceeded the per-run cap.</div>';
+
+    if (!d.statements || !d.statements.length) {
+      const sp = $("tcSpeaker").value.trim();
+      h += '<div class="empty">No checkable statements were found' + (sp ? ' for speaker "' + esc(sp) + '"' : '') + '.</div>';
+      $("tcOut").innerHTML = h; return;
+    }
+
+    d.statements.forEach((st, i) => {
+      const v = st.verdict || "UNKNOWN";
+      const sv = vShort(v);
+      h += '<div class="stmt s-' + sv + '">' +
+        '<div class="stmt-top">' +
+          '<span class="vpill v-' + sv + '">' + esc(v) + '</span>' +
+          (st.speaker ? '<span class="stmt-speaker">' + esc(st.speaker) + '</span>' : '') +
+          '<span class="stmt-idx">#' + ((st.index != null ? st.index : i) + 1) + '</span>' +
+        '</div>' +
+        '<div class="stmt-text">' + esc(st.statement) + '</div>' +
+        '<span class="stmt-toggle" onclick="var s=this.parentNode;s.classList.toggle(\'open\');this.textContent=s.classList.contains(\'open\')?\'Hide detail\':\'Show evidence &amp; sources\'">Show evidence &amp; sources</span>' +
+        '<div class="stmt-detail">' +
+          '<div class="report">' + esc(st.report || "") + '</div>' +
+          srcMini(st.sources) +
+        '</div>' +
+      '</div>';
+    });
+    $("tcOut").innerHTML = h;
+  }
+
+  $("docFilter").addEventListener("input", renderDocList);
+  $("groupBy").addEventListener("change", renderDocList);
+
+  function fmtBytes(n) {
+    if (n == null) return "—";
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n / 1024).toFixed(0) + " KB";
+    return (n / 1048576).toFixed(1) + " MB";
+  }
+  function fmtNum(n) { return (n || 0).toLocaleString(); }
+
+  async function loadCorpus() {
+    try {
+      const r = await fetch(API + "/v1/documents", { cache: "no-store" });
+      if (!r.ok) throw new Error(r.status + " " + r.statusText);
+      corpusData = await r.json();
+      corpusLoaded = true;
+      const t = corpusData.totals;
+      $("corpusStats").innerHTML =
+        '<div class="stat"><b>' + fmtNum(t.documents) + '</b><span>documents</span></div>' +
+        '<div class="stat"><b>' + fmtNum(t.chunks) + '</b><span>chunks</span></div>' +
+        '<div class="stat"><b>' + fmtNum(t.words) + '</b><span>words embedded</span></div>' +
+        '<div class="stat hint-target"><span>chunk target</span><b>' + corpusData.chunk_size + ' chars · ' + corpusData.chunk_overlap + ' overlap</b></div>';
+      renderDocList();
+    } catch (err) {
+      $("docList").innerHTML = '<div class="error">Could not load corpus: <code>' + esc(err.message) + '</code></div>';
+    }
+  }
+
+  function sizeBar(doc, target) {
+    // avg chars relative to target; color by health
+    const ratio = target ? doc.chars_avg / target : 0;
+    const w = Math.min(100, Math.round(ratio * 100));
+    let color = "var(--accent)";
+    if (doc.chars_avg < target * 0.4) color = "var(--amber)";
+    else if (doc.chars_max > target * 1.1) color = "var(--red)";
+    return '<span class="sz-bar" title="avg ' + doc.chars_avg + 'c (min ' + doc.chars_min + ', max ' + doc.chars_max + ')"><i style="width:' + w + '%;background:' + color + '"></i></span>';
+  }
+
+  function renderDocList() {
+    if (!corpusData) return;
+    const q = $("docFilter").value.trim().toLowerCase();
+    const group = $("groupBy").value;
+    const target = corpusData.chunk_size;
+    let docs = corpusData.documents;
+    if (q) docs = docs.filter(d => d.blob_name.toLowerCase().includes(q));
+
+    if (!docs.length) { $("docList").innerHTML = '<div class="empty">No documents match "' + esc(q) + '".</div>'; return; }
+
+    const groups = {};
+    docs.forEach(d => { const k = group === "prefix" ? (d.prefix || "(root)") : "__all"; (groups[k] = groups[k] || []).push(d); });
+
+    let html = "";
+    Object.keys(groups).sort().forEach(k => {
+      if (group === "prefix") {
+        const g = groups[k];
+        const gc = g.reduce((s, d) => s + d.chunk_count, 0);
+        html += '<div class="grouphdr">' + esc(k) + ' · ' + g.length + ' docs · ' + gc + ' chunks</div>';
+      }
+      groups[k].forEach(d => {
+        const name = d.blob_name.includes("/")
+          ? '<span class="path">' + esc(d.blob_name.slice(0, d.blob_name.lastIndexOf("/") + 1)) + '</span>' + esc(d.blob_name.slice(d.blob_name.lastIndexOf("/") + 1))
+          : esc(d.blob_name);
+        const zones = (d.zones || []).map(z => '<span class="zbadge ' + esc(z) + '">' + esc(z) + '</span>').join(" ");
+        html += '<div class="doc" data-id="' + d.id + '">' +
+          '<div class="doc-head" onclick="toggleDoc(this)">' +
+            '<span class="doc-caret">▶</span>' +
+            '<span class="doc-name">' + name + '</span>' +
+            '<span class="doc-badges">' +
+              zones +
+              (d.page_count ? '<span title="distinct pages">' + d.page_count + 'p</span>' : '') +
+              sizeBar(d, target) +
+              '<span><span class="chunks-n">' + d.chunk_count + '</span> chunks</span>' +
+              '<span>' + fmtBytes(d.size_bytes) + '</span>' +
+            '</span>' +
+          '</div>' +
+          '<div class="doc-body" id="body-' + d.id + '"></div>' +
+        '</div>';
+      });
+    });
+    $("docList").innerHTML = html;
+  }
+
+  window.toggleDoc = async function(headEl) {
+    const doc = headEl.closest(".doc");
+    const id = doc.dataset.id;
+    const body = document.getElementById("body-" + id);
+    const wasOpen = doc.classList.contains("open");
+    doc.classList.toggle("open");
+    if (wasOpen || body.dataset.loaded) return;
+    body.innerHTML = '<div class="chunk-loading">Loading chunks…</div>';
+    try {
+      const r = await fetch(API + "/v1/documents/" + id + "/chunks", { cache: "no-store" });
+      if (!r.ok) throw new Error(r.status + " " + r.statusText);
+      const d = await r.json();
+      body.innerHTML = renderChunks(d.chunks);
+      body.dataset.loaded = "1";
+    } catch (err) {
+      body.innerHTML = '<div class="error">Could not load chunks: <code>' + esc(err.message) + '</code></div>';
+    }
+  };
+
+  function renderChunks(chunks) {
+    const target = corpusData.chunk_size;
+    const runt = target * 0.4, big = target * 1.1;
+    return chunks.map(c => {
+      const isRunt = c.chars < runt, isBig = c.chars > big;
+      const cls = isRunt ? " runt" : (isBig ? " oversized" : "");
+      const flag = isRunt ? '<span class="flag"> ⚠ small</span>' : (isBig ? '<span class="flag big"> ⚠ large</span>' : '');
+      const loc = [c.page != null ? "p." + c.page : null, c.zone && c.zone !== "body" ? c.zone : null].filter(Boolean).join(" · ");
+      const long = (c.content || "").length > 260;
+      return '<div class="chunk' + cls + '">' +
+        '<div class="chunk-top">' +
+          '<span class="chunk-idx">#' + c.chunk_index + '</span>' +
+          '<span class="chunk-size">' + c.chars + ' chars · ' + (c.words != null ? c.words + ' words' : '') + flag + '</span>' +
+          (loc ? '<span class="chunk-loc">' + esc(loc) + '</span>' : '') +
+        '</div>' +
+        (c.heading_path ? '<div class="chunk-heading">' + esc(c.heading_path) + '</div>' : '') +
+        '<div class="chunk-text' + (long ? '' : ' open') + '">' + esc(c.content) + '</div>' +
+        (long ? '<span class="chunk-toggle" onclick="var e=this.previousElementSibling;e.classList.toggle(\'open\');this.textContent=e.classList.contains(\'open\')?\'Show less\':\'Show full chunk\'">Show full chunk</span>' : '') +
+      '</div>';
+    }).join("");
   }
 </script>
 </body>

@@ -24,7 +24,14 @@ if _VENDOR_WAS_ON_PATH:
 from .config import load_settings
 from .db import init_db
 from .embeddings import get_openai_client
-from .service import answer, fact_check, search
+from .service import (
+    answer,
+    check_transcript,
+    corpus,
+    document_chunks,
+    fact_check,
+    search,
+)
 
 
 class SearchRequest(BaseModel):
@@ -40,6 +47,16 @@ class AnswerRequest(BaseModel):
 class FactCheckRequest(BaseModel):
     claim: str = Field(..., min_length=1)
     limit: int = Field(default=8, ge=1, le=20)
+
+
+class TranscriptCheckRequest(BaseModel):
+    transcript: str = Field(..., min_length=1)
+    limit: int = Field(default=8, ge=1, le=20)
+    speaker: str | None = Field(
+        default=None,
+        description="If set, only check statements attributed to this speaker label (e.g. 'Agent').",
+    )
+    max_statements: int = Field(default=50, ge=1, le=200)
 
 
 class Source(BaseModel):
@@ -63,6 +80,80 @@ class AnswerResponse(SearchResponse):
 class FactCheckResponse(SearchResponse):
     verdict: Literal["SUPPORTED", "CONTRADICTED", "NOT ADDRESSED", "UNKNOWN"]
     report: str
+
+
+class TranscriptStatementResult(BaseModel):
+    index: int
+    speaker: str | None = None
+    statement: str
+    verdict: Literal["SUPPORTED", "CONTRADICTED", "NOT ADDRESSED", "UNKNOWN"]
+    report: str
+    sources: list[Source]
+
+
+class TranscriptCheckSummary(BaseModel):
+    statements_checked: int
+    counts: dict[str, int]
+    supported_ratio: float
+    flagged: list[int]
+    truncated: bool
+
+
+class TranscriptCheckResponse(BaseModel):
+    summary: TranscriptCheckSummary
+    statements: list[TranscriptStatementResult]
+
+
+class DocumentSummary(BaseModel):
+    id: int
+    blob_name: str
+    prefix: str
+    size_bytes: int | None
+    chunk_count: int
+    words_total: int
+    chars_avg: int
+    chars_min: int
+    chars_max: int
+    page_count: int
+    zones: list[str]
+    updated_at: str | None
+
+
+class CorpusTotals(BaseModel):
+    documents: int
+    chunks: int
+    words: int
+
+
+class CorpusResponse(BaseModel):
+    totals: CorpusTotals
+    chunk_size: int
+    chunk_overlap: int
+    documents: list[DocumentSummary]
+
+
+class ChunkDetail(BaseModel):
+    chunk_index: int
+    chars: int
+    words: int | None
+    page: Any | None = None
+    zone: str
+    heading_path: str
+    content: str
+
+
+class DocumentHeader(BaseModel):
+    id: int
+    blob_name: str
+    prefix: str
+    size_bytes: int | None
+    chunk_count: int
+    updated_at: str | None
+
+
+class DocumentChunksResponse(BaseModel):
+    document: DocumentHeader
+    chunks: list[ChunkDetail]
 
 
 @asynccontextmanager
@@ -175,6 +266,40 @@ def fact_check_endpoint(payload: FactCheckRequest, request: Request) -> dict[str
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+
+
+@app.post("/v1/transcript-check", response_model=TranscriptCheckResponse)
+def transcript_check_endpoint(payload: TranscriptCheckRequest, request: Request) -> dict[str, Any]:
+    try:
+        return check_transcript(
+            settings=request.app.state.settings,
+            client=request.app.state.openai_client,
+            transcript=payload.transcript,
+            limit=payload.limit,
+            speaker=payload.speaker,
+            max_statements=payload.max_statements,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+
+
+@app.get("/v1/documents", response_model=CorpusResponse)
+def documents_endpoint(request: Request) -> dict[str, Any]:
+    try:
+        return corpus(settings=request.app.state.settings)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+
+
+@app.get("/v1/documents/{document_id}/chunks", response_model=DocumentChunksResponse)
+def document_chunks_endpoint(document_id: int, request: Request) -> dict[str, Any]:
+    try:
+        result = document_chunks(settings=request.app.state.settings, document_id=document_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No document with id {document_id}")
+    return result
 
 
 def main() -> None:
