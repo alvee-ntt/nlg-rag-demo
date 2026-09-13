@@ -10,6 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
 
 COPY src ./src
+COPY ui ./ui
 
 EXPOSE 8000
 

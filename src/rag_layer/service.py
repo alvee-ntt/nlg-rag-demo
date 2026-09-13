@@ -14,6 +14,7 @@ from .db import (
 from .embeddings import (
     AzureOpenAIClient,
     answer_with_context,
+    chat_with_context,
     embed_texts,
     factcheck_claim,
     parse_verdict,
@@ -70,6 +71,26 @@ def answer(
         "answer": answer_with_context(client, settings, question, contexts),
         "sources": format_sources(contexts),
     }
+
+
+def chat(
+    *,
+    settings: Settings,
+    client: AzureOpenAIClient,
+    message: str,
+    history: list[dict[str, Any]],
+    limit: int,
+) -> dict[str, Any]:
+    """Chat-sized grounded reply for the in-app Ask Navigator sheet.
+
+    Retrieval uses the latest message plus the previous agent message so short
+    follow-ups like "and the floor?" still land on the right chunks.
+    """
+    prior_user = [t["text"] for t in history if t.get("role") == "user" and t.get("text")]
+    query = f"{prior_user[-1]}\n{message}" if prior_user else message
+    contexts = retrieve_contexts(settings=settings, client=client, text=query, limit=limit)
+    reply = chat_with_context(client, settings, message, history, contexts)
+    return {**reply, "sources": format_sources(contexts)}
 
 
 def _prefix(blob_name: str) -> str:

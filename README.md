@@ -152,6 +152,127 @@ Invoke-RestMethod -Method Post `
   -Body '{"question":"What is the FlexLife email template about?","limit":8}'
 ```
 
+## salesDJ app
+
+One phone-width training app for new agents, served by the API at
+`http://localhost:8000/learn` (a single static page, `ui/learn.html`), with three tabs:
+
+- **Learn**: generated articles, flashcard decks, and audio episodes (below).
+- **Prepare**: spoken roleplay calls against an AI prospect, with a live coach and an
+  end-of-call report (see *Prepare* further down).
+- **Coach**: the original RAG console (`ui/index.html`) for search, answers, and fact-checks.
+
+The whole app, the API, and the interactive docs sit behind one shared demo sign-in
+(`LOGIN_USERNAME` / `LOGIN_PASSWORD`, default `user` / `flexlife`; set
+`COOKIE_SECURE=true` behind TLS). It is a gate, not an identity system: it exists
+because `/v1/speech/token` mints Azure Speech tokens against a real key. `/health`, the
+static files, and the sign-in endpoints are open; everything under `/v1` returns 401
+without the cookie. A server restart signs everyone out.
+
+### Learn
+
+A **mix** is one topic rendered in one of three formats, all grounded in the indexed documents:
+
+| Kind | Short | Long | What you get |
+| --- | --- | --- | --- |
+| `article` | 5 min read | 10 min read | Sectioned lesson, key takeaways, "say it like this" talk track, watch-outs, sources. **Listen** narrates it with Ava's voice on demand |
+| `flashcards` | 10 cards | 20 cards | Flip deck with self-grading, missed-card review, source refs |
+| `audio` | 5 min | 10 min | Two-host coaching episode (Ava & Andrew) rendered to MP3 by Azure Speech, with transcript |
+
+Two ways a mix gets its sources:
+
+- **Curriculum mixes** (`src/rag_layer/curriculum.py`) are the 21-lesson starter pack in
+  three tiers (day-one essentials, deeper plain-English product mechanics, selling).
+  Each lesson pins the exact document pages it is written from and carries a coverage
+  brief listing the facts it must land. Tier 1 is what the Learn home recommends.
+  The pack is written for the non-New-York FlexLife; NY material is excluded.
+- **Custom mixes** (the Create screen) expand the agent's prompt into three retrieval
+  queries and pull the best-matching chunks from pgvector.
+
+Either way the chat model returns a structured JSON result constrained to the
+excerpts. Generation runs on a small worker pool; rows in `learn_mixes` move
+`queued -> generating -> ready | failed`.
+
+Endpoints:
+
+- `GET  /v1/learn/status` — speech configured?, length specs, recommended prompts
+- `GET  /v1/learn/curriculum` — the tiered lesson outline
+- `GET  /v1/learn/mixes` / `GET /v1/learn/mixes/{id}` / `DELETE /v1/learn/mixes/{id}`
+- `POST /v1/learn/mixes` `{"kind":"audio|article|flashcards","prompt":"...","length":"short|long"}`
+- `POST /v1/learn/seed` — queue every curriculum lesson not yet in the library
+- `POST /v1/learn/mixes/{id}/retry`
+- `GET  /v1/learn/mixes/{id}/audio` — the MP3
+- `POST /v1/learn/mixes/{id}/render-audio` and `POST /v1/learn/audio/render-pending` —
+  synthesize audio for episodes whose script exists but has no MP3 yet. `render-audio`
+  also narrates an article (single voice, one request per section, offsets stored so the
+  reader can highlight the section being read); articles are only narrated when someone
+  taps **Listen**, never at creation, so speech minutes are spent on what gets played
+
+Audio needs `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION` in `.env` (voices are
+overridable with `AZURE_SPEECH_VOICE_AVA` / `AZURE_SPEECH_VOICE_ANDREW`). If Speech is
+provided by an Azure AI Services / Foundry resource rather than a standalone Speech
+resource, its key only works on the resource's own domain: set
+`AZURE_SPEECH_ENDPOINT=https://<name>.cognitiveservices.azure.com` and use that
+resource's key (this project's Foundry resource shares the Azure OpenAI key). Without a
+valid key the episode is still written and shown as a transcript; once the key is in
+place, call `render-pending` (or tap **Render audio now** on an episode) to fill in
+the MP3s without regenerating scripts.
+
+Unit tests for the pipeline helpers: `PYTHONPATH=.vendor python -m pytest tests/test_learn.py`.
+
+### Prepare (roleplay calls)
+
+The agent picks a prospect (three built-in personas under
+`src/rag_layer/roleplay_data/personas/`: Fred, Oliver and Zac, ported from the
+`nlg-roleplay` chat app; or one they describe themselves), and talks. The built-in
+three pick up **mid-conversation**: the
+fact-find is already done, so there is no greeting and the prospect expects the agent to
+use what they already know. Fred and Oliver are `presentation` mode (the agent has just
+turned to how FlexLife applies and the prospect reacts from a known background plus a
+hidden state). Zac is `discovery` mode (the agent turns to what happens if he ever
+needed care, and he reveals his situation one layer at a time, only when a question or
+real empathy earns it). Custom prospects keep the original `callback` scene (a lead-form
+callback with an objection ladder), and the earlier ten callback personas are kept under
+`personas/archive/` and are not loaded. Speech runs in the browser with the Azure
+Speech SDK on a short-lived token from `/v1/speech/token`; the server only exchanges
+text. A call that cannot use the microphone (no key, permission refused, SDK blocked)
+still works as a typed conversation.
+
+- The prospect is played by the chat model from its persona JSON plus the persona
+  playbook; only the reply is on the spoken path (about two seconds per turn).
+- Each turn, coaching and a fact-check of the agent's claim run in the background via
+  the same retrieval used by `/v1/fact-check`, and feed the end-of-call report.
+- **Ask Navigator** answers the agent's questions mid-call from the sales playbook and
+  the source documents.
+- When the prospect's time is up they leave the call with a reason; the call ends with
+  one of the playbook's four outcomes (applied, second appointment, soft no, hard no).
+- Finishing a call generates the coaching report (did well / improve / don't repeat)
+  and stores the call in `roleplay_sessions`, which powers **Recent calls**, the
+  streak, and the minutes total. Custom prospects persist in `roleplay_personas`.
+- Voice profiles (`roleplay_data/voice_profiles.json`) map gender x age band to a
+  DragonHD voice with prosody; a persona pins one or gets one selected.
+
+Endpoints (all need the sign-in cookie):
+
+- `POST /v1/auth/login` `{"username","password"}` / `POST /v1/auth/logout` / `GET /v1/auth/me`
+- `GET  /v1/roleplay/status`, `GET /v1/roleplay/scenarios`, `GET /v1/roleplay/scenarios/{id}` (inspect a persona)
+- `POST /v1/roleplay/scenarios/custom` `{"notes":"..."}` / `DELETE /v1/roleplay/scenarios/{id}`
+- `POST /v1/roleplay/sessions` `{"persona_id"}` then
+  `POST /v1/roleplay/sessions/{sid}/turn` `{"agent_text"}`,
+  `.../ask` `{"question"}`, `.../feedback`, `.../metrics` (browser STT/TTS timings)
+- `GET  /v1/roleplay/history`, `GET /v1/roleplay/history/{id}`, `DELETE /v1/roleplay/history/{id}`
+- `POST /v1/speech/token` `{"profile_id"}`, `GET /v1/speech/profiles`
+
+Settings: `AZURE_OPENAI_REPLY_REASONING_EFFORT` (default `minimal`, the spoken reply
+only), `RAG_SEARCH_LIMIT` (default 8), `MODEL_WARM_INTERVAL_SECONDS` (default 240; `0`
+disables the keep-warm ping). Latency for every phase prints as `[lat]` lines on stdout.
+
+Tests, including the persona/voice preflight (every persona resolves to a voice matching
+its gender and age band): `PYTHONPATH=.vendor python -m pytest tests/test_roleplay.py`.
+
+The standalone `voice_demo/` folder is the previous version of this feature and is no
+longer wired to anything; it can be deleted once the Prepare tab has been signed off.
+
 ## Local Container
 
 Build and run the whole stack (Postgres + API) with Docker Compose — the same single command on Windows and Mac:

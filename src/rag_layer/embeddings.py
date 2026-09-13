@@ -127,6 +127,75 @@ Question: {question}
     return _generate(client, settings, prompt)
 
 
+def _parse_json_object(text: str) -> dict:
+    """Tolerant JSON-object parse: strips code fences and trailing prose; raises on garbage."""
+    import json
+    import re
+
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.IGNORECASE | re.MULTILINE)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start >= 0 and end > start:
+            return json.loads(cleaned[start : end + 1])
+        raise
+
+
+def _history_text(history: list[dict]) -> str:
+    lines = []
+    for turn in history:
+        who = "Agent" if turn.get("role") == "user" else "Navigator"
+        text = str(turn.get("text", "")).strip()
+        if text:
+            lines.append(f"{who}: {text}")
+    return "\n".join(lines) or "(this is the first message)"
+
+
+def chat_with_context(
+    client: AzureOpenAIClient,
+    settings: Settings,
+    message: str,
+    history: list[dict],
+    contexts: list[dict],
+) -> dict:
+    """Conversational, chat-sized reply grounded in the retrieved chunks.
+
+    Returns {"answer": str, "follow_ups": [str, ...]}. Unlike answer_with_context this is
+    tuned for a phone chat bubble: short plain prose, no bullets or markdown, and it
+    remembers the running conversation so follow-up questions make sense.
+    """
+    prompt = f"""You are Navigator, a friendly sales coach chatting with a life-insurance agent on their phone.
+
+How to reply:
+- Answer the agent's latest message directly in 1-3 short sentences of plain prose, like a text message. No bullet points, no headings, no markdown, no numbered lists.
+- Use only the source context below for product facts and approved wording. If the sources do not cover it, say so in one sentence and give safe general guidance without inventing product details. Never promise guarantees or returns.
+- If the agent asked something broad, give the single most useful point and offer to go deeper rather than listing everything.
+- Keep the conversation going: the reply should read naturally after the earlier messages.
+
+Then suggest up to two short follow-up questions the agent might tap next (each under 6 words, phrased as the agent would ask them, e.g. "What do I ask next?").
+
+Return ONLY a JSON object: {{"answer": "...", "follow_ups": ["...", "..."]}}
+
+Conversation so far:
+{_history_text(history)}
+
+Agent's latest message:
+{message}
+
+Source context:
+{_context_text(contexts) or "(no sources retrieved)"}
+"""
+    raw = _generate(client, settings, prompt)
+    try:
+        data = _parse_json_object(raw)
+        answer = str(data.get("answer", "")).strip()
+        follow_ups = [str(x).strip() for x in data.get("follow_ups", []) if str(x).strip()][:2]
+    except Exception:  # noqa: BLE001 - a malformed JSON reply still has a usable answer in it
+        answer, follow_ups = raw.strip(), []
+    return {"answer": answer or "I couldn't find that in the sources.", "follow_ups": follow_ups}
+
+
 def factcheck_claim(client: AzureOpenAIClient, settings: Settings, claim: str, contexts: list[dict]) -> str:
     prompt = f"""You are verifying a claim against the source documents below. Using ONLY the context, decide whether the claim is SUPPORTED, CONTRADICTED, or NOT ADDRESSED. Do not use outside knowledge; if the context does not settle the claim, answer NOT ADDRESSED.
 

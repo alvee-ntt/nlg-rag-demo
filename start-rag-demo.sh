@@ -22,6 +22,8 @@ copy_rag_runtime() {
   cp -f "$PROJECT_ROOT/sitecustomize.py" "$RUNTIME_ROOT/sitecustomize.py"
   rm -rf "$RUNTIME_ROOT/src"
   cp -R "$PROJECT_ROOT/src" "$RUNTIME_ROOT/src"
+  rm -rf "$RUNTIME_ROOT/ui"
+  cp -R "$PROJECT_ROOT/ui" "$RUNTIME_ROOT/ui"
 }
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -66,6 +68,7 @@ docker compose --project-name rag-demo up --build -d
 
 health_url="http://localhost:8000/health"
 docs_url="http://localhost:8000/docs"
+learn_url="http://localhost:8000/learn"
 ready=0
 
 for _ in $(seq 1 30); do
@@ -89,10 +92,15 @@ echo "RAG API is running:"
 echo "  $health_url"
 echo "  $docs_url"
 echo ""
+echo "salesDJ app (Learn, Prepare roleplay calls, Coach console; sign in with LOGIN_USERNAME / LOGIN_PASSWORD, default user / flexlife):"
+echo "  $learn_url"
+echo ""
 echo "Endpoints:"
 echo "  POST http://localhost:8000/v1/search"
 echo "  POST http://localhost:8000/v1/answer"
 echo "  POST http://localhost:8000/v1/fact-check"
+echo "  POST http://localhost:8000/v1/learn/mixes"
+echo "  POST http://localhost:8000/v1/roleplay/sessions"
 
 # The schema is created automatically on API startup; check whether any documents exist.
 doc_count="$(docker compose --project-name rag-demo exec -T rag-api python -B -m src.rag_layer.db count 2>/dev/null | tail -n 1 | tr -d '[:space:]' || true)"
@@ -115,7 +123,7 @@ else
 fi
 
 if command -v open >/dev/null 2>&1; then
-  open "$docs_url"
+  open "$learn_url"
 fi
 
 echo ""

@@ -43,6 +43,19 @@ class Settings:
     batch_size: int
     force_reindex: bool
 
+    # Roleplay (Prepare tab). Only the spoken customer reply is latency-critical, so it
+    # alone gets a low reasoning effort; "" sends no reasoning parameter at all.
+    reply_reasoning_effort: str = "minimal"
+    rag_search_limit: int = 8
+    # How long a generated persona's coaching/fact-check results wait per turn, etc.
+    model_warm_interval_seconds: int = 240
+
+    # Demo sign-in: one shared credential in front of the whole app (Learn, Prepare,
+    # Coach and the API). A gate, not an identity system.
+    login_username: str = "user"
+    login_password: str = "flexlife"
+    cookie_secure: bool = False
+
     @property
     def postgres_dsn(self) -> str:
         return (
@@ -99,6 +112,12 @@ def load_settings() -> Settings:
         chunk_overlap=_int("CHUNK_OVERLAP", 150),
         batch_size=_int("BATCH_SIZE", 50),
         force_reindex=_bool("FORCE_REINDEX", False),
+        reply_reasoning_effort=os.getenv("AZURE_OPENAI_REPLY_REASONING_EFFORT", "minimal").strip(),
+        rag_search_limit=_int("RAG_SEARCH_LIMIT", 8),
+        model_warm_interval_seconds=_int("MODEL_WARM_INTERVAL_SECONDS", 240),
+        login_username=os.getenv("LOGIN_USERNAME", "user"),
+        login_password=os.getenv("LOGIN_PASSWORD", "flexlife"),
+        cookie_secure=_bool("COOKIE_SECURE", False),
     )
 
 

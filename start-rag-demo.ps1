@@ -30,6 +30,12 @@ function Copy-RagRuntime() {
         Remove-Item -LiteralPath $runtimeSrc -Recurse -Force
     }
     Copy-Item -LiteralPath (Join-Path $ProjectRoot 'src') -Destination $runtimeSrc -Recurse -Force
+
+    $runtimeUi = Join-Path $RuntimeRoot 'ui'
+    if (Test-Path -LiteralPath $runtimeUi) {
+        Remove-Item -LiteralPath $runtimeUi -Recurse -Force
+    }
+    Copy-Item -LiteralPath (Join-Path $ProjectRoot 'ui') -Destination $runtimeUi -Recurse -Force
 }
 
 function Test-DockerEngine() {
@@ -100,6 +106,7 @@ if ($composeExit -ne 0) {
 
 $healthUrl = "http://localhost:8000/health"
 $docsUrl = "http://localhost:8000/docs"
+$learnUrl = "http://localhost:8000/learn"
 $ready = $false
 
 for ($i = 1; $i -le 30; $i++) {
@@ -127,10 +134,15 @@ Write-Host "RAG API is running:" -ForegroundColor Green
 Write-Host "  $healthUrl"
 Write-Host "  $docsUrl"
 Write-Host ""
+Write-Host "salesDJ app (Learn, Prepare roleplay calls, Coach console; sign in with LOGIN_USERNAME / LOGIN_PASSWORD, default user / flexlife):" -ForegroundColor Green
+Write-Host "  $learnUrl"
+Write-Host ""
 Write-Host "Endpoints:"
 Write-Host "  POST http://localhost:8000/v1/search"
 Write-Host "  POST http://localhost:8000/v1/answer"
 Write-Host "  POST http://localhost:8000/v1/fact-check"
+Write-Host "  POST http://localhost:8000/v1/learn/mixes"
+Write-Host "  POST http://localhost:8000/v1/roleplay/sessions"
 
 # The schema is created automatically on API startup; check whether any documents exist.
 $docCountPref = $ErrorActionPreference
@@ -167,7 +179,7 @@ try {
 }
 
 if (-not $NoBrowser) {
-    Start-Process $docsUrl
+    Start-Process $learnUrl
 }
 
 Write-Host ""

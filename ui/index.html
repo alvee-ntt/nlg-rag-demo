@@ -330,7 +330,15 @@
 </div>
 
 <script>
-  const API = "http://localhost:8000";
+  // Same origin when served by the API at /app; a fixed port only for opening the file directly.
+  const API = location.pathname.startsWith("/app") ? "" : "http://localhost:8000";
+  // The whole app sits behind one demo sign-in. A 401 means go sign in on the salesDJ page and come back.
+  const _fetch = window.fetch.bind(window);
+  window.fetch = async (url, opts) => {
+    const r = await _fetch(url, { credentials: "same-origin", ...(opts || {}) });
+    if (r.status === 401 && String(url).includes("/v1/")) { location.href = "learn.html#/login?next=" + encodeURIComponent(location.pathname); }
+    return r;
+  };
   const $ = (id) => document.getElementById(id);
   let mode = "answer";
 

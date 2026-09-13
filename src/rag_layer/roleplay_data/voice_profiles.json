@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "_comment": [
+    "Vocalization configurations ('speech patterns') for the AI customer's voice.",
+    "Two options for every Gender x Age Range combination, so a scenario can be given",
+    "a voice that fits its persona and can be A/B compared.",
+    "",
+    "Age ranges are half-open [min, max): age 40 resolves to 'mid', age 55 to 'senior'.",
+    "Azure does not label voices by age, so age fit is a curated judgement - approximated",
+    "by voice timbre plus a light prosody nudge, not a service capability.",
+    "",
+    "ALL voices are DragonHD, the highest-fidelity tier. That means no styles: DragonHD",
+    "advertises none and silently ignores mstts:express-as, so supports_styles is false",
+    "everywhere and validation rejects any profile that sets a style. Character comes from",
+    "the voice and the reply text instead.",
+    "",
+    "earlier -14%/-8% settings on the 55+ profiles fought it and read as droning.",
+    "",
+    "Credentials are env var NAMES, never values, so each profile can point at its own",
+    "key/region/endpoint without secrets entering this file.",
+    "Rate runs +5% to +10%. DragonHD ignores mstts:silence - the punctuation-pause",
+    "controls - so rate is the only lever over pause length, and it scales the pauses",
+    "with the speech. Pitch stays within +/-5%, where the earlier -8% read as droning."
+  ],
+  "age_ranges": [
+    {
+      "id": "young",
+      "label": "0-40",
+      "min_age": 0,
+      "max_age": 40
+    },
+    {
+      "id": "mid",
+      "label": "40-55",
+      "min_age": 40,
+      "max_age": 55
+    },
+    {
+      "id": "senior",
+      "label": "55+",
+      "min_age": 55,
+      "max_age": 200
+    }
+  ],
+  "defaults": {
+    "credentials": {
+      "key_env": "AZURE_SPEECH_KEY",
+      "region_env": "AZURE_SPEECH_REGION",
+      "endpoint_env": "AZURE_SPEECH_ENDPOINT"
+    },
+    "output_format": "Audio24Khz160KBitRateMonoMp3",
+    "_output_format_note": "SDK enum name, applied by getSynthesizer in app.js. The previous value was a REST header string that nothing read, so synthesis fell back to the SDK default of 48 kbit/s - the lowest MP3 tier. 160 kbit/s measured at 3.4x the bytes for the same 4s clip.",
+    "prosody": {
+      "rate": "0%",
+      "pitch": "0%",
+      "volume": "default"
+    },
+    "style": null,
+    "style_degree": null,
+    "role": null
+  },
+  "profiles": [
+    {
+      "id": "female_young_bright",
+      "label": "Bright and quick",
+      "gender": "female",
+      "age_range": "young",
+      "voice_name": "en-US-Ava:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+9%",
+        "pitch": "+2%"
+      },
+      "notes": "Default younger female."
+    },
+    {
+      "id": "female_young_friendly",
+      "label": "Friendly, conversational",
+      "gender": "female",
+      "age_range": "young",
+      "voice_name": "en-US-Jenny:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+9%",
+        "pitch": "+1%"
+      },
+      "notes": "The DragonHD build of the same voice family as the old standard-neural option."
+    },
+    {
+      "id": "female_mid_measured",
+      "label": "Measured and composed",
+      "gender": "female",
+      "age_range": "mid",
+      "voice_name": "en-US-Emma:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+7%",
+        "pitch": "0%"
+      },
+      "notes": "Default 40-55 female. No prosody override at all."
+    },
+    {
+      "id": "female_mid_direct",
+      "label": "Direct, time-pressed",
+      "gender": "female",
+      "age_range": "mid",
+      "voice_name": "en-US-Aria:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+8%",
+        "pitch": "0%"
+      },
+      "notes": "Crisper delivery carries the time-pressed read that a style tag used to."
+    },
+    {
+      "id": "female_senior_warm",
+      "label": "Warm, unhurried",
+      "gender": "female",
+      "age_range": "senior",
+      "voice_name": "en-US-Serena:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+5%",
+        "pitch": "-3%"
+      },
+      "notes": "Default 55+ female. Was -8%/-4%."
+    },
+    {
+      "id": "female_senior_cautious",
+      "label": "Cautious, deliberate",
+      "gender": "female",
+      "age_range": "senior",
+      "voice_name": "en-US-Evelyn:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+5%",
+        "pitch": "-4%"
+      },
+      "notes": "A distinct voice rather than the same one slowed further. Was Jenny at -12%/-6%."
+    },
+    {
+      "id": "male_young_easy",
+      "label": "Easy-going",
+      "gender": "male",
+      "age_range": "young",
+      "voice_name": "en-US-Andrew:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+9%",
+        "pitch": "+2%"
+      },
+      "notes": "Default younger male."
+    },
+    {
+      "id": "male_young_blunt",
+      "label": "Blunt, fast",
+      "gender": "male",
+      "age_range": "young",
+      "voice_name": "en-US-Davis:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+10%",
+        "pitch": "0%"
+      },
+      "notes": "DragonHD build of the previous standard-neural voice. Was +8%."
+    },
+    {
+      "id": "male_mid_steady",
+      "label": "Steady, plain-spoken",
+      "gender": "male",
+      "age_range": "mid",
+      "voice_name": "en-US-Brian:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+7%",
+        "pitch": "-2%"
+      },
+      "notes": "Default 40-55 male."
+    },
+    {
+      "id": "male_mid_skeptical",
+      "label": "Sceptical value buyer",
+      "gender": "male",
+      "age_range": "mid",
+      "voice_name": "en-US-Adam:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+8%",
+        "pitch": "-3%"
+      },
+      "notes": "Guarded read from the voice itself; the mild unfriendly style is gone."
+    },
+    {
+      "id": "male_senior_considered",
+      "label": "Considered, unhurried",
+      "gender": "male",
+      "age_range": "senior",
+      "voice_name": "en-US-Steffan:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+5%",
+        "pitch": "-4%"
+      },
+      "notes": "Default 55+ male. Was -10%/-6%."
+    },
+    {
+      "id": "male_senior_wary",
+      "label": "Wary, slow to commit",
+      "gender": "male",
+      "age_range": "senior",
+      "voice_name": "en-US-Vance:DragonHDLatestNeural",
+      "supports_styles": false,
+      "prosody": {
+        "rate": "+5%",
+        "pitch": "-5%"
+      },
+      "notes": "A distinct voice instead of Guy at -14%/-8%, which was the most overdriven setting."
+    }
+  ]
+}
