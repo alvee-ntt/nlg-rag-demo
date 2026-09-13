@@ -481,6 +481,12 @@ def learn_redirect() -> RedirectResponse:
     return RedirectResponse(url="/app/learn.html")
 
 
+@app.get("/coach", include_in_schema=False)
+def coach_redirect() -> RedirectResponse:
+    """Public Coach entry point; the RAG console remains its implementation for now."""
+    return RedirectResponse(url="/app/index.html")
+
+
 @app.get("/v1/learn/status", response_model=LearnStatusResponse)
 def learn_status(request: Request) -> dict[str, Any]:
     return {
