@@ -263,12 +263,12 @@
   .face.back { transform: rotateY(180deg); background: var(--g050); }
   .face.back::before { background: var(--orange); }
   .face .eyebrow { font-size: 10.5px; letter-spacing: 1.4px; font-weight: 700; color: var(--muted); display: flex; justify-content: space-between; }
-  .face .mid { flex: 1; min-height: 0; display: flex; overflow: auto; padding: 8px 0; }
+  .face .mid { flex: 1; min-height: 0; display: flex; overflow: auto; padding: 8px 0 34px; }
   .face .mid > * { margin: auto; }  /* centered when short, scrolls from the top when long */
   .face .q { font-family: var(--serif); font-size: 19px; line-height: 1.35; font-weight: 600; text-align: center; }
   .face .a { font-size: 14.5px; line-height: 1.55; text-align: center; color: #23302a; }
-  /* Keep the flip cue present but out of the reading area. */
-  .face .foot { align-self: flex-end; text-align: right; font-size: 11.5px; color: var(--muted); display: flex; justify-content: flex-end; align-items: center; gap: 5px; padding-top: 8px; opacity: .72; }
+  /* Anchor the flip cue to the card, rather than letting the shared sticky footer style place it beside content. */
+  .face .foot { position: absolute; right: 22px; bottom: 20px; text-align: right; font-size: 11.5px; color: var(--muted); display: flex; justify-content: flex-end; align-items: center; gap: 5px; padding: 0; background: none; opacity: .72; }
   .face .foot svg { width: 12px; height: 12px; }
   .face .srcref { color: var(--g700); }
   .srcrow { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
