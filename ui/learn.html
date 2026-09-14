@@ -307,10 +307,12 @@
   .missed .row-item { cursor: default; }
 
   /* Bottom nav */
-  .tabbar { position: sticky; bottom: 0; z-index: 3; background: rgba(255,253,248,.92); backdrop-filter: blur(10px); border-top: 1px solid var(--line); display: flex; justify-content: space-around; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); }
-  .tab { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); text-decoration: none; padding: 4px 14px; border-radius: 12px; cursor: pointer; background: none; border: 0; font-family: inherit; }
+  .tabbar { position: sticky; bottom: 0; z-index: 3; background: rgba(255,253,248,.92); backdrop-filter: blur(10px); border-top: 1px solid var(--line); display: flex; align-items: stretch; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); }
+  /* Each destination owns the same slot. Selecting one may change its color, but
+     never its width or height, so the rest of the navigation stays put. */
+  .tab { flex: 1 1 0; min-width: 0; min-height: 48px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 600; color: var(--muted); text-decoration: none; padding: 4px; border-radius: 12px; cursor: pointer; background: none; border: 0; font-family: inherit; }
   .tab svg { width: 20px; height: 20px; }
-  .tab.on { color: var(--g800); background: var(--g050); font-weight: 600; }
+  .tab.on { color: var(--g800); background: var(--g050); }
 
   .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 9px 14px; border-radius: 999px; font-size: 12.5px; z-index: 9; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
@@ -809,7 +811,9 @@
       if (!home) return;
       if (!curriculum) { try { curriculum = (await api("/v1/learn/curriculum")).tiers; } catch { curriculum = []; } }
       const busy = mixes.some((m) => m.status === "queued" || m.status === "generating");
-      const mine = mixes.filter((m) => !m.curriculum_key);
+      // The library count includes starter-path and custom mixes. Previously this
+      // section only rendered custom mixes, which made a populated library look empty.
+      const library = mixes;
       const byKey = Object.fromEntries(mixes.filter((m) => m.curriculum_key).map((m) => [m.curriculum_key, m]));
       // Recommended = the next lessons on the path the agent hasn't opened yet, in path order.
       const viewedNow = store.get("viewed", {});
@@ -863,11 +867,11 @@
         }).join("") + `</div>`;
       }
 
-      html += `<div class="h2">My mixes</div><div class="rows">`;
-      if (!mine.length) html += `<div class="empty">Nothing yet. Create a custom mix to get started.</div>`;
-      html += mine.map((m) => mixRow(m)).join("");
+      html += `<div class="h2">Your library <span class="muted" style="font-family:var(--sans);font-size:11.5px;font-weight:600">${library.length}</span></div><div class="rows">`;
+      if (!library.length) html += `<div class="empty">Nothing yet. Create a custom mix to get started.</div>`;
+      html += library.map((m) => mixRow(m)).join("");
       html += `</div>`;
-      if (mine.length || rec.length) html += `<p class="small muted" style="text-align:center;margin-top:18px">${mixes.length} mix${mixes.length === 1 ? "" : "es"} in your library${status.speech_configured ? "" : " · audio renders as transcript until Azure Speech is configured"}</p>`;
+      if (library.length || rec.length) html += `<p class="small muted" style="text-align:center;margin-top:18px">${library.length} mix${library.length === 1 ? "" : "es"} in your library${status.speech_configured ? "" : " · audio renders as transcript until Azure Speech is configured"}</p>`;
       home.innerHTML = html;
       home.querySelectorAll("[data-go]").forEach((el) => (el.onclick = () => go(el.dataset.go)));
       const seed = $("#seed");
@@ -1034,6 +1038,10 @@
     store.set("lastAudio", m.id);
     const c = m.content || {};
     const hasAudio = m.has_audio;
+    const authFailed = c.audio_status === "failed" && /(?:\b401\b|unauthori[sz]ed)/i.test(c.audio_error || "");
+    const audioError = authFailed
+      ? "Azure Speech rejected the configured credentials. Use a key from the Speech resource and make sure its region or resource endpoint matches."
+      : (c.audio_error || "Azure Speech is not configured.");
     view.innerHTML = backHeader("Audio", `<button class="iconbtn" id="share">${I.share}</button><button class="iconbtn">${I.bookmark}</button>`) + `<main class="fade">
       <div class="now">NOW PLAYING</div>
       <div class="art cover ${coverClass(m.id)}"></div>
@@ -1047,7 +1055,7 @@
         <button class="skip" id="sf" title="Forward 15s">${I.skipf}</button>
         <div class="blob" id="blob"></div>
       </div>
-      ${hasAudio ? "" : `<div class="notice"><b>${c.audio_status === "rendering" ? "Recording with Ava &amp; Andrew…" : "Audio isn't rendered for this episode yet."}</b> ${c.audio_status === "rendering" ? "" : esc(c.audio_error || "Azure Speech is not configured.")} The full script is below, so you can still read along or rehearse it.
+      ${hasAudio ? "" : `<div class="notice"><b>${c.audio_status === "rendering" ? "Recording with Ava &amp; Andrew…" : "Audio isn't rendered for this episode yet."}</b> ${c.audio_status === "rendering" ? "" : esc(audioError)} The full script is below, so you can still read along or rehearse it.
         ${c.audio_status === "rendering" ? `<div style="margin-top:8px"><span class="spin"></span></div>` : `<button class="btn ghost" id="renderAudio" style="margin-top:10px;padding:9px">Render audio now</button>`}</div>`}
       <div class="transcript"><button class="toggle ${hasAudio ? "" : "open"}" id="tt">${I.chev} Transcript</button>
         <div id="turns" ${hasAudio ? "hidden" : ""}>${(c.turns || []).map((t) => `<div class="turn ${(t.speaker || "").toLowerCase().startsWith("andrew") ? "andrew" : ""}"><b>${esc(t.speaker)}</b><span>${esc(t.text)}</span></div>`).join("")}</div>
