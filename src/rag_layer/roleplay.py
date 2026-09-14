@@ -287,6 +287,7 @@ def scenario_card(persona: dict[str, Any]) -> dict[str, Any]:
         "gender": persona.get("gender", ""),
         "occupation": facts.get("occupation", ""),
         "scenario_title": persona.get("scenario_title", ""),
+        "sort_order": persona.get("sort_order", 100),
         "blurb": persona.get("blurb") or persona.get("summary", "")[:160],
         "summary": persona.get("summary", ""),
         "custom": bool(persona.get("custom")),
@@ -1164,7 +1165,7 @@ class Roleplay:
 
     def scenarios(self) -> dict[str, Any]:
         cards = [scenario_card(p) for p in self.personas.values()]
-        cards.sort(key=lambda c: (c["custom"], c["name"]))
+        cards.sort(key=lambda c: (c["custom"], c["sort_order"], c["name"]))
         return {"scenarios": cards}
 
     def inspect_persona(self, persona_id: str) -> dict[str, Any] | None:

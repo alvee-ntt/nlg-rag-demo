@@ -101,7 +101,8 @@
   .lab { display: inline-flex; align-items: center; gap: 5px; background: rgba(255,255,255,.16); border-radius: 6px; padding: 3px 7px; font-size: 10.5px; font-weight: 600; color: #fff; position: relative; z-index: 1; white-space: nowrap; }
   .lab svg { width: 11px; height: 11px; }
   .rec .body { padding: 9px 10px 10px; flex: 1; display: flex; flex-direction: column; }
-  .rec .ttl { font-size: 12.5px; font-weight: 500; line-height: 1.32; min-height: 3.9em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--ink); }
+  .rec .ttl { font-size: 14px; font-weight: 700; line-height: 1.28; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rec .sub { font-size: 11.5px; color: var(--muted); line-height: 1.34; margin-top: 4px; min-height: 2.68em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .rec .meta { margin-top: auto; padding-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--muted); }
   .rec .meta .bar { flex: 1; height: 3px; }
 
@@ -1012,7 +1013,7 @@
   }
   function scenarioCard(c) {
     return `<div class="rec" data-go="/prepare/scenario/${esc(c.persona_id)}"><div class="band"><span class="lab">${I.prepare}Roleplay</span></div>
-      <div class="body"><div class="ttl">${esc(c.name)}${c.age ? `, ${c.age}` : ""}: ${esc(c.blurb || c.scenario_title || "practice call")}</div><div class="meta"><span>Practice call</span></div></div></div>`;
+      <div class="body"><div class="ttl">${esc(c.name)}${c.age ? `, ${c.age}` : ""}</div><div class="sub">${esc(c.scenario_title || "Practice call")}</div><div class="meta"><span>Practice call</span></div></div></div>`;
   }
 
   async function renderHome() {
@@ -1139,10 +1140,15 @@
       if (!curriculum) { try { curriculum = (await api("/v1/learn/curriculum")).tiers; } catch { curriculum = []; } }
       const busy = mixes.some((m) => m.status === "queued" || m.status === "generating");
       const byKey = Object.fromEntries(mixes.filter((m) => m.curriculum_key).map((m) => [m.curriculum_key, m]));
-      // Recommended = the next lessons on the path the agent hasn't opened yet, in path order.
+      // Recommended = keep a beginner inside their current tier. The focus tier is the
+      // lowest tier that still has an unopened lesson; we fill all three slots from that
+      // tier (unopened first, then opened lessons from the same tier for review) and never
+      // leapfrog into a higher tier — so the essentials lead until the tier is worked through.
       const viewedNow = store.get("viewed", {});
-      const inPath = curriculum.flatMap((t) => t.items).map((i) => byKey[i.key]).filter((m) => m && m.status === "ready");
-      const rec = (inPath.filter((m) => !viewedNow[m.id]).concat(inPath.filter((m) => viewedNow[m.id]))).slice(0, 3);
+      const readyInTier = (t) => t.items.map((i) => byKey[i.key]).filter((m) => m && m.status === "ready");
+      const focus = curriculum.find((t) => readyInTier(t).some((m) => !viewedNow[m.id])) || curriculum[curriculum.length - 1];
+      const focusReady = focus ? readyInTier(focus) : [];
+      const rec = focusReady.filter((m) => !viewedNow[m.id]).concat(focusReady.filter((m) => viewedNow[m.id])).slice(0, 3);
       const totalItems = curriculum.reduce((n, t) => n + t.items.length, 0);
       const missing = curriculum.reduce((n, t) => n + t.items.filter((i) => !byKey[i.key]).length, 0);
       const progress = store.get("progress", {});
@@ -1878,7 +1884,10 @@
     // Recommended = the built-ins the agent has practised least, easiest first.
     const counts = {}; (history.sessions || []).forEach((h) => { counts[h.persona_id] = (counts[h.persona_id] || 0) + 1; });
     const order = { foundational: 0, intermediate: 1, advanced: 2 };
-    const rec = builtin.slice().sort((a, b) => (counts[a.persona_id] || 0) - (counts[b.persona_id] || 0) || (order[a.difficulty] ?? 1) - (order[b.difficulty] ?? 1)).slice(0, 3);
+    const ranked = builtin.slice().sort((a, b) => (counts[a.persona_id] || 0) - (counts[b.persona_id] || 0) || (order[a.difficulty] ?? 1) - (order[b.difficulty] ?? 1));
+    // Featured persona (lowest sort_order) is always the first recommended; the rest fill by least-practised.
+    const featured = builtin.slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100))[0];
+    const rec = (featured ? [featured, ...ranked.filter((c) => c.persona_id !== featured.persona_id)] : ranked).slice(0, 3);
 
     let html = `<div class="stats"><div><b>${stats.sessions || 0}</b><span>CALLS</span></div><div><b>${stats.minutes || 0}</b><span>MINUTES</span></div><div><b>${stats.streak_days || 0} 🔥</b><span>DAY STREAK</span></div></div>`;
     html += `<div class="h2">Recommended scenarios</div><div class="carousel">` + rec.map(scenarioCard).join("") + `</div>`;

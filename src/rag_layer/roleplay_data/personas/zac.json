@@ -5,6 +5,7 @@
   "voice_profile": "male_mid_skeptical",
   "voice_name": "en-US-Adam:DragonHDLatestNeural",
   "mode": "discovery",
+  "sort_order": 0,
   "scenario_title": "No plan for needing care",
   "blurb": "Marketing senior manager, 54, married, one kid at college. Has never thought about needing care himself, and there is a reason he does not want to.",
   "difficulty": "advanced",
