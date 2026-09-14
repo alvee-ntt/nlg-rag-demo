@@ -580,11 +580,42 @@ def get_mix_audio_endpoint(mix_id: int, request: Request) -> Response:
     if result is None:
         raise HTTPException(status_code=404, detail="This mix has no rendered audio")
     audio, mime = result
-    return Response(
-        content=audio,
-        media_type=mime,
-        headers={"Cache-Control": "private, max-age=86400"},
-    )
+    total = len(audio)
+    base_headers = {"Cache-Control": "private, max-age=86400", "Accept-Ranges": "bytes"}
+
+    # Honor HTTP Range requests so the browser treats the audio as seekable.
+    # Without a 206 + Accept-Ranges, <audio> marks the stream non-seekable and
+    # ignores currentTime, which breaks the skip-15 buttons and the scrub bar.
+    range_header = request.headers.get("range") or request.headers.get("Range")
+    if range_header and range_header.strip().lower().startswith("bytes="):
+        spec = range_header.split("=", 1)[1].split(",", 1)[0].strip()
+        start_s, _, end_s = spec.partition("-")
+        try:
+            if start_s == "":
+                # suffix range: last N bytes
+                length = int(end_s)
+                start = max(0, total - length)
+                end = total - 1
+            else:
+                start = int(start_s)
+                end = int(end_s) if end_s else total - 1
+        except ValueError:
+            start, end = 0, total - 1
+        if start > end or start >= total:
+            return Response(
+                status_code=416,
+                headers={**base_headers, "Content-Range": f"bytes */{total}"},
+            )
+        end = min(end, total - 1)
+        chunk = audio[start : end + 1]
+        return Response(
+            content=chunk,
+            status_code=206,
+            media_type=mime,
+            headers={**base_headers, "Content-Range": f"bytes {start}-{end}/{total}"},
+        )
+
+    return Response(content=audio, media_type=mime, headers=base_headers)
 
 
 @app.post("/v1/learn/mixes/{mix_id}/render-audio", response_model=MixSummary, status_code=202)

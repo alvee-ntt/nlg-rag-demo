@@ -426,6 +426,7 @@ VERDICT_MAP = {
     "SUPPORTED": "supported",
     "CONTRADICTED": "unsupported",
     "NOT ADDRESSED": "not_enough_context",
+    "NO CLAIM": "not_checked",
     "UNKNOWN": "not_checked",
 }
 
@@ -728,9 +729,19 @@ Every bullet must be grounded in what actually happened in this transcript.
 
 Return only JSON with this shape:
 {{
-  "what_went_well": ["exactly 3 bullets: good things to keep doing"],
-  "what_to_improve": ["exactly 3 bullets: concrete fixes"],
-  "what_to_avoid": ["up to 3 bullets: things the agent did that the playbook says not to do; empty if none"],
+  "what_went_well": [
+    {{"title": "<3-7 word headline>", "detail": "<1-2 sentences, grounded in the transcript, on what to keep doing>",
+      "badge": <"Mastered" if this is a consistent strength, "New skill" if it is the first time the agent did it well, else null>}},
+    ... exactly 3 items
+  ],
+  "what_to_improve": [
+    {{"title": "<3-7 word headline naming the miss>", "detail": "<1-2 sentences: what happened and the concrete fix>"}},
+    ... exactly 3 items
+  ],
+  "what_to_avoid": [
+    {{"title": "<3-7 word headline>", "detail": "<1-2 sentences: what the agent did and why the playbook says not to>"}},
+    ... up to 3 items; empty list if none
+  ],
   "score": <integer 0-100: overall quality of the agent's performance on this call; 50 is an average rookie, 85+ is a call you would show a new hire>,
   "skills": {{
     "living_benefits": <integer 0-100 for how well the agent explained and positioned living benefits, or null if the call never touched them>,
@@ -743,7 +754,7 @@ Return only JSON with this shape:
         model_text(client, settings, prompt, lat=lat, label="llm.feedback"),
         {
             "what_went_well": [],
-            "what_to_improve": ["Feedback generation did not return structured JSON."],
+            "what_to_improve": [{"title": "Feedback unavailable", "detail": "Feedback generation did not return structured JSON."}],
             "what_to_avoid": [],
         },
     )

@@ -354,3 +354,25 @@ the design mockups. Still one shared login and therefore one profile for the dep
 
 Verified on the rebuilt container: `/v1/profile`, `PUT /v1/profile/settings` (valid and
 rejected codes), a call started with Spanish returns `es-US` / `en-US-AndrewMultilingualNeural`.
+
+---
+
+## Part C: UI pass against the Agent Navigator mock-ups (2026-09-14)
+
+Screens reworked in `ui/learn.html` to match the mock-up set (login, home, learn, ask, call, feedback).
+Backend change: the coaching report's three lists now return `{title, detail, badge?}` objects
+instead of plain strings (`roleplay.py` feedback prompt); the UI still renders older string reports.
+
+| Screen | What changed |
+| --- | --- |
+| Login | Dark office-tower hero (CSS only, no photo), white "Agent Navigator Login" card overlapping it, `Login` button, agent-use-only footer. |
+| Home (new, route `/`) | Greeting from the username, ask bar that opens Ask Navigator, "Picked for you" rail (audio + roleplay + flashcards), "Daily practice" roleplay card (rotates by day), coach follow-ups (demo list, done state in localStorage), "Your progress" tiles from roleplay stats plus listened/viewed mixes. |
+| Learn (`/learn`) | Band-style recommended cards, green "Create custom mix", "My mixes" with See all (`/learn/mixes`), learning path kept, "FlexLife video library" categories (`/learn/videos/:slug`, placeholder rows that toast). Create screen keeps two lengths per type. |
+| Ask Navigator | A pull-up bottom sheet (`openNavigator()`) that slides up over the current screen — matching the mock-up's floating chat card. Reverted from the interim full-page `/ask` version. Orb header with Clear + Close, orb avatar per answer, thumbs up/down (local), Sources/Copy, follow-up chips, mic + up-arrow input. Opened from the Ask tab button and the Home search bar; `#/ask` deep links still open it over Home. Same chat widget powers the in-call sheet. |
+| Detail screens | Cream "light" header everywhere off the tab roots; Article/Flashcards/Audio use a close (X) header; back returns to wherever the screen was opened from (small route stack). |
+| Call | Status pill, animated waveform, Transcription switch with a grey Client/You panel, type box kept, timer + pause / stop / Ask Navigator orb pinned to the bottom. Back = "Quit scenario?" (No/Yes, session discarded); stop = "End the call?" then feedback. |
+| Feedback | Performance score card (score, sessions, streak, minutes), two-column cards for did well (with Mastered / New skill badges) and improve (+ My mix opens Create with the topic), horizontal row for not-to-repeat, bookmark with Undo toast; bookmarked scenarios listed on Prepare. |
+| Tab bar | Home · Learn · Prepare · Coach · Ask; active tab gets a circular highlight. Coach still opens the console. Fixed: the bar now really hides on Ask and during a call. |
+
+Verified with a jsdom walkthrough (scratch harness, all checks passing) and headless Chrome
+screenshots against a stub API. Not verified against the live Azure stack in this pass.

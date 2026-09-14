@@ -197,7 +197,11 @@ Source context:
 
 
 def factcheck_claim(client: AzureOpenAIClient, settings: Settings, claim: str, contexts: list[dict]) -> str:
-    prompt = f"""You are verifying a claim against the source documents below. Using ONLY the context, decide whether the claim is SUPPORTED, CONTRADICTED, or NOT ADDRESSED. Do not use outside knowledge; if the context does not settle the claim, answer NOT ADDRESSED.
+    prompt = f"""You are verifying a claim against the source documents below.
+
+First decide whether the text even makes a verifiable claim about the product (its coverage, pricing, terms, eligibility, benefits, or process). Greetings, questions, pleasantries, and pure process talk ("hi", "is now a good time?", "let me follow up") assert nothing checkable - for those answer NO CLAIM.
+
+If it does make a product claim, then using ONLY the context, decide whether the claim is SUPPORTED, CONTRADICTED, or NOT ADDRESSED. Do not use outside knowledge; if the context does not settle the claim, answer NOT ADDRESSED.
 
 Context:
 {_context_text(contexts)}
@@ -205,7 +209,7 @@ Context:
 Claim: {claim}
 
 Respond in exactly this format:
-Verdict: <SUPPORTED | CONTRADICTED | NOT ADDRESSED>
+Verdict: <NO CLAIM | SUPPORTED | CONTRADICTED | NOT ADDRESSED>
 Evidence: <exact quote(s) from the context with their Source citation, or "none">
 Reasoning: <one or two sentences>
 """
@@ -217,7 +221,7 @@ def parse_verdict(report: str) -> str:
     for line in report.splitlines():
         if line.strip().lower().startswith("verdict:"):
             value = line.split(":", 1)[1].strip().upper()
-            for token in ("SUPPORTED", "CONTRADICTED", "NOT ADDRESSED"):
+            for token in ("NO CLAIM", "SUPPORTED", "CONTRADICTED", "NOT ADDRESSED"):
                 if token in value:
                     return token
     return "UNKNOWN"
