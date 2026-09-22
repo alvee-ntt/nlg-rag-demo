@@ -58,7 +58,14 @@ def main() -> None:
             print(f"{marker}\t{blob.name}")
         return
 
-    from .db import connect, get_document_by_blob, init_db, replace_chunks, upsert_document
+    from .db import (
+        connect,
+        get_document_by_blob,
+        get_document_by_hash,
+        init_db,
+        replace_chunks,
+        upsert_document,
+    )
     from .embeddings import embed_texts, get_openai_client
 
     init_db(settings)
@@ -84,6 +91,16 @@ def main() -> None:
                     skipped += 1
                     print(f"skip unchanged\t{blob_name}")
                     continue
+
+                # Same bytes already indexed under a different path (the container copies
+                # files across folders under different names). Skip so identical content
+                # is embedded once. --force-reindex overrides to re-embed everything.
+                if not force_reindex:
+                    duplicate = get_document_by_hash(conn, content_hash, blob_name)
+                    if duplicate:
+                        skipped += 1
+                        print(f"skip duplicate of {duplicate['blob_name']}\t{blob_name}")
+                        continue
 
                 sections = extract_document(blob_name, content)
                 chunks = chunk_sections(sections, settings.chunk_size, settings.chunk_overlap)

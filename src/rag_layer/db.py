@@ -41,6 +41,7 @@ CREATE INDEX IF NOT EXISTS rag_chunks_embedding_hnsw_idx
 ON rag_chunks USING hnsw (embedding vector_cosine_ops);
 
 CREATE INDEX IF NOT EXISTS rag_documents_blob_name_idx ON rag_documents(blob_name);
+CREATE INDEX IF NOT EXISTS rag_documents_content_hash_idx ON rag_documents(content_hash);
 CREATE INDEX IF NOT EXISTS rag_chunks_document_id_idx ON rag_chunks(document_id);
 
 CREATE TABLE IF NOT EXISTS learn_mixes (
@@ -132,6 +133,26 @@ def get_document_by_blob(conn, blob_name: str) -> dict[str, Any] | None:
     row = conn.execute(
         "SELECT * FROM rag_documents WHERE blob_name = %s",
         (blob_name,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def get_document_by_hash(conn, content_hash: str, exclude_blob: str) -> dict[str, Any] | None:
+    """First-ingested document whose bytes match this hash, under a *different* blob.
+
+    The container holds the same files copied across folders under different names
+    (e.g. a FlexLife brochure lives in Data for DJ, FlexLife Product Information and
+    From NLG). Dedup by blob_name alone would embed each copy, so ingest also skips a
+    blob whose exact content is already indexed under another path. First writer wins;
+    ``created_at, id`` keeps the winner stable across re-runs."""
+    row = conn.execute(
+        """
+        SELECT blob_name FROM rag_documents
+        WHERE content_hash = %s AND blob_name <> %s
+        ORDER BY created_at, id
+        LIMIT 1
+        """,
+        (content_hash, exclude_blob),
     ).fetchone()
     return dict(row) if row else None
 
