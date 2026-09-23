@@ -37,6 +37,13 @@ class Settings:
     azure_speech_voice_ava: str
     azure_speech_voice_andrew: str
 
+    # Azure AI Foundry Agent Service (hosted "KnowledgeBase" agent, called over the
+    # OpenAI Responses protocol). Optional: only the Coach console's Foundry tab uses it.
+    foundry_project_endpoint: str
+    foundry_api_key: str
+    foundry_agent_name: str
+    foundry_api_version: str
+
     embedding_dimensions: int
     chunk_size: int
     chunk_overlap: int
@@ -107,6 +114,10 @@ def load_settings() -> Settings:
         azure_speech_endpoint=os.getenv("AZURE_SPEECH_ENDPOINT", "https://eastus.api.cognitive.microsoft.com/").rstrip("/"),
         azure_speech_voice_ava=os.getenv("AZURE_SPEECH_VOICE_AVA", "en-US-Ava:DragonHDLatestNeural"),
         azure_speech_voice_andrew=os.getenv("AZURE_SPEECH_VOICE_ANDREW", "en-US-Andrew:DragonHDLatestNeural"),
+        foundry_project_endpoint=os.getenv("FOUNDRY_PROJECT_ENDPOINT", "").rstrip("/"),
+        foundry_api_key=os.getenv("FOUNDRY_API_KEY", ""),
+        foundry_agent_name=os.getenv("FOUNDRY_AGENT_NAME", "KnowledgeBase"),
+        foundry_api_version=os.getenv("FOUNDRY_API_VERSION", "v1"),
         embedding_dimensions=_int("EMBEDDING_DIMENSIONS", 1536),
         chunk_size=_int("CHUNK_SIZE", 1000),
         chunk_overlap=_int("CHUNK_OVERLAP", 150),

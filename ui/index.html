@@ -256,9 +256,34 @@
   .stmt.open .stmt-detail { display: block; }
   .stmt-toggle { font-size: 11.5px; color: var(--g700); font-weight: 600; cursor: pointer; display: inline-block; }
 
+  /* ---- Foundry agent chat ---- */
+  .fd-note { background: var(--g050); border: 1px solid var(--g100); color: var(--ink-2); border-radius: 12px; padding: 12px 15px; font-size: 12.5px; margin-bottom: 14px; }
+  .fd-note b { color: var(--g800); }
+  .fd-note code { font-family: var(--mono); font-size: 11.5px; background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+  .fd-thread { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; min-height: 90px; }
+  .fd-thread > * { animation: rise .25s ease; }
+  .bub { max-width: 82%; padding: 11px 15px; border-radius: 16px; font-size: 14.5px; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }
+  .bub.user { align-self: flex-end; background: linear-gradient(180deg, var(--g700), var(--g800)); color: #fff; border-bottom-right-radius: 5px; }
+  .bub.bot { align-self: flex-start; background: var(--paper); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+  .bub.bot strong { color: var(--g900); }
+  .bub.err { align-self: flex-start; background: var(--red-bg); border: 1px solid #f5c9c5; color: var(--red); }
+  .fd-cites { align-self: flex-start; max-width: 82%; margin: -4px 2px 0; display: flex; flex-direction: column; gap: 3px; }
+  .fd-cites-h { font-size: 10.5px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); font-weight: 700; margin-bottom: 1px; }
+  .fd-cite { font-size: 12px; color: var(--ink-2); display: flex; gap: 6px; }
+  .fd-cite .n { font-family: var(--mono); color: var(--g700); font-weight: 700; flex-shrink: 0; }
+  .fd-cite a { color: var(--g800); text-decoration: none; word-break: break-word; }
+  .fd-cite a:hover { text-decoration: underline; }
+  .fd-typing { align-self: flex-start; display: inline-flex; gap: 4px; padding: 13px 16px; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; border-bottom-left-radius: 5px; }
+  .fd-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted-2); animation: fdbounce 1.2s infinite; }
+  .fd-typing i:nth-child(2) { animation-delay: .18s; }
+  .fd-typing i:nth-child(3) { animation-delay: .36s; }
+  @keyframes fdbounce { 0%,60%,100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+  .fd-meta { font-size: 11px; color: var(--muted-2); margin: 2px 2px 0; }
+
   @media (max-width: 560px) {
     .modes { flex-direction: column; }
     .title h1 { font-size: 20px; }
+    .bub, .fd-cites { max-width: 92%; }
   }
 </style>
 </head>
@@ -282,6 +307,7 @@
     <div class="vtab active" data-view="query">Query</div>
     <div class="vtab" data-view="transcript">Transcript</div>
     <div class="vtab" data-view="corpus">Corpus</div>
+    <div class="vtab" data-view="foundry">Foundry</div>
   </div>
 
   <div id="queryView">
@@ -358,6 +384,23 @@
       <span><i style="background:var(--red)"></i>oversized (&gt; 110% of target)</span>
     </div>
     <div id="docList"><div class="chunk-loading">Loading corpus…</div></div>
+  </div>
+
+  <div id="foundryView" hidden>
+    <div class="fd-note" id="fdNote">
+      Chatting with the hosted <b>Azure AI Foundry</b> agent (<span id="fdAgentName">KnowledgeBase</span>).
+      Unlike the Query tab (local pgvector), this agent does its own retrieval against its Azure AI Search
+      knowledge base and returns cited answers — a way to compare the two side by side.
+    </div>
+    <div class="fd-thread" id="fdThread"></div>
+    <div class="composer">
+      <textarea id="fdInput" placeholder="Ask the Foundry agent about FlexLife, IUL, riders…"></textarea>
+      <div class="composer-bar">
+        <span class="fd-meta" id="fdModel"></span>
+        <button class="ask" id="fdSend">Send</button>
+      </div>
+    </div>
+    <p class="hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send · the agent keeps the thread in context · answers are grounded in its own knowledge base, with source citations</p>
   </div>
 </div>
 
@@ -506,7 +549,9 @@
     $("queryView").hidden = view !== "query";
     $("transcriptView").hidden = view !== "transcript";
     $("corpusView").hidden = view !== "corpus";
+    $("foundryView").hidden = view !== "foundry";
     if (view === "corpus" && !corpusLoaded) loadCorpus();
+    if (view === "foundry" && !foundryInit) initFoundry();
   });
 
   // ============ Transcript checker ============
@@ -705,6 +750,100 @@
       body.innerHTML = '<div class="error">Could not load chunks: <code>' + esc(err.message) + '</code></div>';
     }
   };
+
+  // ============ Foundry agent chat ============
+  let foundryInit = false;
+  let foundryHistory = [];   // [{role:"user"|"assistant", text}] — prior turns for context
+  let foundryBusy = false;
+
+  async function initFoundry() {
+    foundryInit = true;
+    try {
+      const r = await fetch(API + "/v1/foundry/status", { cache: "no-store" });
+      const d = await r.json();
+      if (d.agent) $("fdAgentName").textContent = d.agent;
+      if (!d.configured) {
+        $("fdNote").innerHTML = 'The Foundry agent is not configured. Set <code>FOUNDRY_PROJECT_ENDPOINT</code> and ' +
+          '<code>FOUNDRY_API_KEY</code> in <code>.env</code> and restart the API.';
+        $("fdInput").disabled = true; $("fdSend").disabled = true;
+      }
+    } catch { /* leave the composer enabled; a send will surface the real error */ }
+  }
+
+  $("fdSend").addEventListener("click", foundrySend);
+  $("fdInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) foundrySend(); });
+
+  function fdScroll() { const t = $("fdThread"); t.scrollTop = t.scrollHeight; window.scrollTo(0, document.body.scrollHeight); }
+
+  function fdBubble(role, text) {
+    const div = document.createElement("div");
+    div.className = "bub " + role;
+    div.innerHTML = role === "bot" ? bold(text) : esc(text);
+    $("fdThread").appendChild(div);
+    fdScroll();
+    return div;
+  }
+
+  function fdCites(citations) {
+    if (!citations || !citations.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "fd-cites";
+    let h = '<div class="fd-cites-h">Sources</div>';
+    citations.forEach(c => {
+      h += '<div class="fd-cite"><span class="n">[' + c.n + ']</span>' +
+        '<a href="' + esc(c.url) + '" target="_blank" rel="noopener">' + esc(c.title) + '</a></div>';
+    });
+    wrap.innerHTML = h;
+    $("fdThread").appendChild(wrap);
+    fdScroll();
+  }
+
+  async function foundrySend() {
+    if (foundryBusy) return;
+    const text = $("fdInput").value.trim();
+    if (!text) return;
+    const btn = $("fdSend");
+
+    // History sent to the API is the prior turns only; the new message goes separately.
+    const priorHistory = foundryHistory.slice(-18);
+    fdBubble("user", text);
+    $("fdInput").value = "";
+    foundryHistory.push({ role: "user", text });
+
+    foundryBusy = true; btn.disabled = true; $("fdInput").disabled = true;
+    const typing = document.createElement("div");
+    typing.className = "fd-typing"; typing.innerHTML = "<i></i><i></i><i></i>";
+    $("fdThread").appendChild(typing); fdScroll();
+
+    try {
+      const r = await fetch(API + "/v1/foundry/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, history: priorHistory })
+      });
+      typing.remove();
+      if (!r.ok) {
+        let detail = r.status + " " + r.statusText;
+        try { const j = await r.json(); if (j.detail) detail = j.detail; } catch {}
+        throw new Error(detail);
+      }
+      const d = await r.json();
+      const answer = d.answer || "(the agent returned no text)";
+      fdBubble("bot", answer);
+      fdCites(d.citations);
+      foundryHistory.push({ role: "assistant", text: answer });
+      if (d.model) $("fdModel").textContent = "model: " + d.model;
+    } catch (err) {
+      typing.remove();
+      const off = /Failed to fetch/i.test(err.message);
+      const b = fdBubble("bot", "");
+      b.className = "bub err";
+      b.innerHTML = off
+        ? "Could not reach the API. Is the stack running on <code>localhost:8000</code>?"
+        : esc(err.message);
+    } finally {
+      foundryBusy = false; btn.disabled = false; $("fdInput").disabled = false; $("fdInput").focus();
+    }
+  }
 
   function renderChunks(chunks) {
     const target = corpusData.chunk_size;

@@ -42,6 +42,7 @@ from .db import (
     roleplay_stats,
 )
 from .embeddings import get_openai_client
+from .foundry import chat as foundry_chat, foundry_configured
 from .curriculum import CURRICULUM, curriculum_outline
 from .learn import (
     KINDS,
@@ -87,6 +88,32 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=1000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=12)
     limit: int = Field(default=6, ge=1, le=20)
+
+
+class FoundryChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=4000)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=20)
+
+
+class FoundryCitation(BaseModel):
+    n: int
+    title: str
+    url: str
+
+
+class FoundryChatResponse(BaseModel):
+    answer: str
+    citations: list[FoundryCitation]
+    agent: str
+    model: str | None = None
+    response_id: str | None = None
+    status: str | None = None
+
+
+class FoundryStatusResponse(BaseModel):
+    configured: bool
+    agent: str
+    endpoint: str
 
 
 class FactCheckRequest(BaseModel):
@@ -424,6 +451,37 @@ def chat_endpoint(payload: ChatRequest, request: Request) -> dict[str, Any]:
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+
+
+@app.get("/v1/foundry/status", response_model=FoundryStatusResponse)
+def foundry_status_endpoint(request: Request) -> dict[str, Any]:
+    """Whether the hosted Foundry agent is wired up, for the Coach console's Foundry tab."""
+    settings = request.app.state.settings
+    return {
+        "configured": foundry_configured(settings),
+        "agent": settings.foundry_agent_name,
+        "endpoint": settings.foundry_project_endpoint,
+    }
+
+
+@app.post("/v1/foundry/chat", response_model=FoundryChatResponse)
+def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict[str, Any]:
+    """Proxy one chat turn to the hosted Azure AI Foundry agent (its own knowledge base
+    does the grounding server-side). Lets the console test that agent next to local RAG."""
+    settings = request.app.state.settings
+    if not foundry_configured(settings):
+        raise HTTPException(
+            status_code=503,
+            detail="Foundry is not configured. Set FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_API_KEY in .env.",
+        )
+    try:
+        return foundry_chat(
+            settings=settings,
+            message=payload.message.strip(),
+            history=[t.model_dump() for t in payload.history],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
 
 
 @app.post("/v1/fact-check", response_model=FactCheckResponse)
