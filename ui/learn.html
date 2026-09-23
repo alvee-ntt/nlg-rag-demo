@@ -634,6 +634,11 @@
   .sheet .chat { padding: 0; }
   .sheet .chat-log { max-height: 40dvh; flex: none; }
   .sheet .chat-foot { background: var(--paper); padding-bottom: 4px; }
+  .chat-foot .chips:empty { display: none; }
+  /* Ask Navigator takes the whole phone: Foundry answers run long. */
+  .sheet-wrap.nav .sheet { height: 100%; max-height: none; border-radius: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .sheet-wrap.nav .chat { flex: 1; min-height: 0; }
+  .sheet-wrap.nav .chat-log { max-height: none; flex: 1; }
   .nsrc-list { padding-left: 4px; }
 
   /* ===== Live call ===== */
@@ -865,11 +870,12 @@
     tb.querySelector("#askTab").onclick = () => openNavigator();
   }
 
-  // --- Ask Navigator: grounded chat over the corpus via POST /v1/chat -------------
+  // --- Ask Navigator: chat with the hosted Foundry KnowledgeBase agent via POST /v1/foundry/chat
   // One chat widget serves the full-screen Ask page and the in-call sheet. The page's
   // thread survives tab switches and reloads (localStorage, capped).
   const NAV_KEY = "navLog", NAV_MAX = 40;
-  const navLog = (store.get(NAV_KEY, []) || []).filter((m) => m && !m.pending);
+  // Follow-up chips are off for now; drop any saved from the old /v1/chat answers.
+  const navLog = (store.get(NAV_KEY, []) || []).filter((m) => m && !m.pending).map(({ follow_ups, ...m }) => m);
   const saveNav = () => { if (navLog.length > NAV_MAX) navLog.splice(0, navLog.length - NAV_MAX); store.set(NAV_KEY, navLog.filter((m) => !m.pending)); };
   const NAV_CHIPS = [
     ["What do I ask next?", "A prospect just told me their spouse's employer already covers them. What should I ask next?"],
@@ -969,10 +975,10 @@
     const w = document.createElement("div"); w.className = "sheet-wrap nav";
     w.innerHTML = `<div class="sheet"><div class="grab"></div><div class="sheet-h nav-h"><span class="orb sm"></span>Ask Navigator<span class="spacer"></span><button class="nav-ib" id="navClear" title="Clear chat">${I.trash}Clear</button><button class="nav-ib" id="navClose" title="Close">${I.x}</button></div><div class="chat" id="navChat"></div></div>`;
     $("#phone").appendChild(w);
-    const chat = mountChat(w.querySelector("#navChat"), { log: navLog, persist: saveNav, chips: NAV_CHIPS, intro: NAV_INTRO,
+    const chat = mountChat(w.querySelector("#navChat"), { log: navLog, persist: saveNav, chips: [], intro: NAV_INTRO,
       send: async (message, history) => {
-        const d = await api("/v1/chat", { method: "POST", body: JSON.stringify({ message, history, limit: 6 }) });
-        return { text: d.answer || "The sources don't cover that.", sources: d.sources || [], follow_ups: d.follow_ups || [] };
+        const d = await api("/v1/foundry/chat", { method: "POST", body: JSON.stringify({ message, history }) });
+        return { text: d.answer || "The sources don't cover that." };
       } });
     const close = () => { chat.destroy(); w.remove(); };
     w.onclick = (e) => { if (e.target === w) close(); };
