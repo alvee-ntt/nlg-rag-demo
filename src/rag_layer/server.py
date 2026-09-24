@@ -539,6 +539,12 @@ def learn_redirect() -> RedirectResponse:
     return RedirectResponse(url="/app/learn.html")
 
 
+@app.get("/chat", include_in_schema=False)
+def chat_redirect() -> RedirectResponse:
+    """Clean entry point for the full-screen Ask Navigator chat page."""
+    return RedirectResponse(url="/app/learn.html#/chat")
+
+
 @app.get("/coach", include_in_schema=False)
 def coach_redirect() -> RedirectResponse:
     """Public Coach entry point; the RAG console remains its implementation for now."""

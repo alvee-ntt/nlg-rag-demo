@@ -641,6 +641,90 @@
   .sheet-wrap.nav .chat-log { max-height: none; flex: 1; }
   .nsrc-list { padding-left: 4px; }
 
+  /* ===== Markdown rendering inside AI answers ===== */
+  .bubble.ai.md { white-space: normal; }
+  .bubble.ai.md > :first-child { margin-top: 0; }
+  .bubble.ai.md > :last-child { margin-bottom: 0; }
+  .bubble.ai.md h1, .bubble.ai.md h2, .bubble.ai.md h3, .bubble.ai.md h4, .bubble.ai.md h5, .bubble.ai.md h6 { font-family: var(--serif); line-height: 1.25; margin: 12px 0 6px; }
+  .bubble.ai.md h1 { font-size: 17px; } .bubble.ai.md h2 { font-size: 15.5px; } .bubble.ai.md h3 { font-size: 14px; }
+  .bubble.ai.md h4, .bubble.ai.md h5, .bubble.ai.md h6 { font-size: 13px; }
+  .bubble.ai.md p { margin: 7px 0; }
+  .bubble.ai.md ul, .bubble.ai.md ol { margin: 7px 0; padding-left: 20px; }
+  .bubble.ai.md li { margin: 3px 0; }
+  .bubble.ai.md li > ul, .bubble.ai.md li > ol { margin: 3px 0; }
+  .bubble.ai.md a { color: var(--g700); text-decoration: underline; word-break: break-word; }
+  .bubble.ai.md strong { font-weight: 700; }
+  .bubble.ai.md code { background: var(--g050); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .bubble.ai.md pre { background: #10231a; color: #d7f0dd; border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 8px 0; }
+  .bubble.ai.md pre code { background: none; border: 0; padding: 0; color: inherit; font-size: 12px; white-space: pre; }
+  .bubble.ai.md blockquote { margin: 8px 0; padding: 2px 0 2px 10px; border-left: 3px solid #cfe6d5; color: var(--ink-2); }
+  .bubble.ai.md table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12.5px; display: block; overflow-x: auto; }
+  .bubble.ai.md th, .bubble.ai.md td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+  .bubble.ai.md th { background: var(--g050); font-weight: 700; }
+  .bubble.ai.md hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
+  .bubble.ai.md .cite { display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; padding: 0 4px; margin: 0 1px; border-radius: 999px; background: var(--g700); color: #fff; font-size: 10px; font-weight: 700; line-height: 1; vertical-align: 1px; cursor: pointer; }
+  /* Foundry citation footnotes (shown under an answer with the Sources toggle) */
+  .ncite { display: flex; align-items: baseline; gap: 8px; background: var(--mint); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; font-size: 12px; text-decoration: none; color: var(--g800); }
+  .ncite-n { flex: none; width: 16px; height: 16px; border-radius: 999px; background: var(--g700); color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  .ncite-t { flex: 1; min-width: 0; word-break: break-word; line-height: 1.35; }
+
+  /* ===== Ask Navigator full page (#/chat) ===== */
+  .hdr.chat-hdr { padding-bottom: 14px; }
+  main.chatpage { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0; }
+  main.chatpage .chat { padding: 4px 18px 0; }
+  .chat-title { font-size: 17px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+
+  /* ===== Chat history drawer ===== */
+  .cdrawer-wrap { position: absolute; inset: 0; z-index: 40; background: rgba(20,40,28,.32); display: flex; }
+  .cdrawer { width: 86%; max-width: 340px; background: var(--paper); height: 100%; display: flex; flex-direction: column; box-shadow: 2px 0 26px rgba(0,0,0,.22); animation: cdslide .18s ease; }
+  @keyframes cdslide { from { transform: translateX(-100%); } to { transform: none; } }
+  .cdrawer-h { display: flex; align-items: center; gap: 8px; padding: 16px 14px 8px; }
+  .cdrawer-h h2 { margin: 0; font-family: var(--serif); font-size: 16px; }
+  .cdrawer-h .spacer { flex: 1; }
+  .cdrawer-search { margin: 2px 12px 8px; display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; }
+  .cdrawer-search svg { width: 15px; height: 15px; color: var(--muted); flex: none; }
+  .cdrawer-search input { flex: 1; min-width: 0; border: 0; outline: 0; font: inherit; font-size: 13px; background: transparent; }
+  .cdrawer-list { flex: 1; overflow: auto; padding: 4px 8px 14px; scrollbar-width: none; }
+  .cdrawer-list::-webkit-scrollbar { display: none; }
+  .cthread { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 8px; padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+  .cthread:hover { background: var(--g050); }
+  .cthread.on { background: var(--mint); }
+  .cthread .ct-main { min-width: 0; }
+  .cthread .ct-t { font-size: 13.5px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cthread .ct-pin svg { width: 12px; height: 12px; color: var(--g700); }
+  .cthread .ct-s { font-size: 11.5px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cthread .ct-time { font-size: 10.5px; color: var(--muted); flex: none; white-space: nowrap; padding-top: 1px; }
+  .cthread .ct-actions { display: none; grid-column: 1 / -1; gap: 2px; margin-top: 6px; }
+  .cthread:hover .ct-actions, .cthread.on .ct-actions { display: flex; }
+  .cthread .ct-actions button { background: none; border: 0; padding: 4px 6px; color: var(--muted); cursor: pointer; border-radius: 6px; display: inline-flex; }
+  .cthread .ct-actions button:hover { background: #fff; color: var(--g800); }
+  .cthread .ct-actions svg { width: 14px; height: 14px; }
+  .ct-rename { width: 100%; border: 1px solid var(--g700); border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 13px; outline: 0; }
+
+  /* ===== Answer preferences sheet ===== */
+  .setsheet { max-height: 88dvh; display: flex; flex-direction: column; }
+  .setbody { overflow: auto; padding: 4px 2px 8px; scrollbar-width: none; }
+  .setbody::-webkit-scrollbar { display: none; }
+  .setlbl { display: block; font-size: 12px; font-weight: 700; color: var(--g800); margin: 14px 0 7px; }
+  .setlbl .setsub { font-weight: 500; color: var(--muted); margin-left: 8px; }
+  .seg { display: flex; gap: 6px; }
+  .seg button { flex: 1; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 6px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+  .seg button.on { background: var(--g700); border-color: var(--g700); color: #fff; }
+  .settoggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 2px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink); cursor: pointer; }
+  .settoggle input { width: 18px; height: 18px; accent-color: var(--g700); flex: none; }
+  .setarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 13px; outline: 0; resize: vertical; background: #fff; }
+  .setarea:focus { border-color: var(--g700); }
+  .memlist { display: flex; flex-direction: column; gap: 6px; }
+  .memitem { display: flex; align-items: center; gap: 8px; background: var(--mint); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px 7px 11px; font-size: 12.5px; }
+  .memitem span { flex: 1; min-width: 0; line-height: 1.35; }
+  .memitem button { background: none; border: 0; padding: 3px; color: var(--muted); cursor: pointer; border-radius: 6px; display: inline-flex; flex: none; }
+  .memitem button:hover { background: #fff; color: var(--red); }
+  .memitem svg { width: 14px; height: 14px; }
+  .memadd { display: flex; gap: 8px; margin-top: 8px; }
+  .memadd input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 999px; padding: 8px 13px; font: inherit; font-size: 13px; outline: 0; background: #fff; }
+  .memadd input:focus { border-color: var(--g700); }
+  .memadd .nav-ib { border: 1px solid var(--line); border-radius: 999px; padding: 0 12px; }
+
   /* ===== Live call ===== */
   .call { text-align: center; padding-top: 26px; display: flex; flex-direction: column; align-items: center; }
   .call > .wave, .call > .tpanel, .call > .typebox, .call > .foot { align-self: stretch; }
@@ -737,6 +821,12 @@
     users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0111 0"/><path d="M16 5.2a3.2 3.2 0 010 5.9M17.5 20a5.5 5.5 0 00-3-4.9"/></svg>',
     stopSq: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>',
     bookmarkOn: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+    pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 6 4 3H6l4-3z"/><path d="M12 15v6"/></svg>',
+    pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18 10l-4-4L4 16z"/><path d="M13 5l4 4"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 11-4 0v-.2A1.6 1.6 0 006 19.6l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.6 1.6 0 003 15H3a2 2 0 010-4h.2A1.6 1.6 0 004.6 6l-.1-.1a2 2 0 112.8-2.8l.1.1A1.6 1.6 0 009 3.4V3a2 2 0 014 0v.2A1.6 1.6 0 0018 4.6l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 001.1 2.7H21a2 2 0 010 4h-.2a1.6 1.6 0 00-1.4 1z"/></svg>',
+    download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>',
   };
   const KIND_LABEL = { audio: "Audio", article: "Article", flashcards: "Flashcards" };
   const LENGTH_LABELS = { audio: [["short", "Short", "5 mins"], ["long", "Long", "10 mins"]],
@@ -762,6 +852,15 @@
     clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove("show", "act"), 4500);
   };
   const coverClass = (id) => ["", "v1", "v2", "v3"][(Number(id) || 0) % 4];
+  const relTime = (ts) => {
+    if (!ts) return "";
+    const s = Math.max(0, (Date.now() - ts) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    const d = Math.floor(s / 86400);
+    return d < 7 ? `${d}d ago` : new Date(ts).toLocaleDateString();
+  };
 
   async function api(path, opts = {}) {
     const r = await fetch(API + path, { headers: { "Content-Type": "application/json" }, cache: "no-store", credentials: "same-origin", ...opts });
@@ -832,6 +931,7 @@
       if (id === "videos" && sub) return renderVideos(decodeURIComponent(sub));
       return renderLearn();
     }
+    if (seg === "chat") return renderChat();
     if (seg === "ask") {
       // Ask is a pull-up sheet now, not a page: open it over Home and normalise the URL.
       const q = new URLSearchParams(now.split("?")[1] || "");
@@ -865,24 +965,97 @@
     const tab = (k, h, ic, l, title = "") => `<button class="tab ${k} ${active === k ? "on" : ""}" data-go="${h}" title="${title}"><span class="ico">${ic}</span><span>${l}</span></button>`;
     tb.innerHTML = tab("home", "/", I.home, "Home") + tab("learn", "/learn", I.learn, "Learn") + tab("prepare", "/prepare", I.prepare, "Prepare") +
       tab("coach", "/coach", I.coach, "Coach", "Your week in review, upcoming and completed calls") +
-      `<button class="tab ask" id="askTab" title="Ask Navigator a question about the source library"><span class="ico"><span class="orb"></span></span><span>Ask</span></button>`;
+      `<button class="tab ask ${active === "ask" ? "on" : ""}" data-go="/chat" title="Ask Navigator a question about the source library"><span class="ico"><span class="orb"></span></span><span>Ask</span></button>`;
     tb.querySelectorAll("[data-go]").forEach((el) => (el.onclick = () => go(el.dataset.go)));
-    tb.querySelector("#askTab").onclick = () => openNavigator();
   }
 
   // --- Ask Navigator: chat with the hosted Foundry KnowledgeBase agent via POST /v1/foundry/chat
   // One chat widget serves the full-screen Ask page and the in-call sheet. The page's
   // thread survives tab switches and reloads (localStorage, capped).
-  const NAV_KEY = "navLog", NAV_MAX = 40;
-  // Follow-up chips are off for now; drop any saved from the old /v1/chat answers.
-  const navLog = (store.get(NAV_KEY, []) || []).filter((m) => m && !m.pending).map(({ follow_ups, ...m }) => m);
-  const saveNav = () => { if (navLog.length > NAV_MAX) navLog.splice(0, navLog.length - NAV_MAX); store.set(NAV_KEY, navLog.filter((m) => !m.pending)); };
+  // --- Chat threads: multiple saved conversations (localStorage) ---------------
+  // Each thread = { id, title, createdAt, updatedAt, pinned, messages[] }. The Ask
+  // page and the pull-up sheet both act on the *active* thread, so a conversation
+  // carries between them. The in-call Ask sheet keeps its own throwaway thread.
+  const CHAT_KEY = "chatThreads", CHAT_ACTIVE = "chatActive", NAV_MAX = 40, NEW_TITLE = "New chat";
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const cleanMsgs = (arr) => (arr || []).filter((m) => m && !m.pending).map(({ follow_ups, pending, ...m }) => m);
+  let chatThreads = store.get(CHAT_KEY, null);
+  if (!Array.isArray(chatThreads)) {
+    // First run under the new model: migrate the old single thread if there was one.
+    chatThreads = [];
+    const old = cleanMsgs(store.get("navLog", []));
+    if (old.length) chatThreads.push({ id: uid(), title: "", createdAt: Date.now(), updatedAt: Date.now(), pinned: false, messages: old });
+    store.set(CHAT_KEY, chatThreads);
+  }
+  let chatActiveId = store.get(CHAT_ACTIVE, null);
+  const saveThreads = () => store.set(CHAT_KEY, chatThreads);
+  const titleFrom = (msgs) => {
+    const u = (msgs || []).find((m) => m.who === "user");
+    const t = ((u && u.text) || "").trim().replace(/\s+/g, " ");
+    return t ? (t.length > 42 ? t.slice(0, 42) + "…" : t) : NEW_TITLE;
+  };
+  function newThread() {
+    const t = { id: uid(), title: "", createdAt: Date.now(), updatedAt: Date.now(), pinned: false, messages: [] };
+    chatThreads.unshift(t); chatActiveId = t.id; store.set(CHAT_ACTIVE, chatActiveId); saveThreads();
+    return t;
+  }
+  function activeThread() {
+    let t = chatThreads.find((x) => x.id === chatActiveId);
+    if (!t) { t = chatThreads[0] || newThread(); chatActiveId = t.id; store.set(CHAT_ACTIVE, chatActiveId); }
+    return t;
+  }
+  // Called after each turn (via mountChat's persist). Mutates messages in place so the
+  // array reference mountChat holds stays valid; names the thread from its first question.
+  function onTurnSaved(t) {
+    for (let i = t.messages.length - 1; i >= 0; i--) if (t.messages[i].pending) t.messages.splice(i, 1);
+    if (t.messages.length > NAV_MAX) t.messages.splice(0, t.messages.length - NAV_MAX);
+    if (!t.title) t.title = titleFrom(t.messages);
+    t.updatedAt = Date.now(); saveThreads();
+  }
+  function sortedThreads(q) {
+    const s = (q || "").trim().toLowerCase();
+    let arr = chatThreads.slice();
+    if (s) arr = arr.filter((t) => (t.title || titleFrom(t.messages)).toLowerCase().includes(s) || t.messages.some((m) => (m.text || "").toLowerCase().includes(s)));
+    return arr.sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || (b.updatedAt - a.updatedAt));
+  }
+  // --- Answer preferences + saved memories (localStorage) ----------------------
+  // These shape how the agent answers. They ride along on every question as a short
+  // preamble prepended to the message (the visible user bubble stays clean).
+  const PREFS_KEY = "chatPrefs", MEM_KEY = "chatMemories";
+  const DEFAULT_PREFS = { length: "balanced", format: "auto", tone: "warm", plain: false, alwaysSources: false, role: "" };
+  let chatPrefs = Object.assign({}, DEFAULT_PREFS, store.get(PREFS_KEY, {}));
+  const savePrefs = () => store.set(PREFS_KEY, chatPrefs);
+  let chatMemories = store.get(MEM_KEY, []) || [];
+  const saveMemories = () => store.set(MEM_KEY, chatMemories);
+  function buildPreamble() {
+    const p = chatPrefs, style = [];
+    const len = { brief: "Be brief and to the point.", balanced: "", detailed: "Give a thorough, detailed answer." };
+    const fmt = { bullets: "Prefer bullet points.", prose: "Answer in prose paragraphs, not lists.", auto: "" };
+    const tone = { plain: "Use a neutral, plain tone.", warm: "Use a warm, encouraging tone.", formal: "Use a formal, professional tone." };
+    if (len[p.length]) style.push(len[p.length]);
+    if (fmt[p.format]) style.push(fmt[p.format]);
+    if (tone[p.tone]) style.push(tone[p.tone]);
+    if (p.plain) style.push("Explain simply, so a brand-new agent can follow.");
+    if (p.alwaysSources) style.push("Always cite the source documents.");
+    const lines = [];
+    if (style.length) lines.push("Answer style: " + style.join(" "));
+    if ((p.role || "").trim()) lines.push("About me: " + p.role.trim());
+    if (chatMemories.length) lines.push("Remember: " + chatMemories.map((m) => m.text).join("; "));
+    return lines.length ? `[Context for how to answer — do not repeat this back to me:\n${lines.join("\n")}]\n\n` : "";
+  }
   const NAV_CHIPS = [
     ["What do I ask next?", "A prospect just told me their spouse's employer already covers them. What should I ask next?"],
     ["Living benefits", "How should I describe living benefits, and what wording is approved?"],
     ["FlexLife caps", "How do caps and floors work on FlexLife, and what can I promise?"],
   ];
   const NAV_INTRO = "Ask me anything about the products, riders, or approved wording. I only answer from the source library, and you can open the sources under any answer.";
+  // One turn against the hosted Foundry agent; shared by the Ask page and the pull-up sheet.
+  const navSend = async (message, history) => {
+    // The preamble (answer style + memories) rides on the current turn only; history
+    // stays clean, and the user's own bubble shows just what they typed.
+    const d = await api("/v1/foundry/chat", { method: "POST", body: JSON.stringify({ message: buildPreamble() + message, history }) });
+    return { text: d.answer || "The sources don't cover that.", citations: d.citations || [] };
+  };
 
   function srcHtml(s, i) {
     const pct = Math.round((s.similarity || 0) * 100);
@@ -895,7 +1068,84 @@
       <div class="nsrc-meta">${esc(meta)}</div><div class="nsrc-preview">${esc(s.preview || "")}</div></div>`;
   }
 
-  // opts: { log, send(question, history) -> {text, sources?, follow_ups?}, chips?, intro?, placeholder?, pendingText?, persist? }
+  // --- Markdown -> safe HTML for AI answers ----------------------------------
+  // The Foundry agent replies in Markdown (headings, lists, tables, bold, [n]
+  // citations). We escape everything first, then rebuild a known-safe subset, so
+  // no raw HTML from the model can survive. Not a full CommonMark engine - just
+  // what these answers actually use.
+  function mdInline(s) {
+    const codes = [];
+    s = s.replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, u) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`);
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_]+)__/g, "<strong>$1</strong>");
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+    s = s.replace(/\[(\d{1,3})\]/g, (_, n) => `<span class="cite" data-n="${n}">${n}</span>`);
+    s = s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[Number(i)]}</code>`);
+    return s;
+  }
+  function mdToHtml(src) {
+    src = String(src ?? "").replace(/\r\n?/g, "\n");
+    const code = [];
+    src = src.replace(/```[ \t]*[\w-]*\n?([\s\S]*?)```/g, (_, c) => { code.push(c.replace(/\n$/, "")); return `\u0001${code.length - 1}\u0001`; });
+    const L = esc(src).split("\n");
+    const blank = (s) => !s.trim();
+    const blockStart = (s) => /^(#{1,6})\s|^\s*&gt;|^\s*([-*+]|\d+\.)\s|^\u0001\d+\u0001\s*$/.test(s) || /^\s*([-*_])(\s*\1){2,}\s*$/.test(s);
+    const out = []; let i = 0, m;
+    while (i < L.length) {
+      const line = L[i];
+      if ((m = line.match(/^\u0001(\d+)\u0001\s*$/))) { out.push(`<pre><code>${esc(code[+m[1]])}</code></pre>`); i++; continue; }
+      if (blank(line)) { i++; continue; }
+      if ((m = line.match(/^(#{1,6})\s+(.*)$/))) { const n = m[1].length; out.push(`<h${n}>${mdInline(m[2].trim())}</h${n}>`); i++; continue; }
+      if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+      if (/^\s*&gt;\s?/.test(line)) { const buf = []; while (i < L.length && /^\s*&gt;\s?/.test(L[i])) { buf.push(L[i].replace(/^\s*&gt;\s?/, "")); i++; } out.push(`<blockquote>${mdInline(buf.join(" "))}</blockquote>`); continue; }
+      if (line.includes("|") && i + 1 < L.length && /-/.test(L[i + 1]) && /^\s*\|?[\s:|-]+\|?\s*$/.test(L[i + 1])) {
+        const cells = (r) => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+        const head = cells(line); i += 2; const body = [];
+        while (i < L.length && !blank(L[i]) && L[i].includes("|")) { body.push(cells(L[i])); i++; }
+        out.push(`<table><thead><tr>${head.map((c) => `<th>${mdInline(c)}</th>`).join("")}</tr></thead><tbody>${body.map((r) => `<tr>${r.map((c) => `<td>${mdInline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
+        continue;
+      }
+      const listRe = /^(\s*)([-*+]|\d+\.)\s+(.*)$/;
+      if (listRe.test(line)) {
+        // Indentation-aware so the agent's nested bullets keep their hierarchy.
+        const stack = []; let result = "";
+        const render = (lvl) => `<${lvl.ordered ? "ol" : "ul"}>${lvl.buf.join("")}</${lvl.ordered ? "ol" : "ul"}>`;
+        const popTo = (indent) => {
+          while (stack.length && stack[stack.length - 1].indent > indent) {
+            const lvl = stack.pop(), html = render(lvl);
+            if (stack.length) { const p = stack[stack.length - 1]; p.buf[p.buf.length - 1] = p.buf[p.buf.length - 1].replace(/<\/li>$/, html + "</li>"); }
+            else result += html;
+          }
+        };
+        while (i < L.length) {
+          const mm = L[i].match(listRe);
+          if (mm) {
+            const indent = mm[1].replace(/\t/g, "  ").length, ordered = /\d+\./.test(mm[2]);
+            let text = mm[3]; i++;
+            while (i < L.length && !blank(L[i]) && !listRe.test(L[i]) && !/^(#{1,6})\s/.test(L[i]) && !/^\s*&gt;/.test(L[i])) { text += " " + L[i].trim(); i++; }
+            popTo(indent);
+            let top = stack[stack.length - 1];
+            if (!top || indent > top.indent) { top = { indent, ordered, buf: [] }; stack.push(top); }
+            top.buf.push(`<li>${mdInline(text)}</li>`);
+          } else if (blank(L[i]) && i + 1 < L.length && listRe.test(L[i + 1])) { i++; }
+          else break;
+        }
+        popTo(-1);
+        out.push(result);
+        continue;
+      }
+      const para = []; while (i < L.length && !blank(L[i]) && !blockStart(L[i])) { para.push(L[i]); i++; }
+      out.push(`<p>${mdInline(para.join(" "))}</p>`);
+    }
+    return out.join("");
+  }
+
+  // A Foundry citation shown as a tappable footnote under an answer.
+  function citeHtml(c) {
+    return `<a class="ncite" href="${esc(c.url || "#")}" target="_blank" rel="noopener" data-n="${esc(c.n)}"><span class="ncite-n">${esc(c.n)}</span><span class="ncite-t">${esc(c.title || c.url || "Source")}</span></a>`;
+  }
+
+  // opts: { log, send(question, history) -> {text, sources?, citations?, follow_ups?}, chips?, intro?, placeholder?, pendingText?, persist? }
   function mountChat(root, opts) {
     const log = opts.log;
     root.innerHTML = `<div class="chat-log"></div><div class="chat-foot"><div class="chips"></div>
@@ -904,13 +1154,17 @@
     const save = () => { if (opts.persist) opts.persist(); };
     const paint = () => {
       const items = log.length ? log : [{ who: "ai", text: opts.intro || NAV_INTRO, intro: true }];
-      logEl.innerHTML = items.map((m, i) => {
+      logEl.innerHTML = items.map((m, i, arr) => {
         if (m.who === "user") return `<div class="bubble user">${esc(m.text)}</div>`;
-        const n = (m.sources || []).length;
+        const rich = !m.pending && !m.intro && !m.failed;
+        const isLast = log.length > 0 && i === arr.length - 1;
+        const n = (m.sources || []).length + (m.citations || []).length;
+        const refine = isLast ? `<span class="act" data-act="shorter">Shorter</span><span class="act" data-act="more">More detail</span><span class="act" data-act="regen">Regenerate</span><span class="act" data-act="edit">Edit</span>` : "";
         const tools = m.pending || m.intro ? "" : m.failed
           ? `<div class="thumbs"><span class="act" data-act="retry" style="margin-left:0">Try again</span></div>`
-          : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${n ? `<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="copy">Copy</span></div>`;
-        return `<div class="ai-row${m.failed ? " failed" : ""}" data-i="${i}"><span class="orb sm"></span><div><div class="bubble ai${m.pending ? " pending" : ""}">${esc(m.text)}</div>${tools}<div class="nsrc-list${m.open ? " open" : ""}">${(m.sources || []).map(srcHtml).join("")}</div></div></div>`;
+          : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${n ? `<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="copy">Copy</span>${refine}</div>`;
+        const body = rich ? mdToHtml(m.text) : esc(m.text);
+        return `<div class="ai-row${m.failed ? " failed" : ""}" data-i="${i}"><span class="orb sm"></span><div><div class="bubble ai${rich ? " md" : ""}${m.pending ? " pending" : ""}">${body}</div>${tools}<div class="nsrc-list${m.open ? " open" : ""}">${(m.citations || []).map(citeHtml).join("")}${(m.sources || []).map(srcHtml).join("")}</div></div></div>`;
       }).join("");
       logEl.scrollTop = logEl.scrollHeight;
     };
@@ -931,6 +1185,14 @@
       pending.pending = false; paint(); paintChips(); save();
     };
     logEl.onclick = (e) => {
+      const chip = e.target.closest(".cite");
+      if (chip) {
+        const r = chip.closest(".ai-row"); const mm = r && log[Number(r.dataset.i)];
+        const c = mm && (mm.citations || []).find((x) => String(x.n) === chip.dataset.n);
+        if (c && c.url) window.open(c.url, "_blank", "noopener");
+        else if (mm) { mm.open = true; paint(); }
+        return;
+      }
       const src = e.target.closest(".nsrc");
       if (src) { src.classList.toggle("open"); return; }
       const row = e.target.closest(".ai-row"); if (!row) return;
@@ -944,6 +1206,17 @@
         const hasQ = log[i - 1] && log[i - 1].who === "user";
         const q = m.question || (hasQ ? log[i - 1].text : "");
         log.splice(hasQ ? i - 1 : i, hasQ ? 2 : 1); send(q);
+      }
+      else if (a === "shorter") send("Make that shorter.");
+      else if (a === "more") send("Give me more detail on that.");
+      else if (a === "regen") {
+        const hasQ = log[i - 1] && log[i - 1].who === "user"; if (!hasQ) return;
+        const q = log[i - 1].text; log.splice(i - 1, 2); send(q);
+      }
+      else if (a === "edit") {
+        const hasQ = log[i - 1] && log[i - 1].who === "user"; if (!hasQ) return;
+        const q = log[i - 1].text; log.splice(i - 1, 2); paint(); paintChips(); save();
+        input.value = q; input.focus();
       }
     };
     const submit = () => { const q = input.value; input.value = ""; send(q); };
@@ -975,11 +1248,8 @@
     const w = document.createElement("div"); w.className = "sheet-wrap nav";
     w.innerHTML = `<div class="sheet"><div class="grab"></div><div class="sheet-h nav-h"><span class="orb sm"></span>Ask Navigator<span class="spacer"></span><button class="nav-ib" id="navClear" title="Clear chat">${I.trash}Clear</button><button class="nav-ib" id="navClose" title="Close">${I.x}</button></div><div class="chat" id="navChat"></div></div>`;
     $("#phone").appendChild(w);
-    const chat = mountChat(w.querySelector("#navChat"), { log: navLog, persist: saveNav, chips: [], intro: NAV_INTRO,
-      send: async (message, history) => {
-        const d = await api("/v1/foundry/chat", { method: "POST", body: JSON.stringify({ message, history }) });
-        return { text: d.answer || "The sources don't cover that." };
-      } });
+    const t = activeThread();
+    const chat = mountChat(w.querySelector("#navChat"), { log: t.messages, persist: () => onTurnSaved(t), chips: [], intro: NAV_INTRO, send: navSend });
     const close = () => { chat.destroy(); w.remove(); };
     w.onclick = (e) => { if (e.target === w) close(); };
     w.querySelector("#navClose").onclick = close;
@@ -987,13 +1257,160 @@
     const clearBtn = w.querySelector("#navClear"); let armT = null;
     const disarm = () => { clearBtn.classList.remove("arm"); clearBtn.innerHTML = `${I.trash}Clear`; clearTimeout(armT); armT = null; };
     clearBtn.onclick = () => {
-      if (!navLog.length) { toast("Nothing to clear"); return; }
+      if (!t.messages.length) { toast("Nothing to clear"); return; }
       if (!armT) { clearBtn.classList.add("arm"); clearBtn.innerHTML = `${I.trash}Clear?`; armT = setTimeout(disarm, 3500); return; }
       disarm(); chat.clear(); toast("Chat cleared"); chat.focus();
     };
     if (opts.q) chat.send(opts.q);
     else if (opts.voice) chat.mic();
     else chat.focus();
+  }
+
+  // Full-page Ask Navigator (#/chat), reached from the "Ask" tab. Works on the active
+  // thread; the history drawer switches threads and the + starts a new one. The active
+  // thread is shared with the pull-up sheet; the in-call Ask sheet stays separate.
+  function renderChat() {
+    tabbar("ask");
+    const t = activeThread();
+    const title = t.title || titleFrom(t.messages);
+    view.innerHTML = header(`<button class="iconbtn" id="chatHist" title="Your chats">${I.menu}</button><h1 class="chat-title" id="chatTitle">${esc(title)}</h1><span class="spacer"></span><button class="iconbtn" id="chatSet" title="Answer preferences">${I.gear}</button><button class="iconbtn" id="chatNew" title="New chat">${I.plus}</button>`, "chat-hdr") +
+      `<main class="chatpage fade"><div class="chat" id="chatMain"></div></main>`;
+    const chat = mountChat($("#chatMain"), {
+      log: t.messages, chips: NAV_CHIPS, intro: NAV_INTRO, send: navSend,
+      persist: () => { onTurnSaved(t); const el = $("#chatTitle"); if (el) el.textContent = t.title || titleFrom(t.messages); },
+    });
+    const rerender = () => { chat.destroy(); renderChat(); };
+    $("#chatNew").onclick = () => {
+      // Reuse an existing empty "New chat" instead of stacking blanks.
+      if (!t.messages.length) return toast("This chat is empty");
+      newThread(); rerender();
+    };
+    $("#chatHist").onclick = () => openChatHistory(rerender);
+    $("#chatSet").onclick = () => openChatSettings();
+    chat.focus();
+    cleanup = () => chat.destroy();
+  }
+
+  // Slide-in list of saved chats: switch, search, rename (inline), pin, delete (with undo).
+  function openChatHistory(rerender) {
+    if ($(".cdrawer-wrap")) return;
+    const w = document.createElement("div"); w.className = "cdrawer-wrap";
+    w.innerHTML = `<div class="cdrawer"><div class="cdrawer-h"><h2>Your chats</h2><span class="spacer"></span><button class="nav-ib" id="cdNew">${I.plus}New</button></div>
+      <div class="cdrawer-search">${I.search}<input id="cdSearch" placeholder="Search chats" autocomplete="off"></div>
+      <div class="cdrawer-list" id="cdList"></div></div>`;
+    $("#phone").appendChild(w);
+    const listEl = w.querySelector("#cdList"), searchEl = w.querySelector("#cdSearch");
+    const close = () => w.remove();
+    const paint = () => {
+      const arr = sortedThreads(searchEl.value);
+      if (!arr.length) { listEl.innerHTML = `<div class="empty" style="padding:22px 12px">${searchEl.value.trim() ? "No chats match." : "No chats yet."}</div>`; return; }
+      listEl.innerHTML = arr.map((t) => {
+        const last = t.messages[t.messages.length - 1];
+        const snip = last ? ((last.who === "user" ? "You: " : "") + (last.text || "").replace(/\s+/g, " ")) : "No messages yet";
+        return `<div class="cthread ${t.id === chatActiveId ? "on" : ""}" data-id="${t.id}">
+          <div class="ct-main"><div class="ct-t">${t.pinned ? `<span class="ct-pin">${I.pin}</span>` : ""}${esc(t.title || titleFrom(t.messages))}</div>
+          <div class="ct-s">${esc(snip)}</div></div>
+          <div class="ct-time">${esc(relTime(t.updatedAt))}</div>
+          <div class="ct-actions"><button data-a="pin" title="${t.pinned ? "Unpin" : "Pin"}">${I.pin}</button><button data-a="rename" title="Rename">${I.pencil}</button><button data-a="export" title="Export .md">${I.download}</button><button data-a="del" title="Delete">${I.trash}</button></div></div>`;
+      }).join("");
+    };
+    const pick = (id) => { chatActiveId = id; store.set(CHAT_ACTIVE, chatActiveId); close(); rerender(); };
+    listEl.onclick = (e) => {
+      const row = e.target.closest(".cthread"); if (!row) return;
+      const id = row.dataset.id, t = chatThreads.find((x) => x.id === id); if (!t) return;
+      const act = e.target.closest("[data-a]");
+      if (!act) return pick(id);
+      const a = act.dataset.a;
+      if (a === "pin") { t.pinned = !t.pinned; saveThreads(); paint(); }
+      else if (a === "export") { exportThread(t); }
+      else if (a === "rename") {
+        const cell = row.querySelector(".ct-t");
+        cell.innerHTML = `<input class="ct-rename" maxlength="60">`;
+        const inp = cell.querySelector("input"); inp.value = t.title || titleFrom(t.messages); inp.focus(); inp.select();
+        const commit = () => { t.title = inp.value.trim() || titleFrom(t.messages); saveThreads(); paint(); if (id === chatActiveId) rerender(); };
+        inp.onclick = (ev) => ev.stopPropagation();
+        inp.onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); commit(); } else if (ev.key === "Escape") paint(); };
+        inp.onblur = commit;
+      } else if (a === "del") {
+        const idx = chatThreads.indexOf(t);
+        chatThreads.splice(idx, 1);
+        const wasActive = id === chatActiveId;
+        if (wasActive) { const nt = chatThreads[0] || newThread(); chatActiveId = nt.id; store.set(CHAT_ACTIVE, chatActiveId); }
+        saveThreads(); paint(); if (wasActive) rerender();
+        toastAction("Chat deleted", "Undo", () => {
+          chatThreads.splice(Math.min(idx, chatThreads.length), 0, t);
+          if (wasActive) { chatActiveId = id; store.set(CHAT_ACTIVE, chatActiveId); }
+          saveThreads(); paint(); if (wasActive) rerender();
+        });
+      }
+    };
+    w.querySelector("#cdNew").onclick = () => {
+      const cur = activeThread();
+      if (!cur.messages.length) { pick(cur.id); return; }
+      newThread(); close(); rerender();
+    };
+    searchEl.oninput = paint;
+    w.onclick = (e) => { if (e.target === w) close(); };
+    paint();
+    setTimeout(() => searchEl.focus(), 60);
+  }
+
+  // Answer preferences + saved memories. Both feed buildPreamble(), so they shape every
+  // answer the Navigator gives. Stored per-deployment (single login) in localStorage.
+  function openChatSettings() {
+    if ($(".sheet-wrap.sets")) return;
+    const w = document.createElement("div"); w.className = "sheet-wrap sets";
+    const seg = (key, opts) => `<div class="seg" data-key="${key}">` + opts.map(([v, l]) => `<button class="${chatPrefs[key] === v ? "on" : ""}" data-v="${v}">${l}</button>`).join("") + `</div>`;
+    w.innerHTML = `<div class="sheet setsheet"><div class="grab"></div>
+      <div class="sheet-h nav-h"><span>Answer preferences</span><span class="spacer"></span><button class="nav-ib" id="setClose">${I.x}</button></div>
+      <div class="setbody">
+        <label class="setlbl">Length</label>${seg("length", [["brief", "Brief"], ["balanced", "Balanced"], ["detailed", "Detailed"]])}
+        <label class="setlbl">Format</label>${seg("format", [["auto", "Auto"], ["bullets", "Bullets"], ["prose", "Prose"]])}
+        <label class="setlbl">Tone</label>${seg("tone", [["warm", "Warm"], ["plain", "Plain"], ["formal", "Formal"]])}
+        <label class="settoggle"><span>Plain language (new-agent friendly)</span><input type="checkbox" id="setPlain" ${chatPrefs.plain ? "checked" : ""}></label>
+        <label class="settoggle"><span>Always cite sources</span><input type="checkbox" id="setSources" ${chatPrefs.alwaysSources ? "checked" : ""}></label>
+        <label class="setlbl">About me<span class="setsub">Your role, market, or focus</span></label>
+        <textarea id="setRole" class="setarea" rows="2" placeholder="e.g. I sell FlexLife to Spanish-speaking families in California.">${esc(chatPrefs.role || "")}</textarea>
+        <label class="setlbl">Memories<span class="setsub">Facts to always keep in mind</span></label>
+        <div id="memList" class="memlist"></div>
+        <div class="memadd"><input id="memInput" placeholder="Remember that…" maxlength="140" autocomplete="off"><button id="memAdd" class="nav-ib">${I.plus}Add</button></div>
+      </div></div>`;
+    $("#phone").appendChild(w);
+    const close = () => w.remove();
+    w.onclick = (e) => { if (e.target === w) close(); };
+    w.querySelector("#setClose").onclick = close;
+    w.querySelectorAll(".seg").forEach((segEl) => {
+      segEl.onclick = (e) => { const b = e.target.closest("button[data-v]"); if (!b) return; chatPrefs[segEl.dataset.key] = b.dataset.v; savePrefs(); segEl.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); };
+    });
+    w.querySelector("#setPlain").onchange = (e) => { chatPrefs.plain = e.target.checked; savePrefs(); };
+    w.querySelector("#setSources").onchange = (e) => { chatPrefs.alwaysSources = e.target.checked; savePrefs(); };
+    const roleEl = w.querySelector("#setRole"); roleEl.oninput = () => { chatPrefs.role = roleEl.value; savePrefs(); };
+    const memList = w.querySelector("#memList"), memInput = w.querySelector("#memInput");
+    const paintMem = () => { memList.innerHTML = chatMemories.length ? chatMemories.map((mm) => `<div class="memitem"><span>${esc(mm.text)}</span><button data-del="${mm.id}" title="Remove">${I.x}</button></div>`).join("") : `<div class="empty" style="padding:8px 2px">No memories yet.</div>`; };
+    const addMem = () => { const v = memInput.value.trim(); if (!v) return; chatMemories.push({ id: uid(), text: v, createdAt: Date.now() }); saveMemories(); memInput.value = ""; paintMem(); };
+    w.querySelector("#memAdd").onclick = addMem;
+    memInput.onkeydown = (e) => { if (e.key === "Enter") addMem(); };
+    memList.onclick = (e) => { const b = e.target.closest("[data-del]"); if (!b) return; chatMemories = chatMemories.filter((mm) => mm.id !== b.dataset.del); saveMemories(); paintMem(); };
+    paintMem();
+  }
+
+  // Download one thread as a Markdown transcript (falls back to clipboard if blobs fail).
+  function exportThread(t) {
+    const msgs = (t.messages || []).filter((m) => !m.pending && !m.intro);
+    if (!msgs.length) return toast("Nothing to export");
+    const md = `# ${t.title || titleFrom(msgs)}\n\n` + msgs.map((m) => {
+      const who = m.who === "user" ? "**You:**" : "**Navigator:**";
+      const cites = (m.citations && m.citations.length) ? "\n\n" + m.citations.map((c) => `> [${c.n}] ${c.title} — ${c.url}`).join("\n") : "";
+      return `${who} ${m.text}${cites}`;
+    }).join("\n\n---\n\n") + "\n";
+    try {
+      const blob = new Blob([md], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = ((t.title || "chat").replace(/[^\w-]+/g, "_").slice(0, 40) || "chat") + ".md";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast("Exported .md");
+    } catch { if (navigator.clipboard) navigator.clipboard.writeText(md).then(() => toast("Transcript copied"), () => toast("Couldn't export")); else toast("Couldn't export"); }
   }
 
   const STATUSBAR = `<div class="statusbar"><span>9:41</span><span class="sig">▂▄▆ ᯤ ▮</span></div>`;
