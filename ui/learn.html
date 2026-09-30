@@ -76,9 +76,9 @@
   /* Body */
   main { flex: 1; padding: 18px 18px 96px; }
   /* Green tab headers sit as a square-bottomed bar; the content sheet curves up
-     under them so the green peeks through at the two top corners. Home is excluded
-     because its floating ask-bar already overlaps the header by design. */
-  .hdr:not(.light):not(.home) + main { background: var(--cream); border-radius: 16px 16px 0 0; margin-top: -16px; padding-top: 22px; position: relative; z-index: 3; }
+     under them so the green peeks through at the two top corners. Home matches this
+     too — its floating ask-bar simply sits on top of the curved sheet. */
+  .hdr:not(.light) + main { background: var(--cream); border-radius: 16px 16px 0 0; margin-top: -16px; padding-top: 22px; position: relative; z-index: 3; }
   .h2 { font-family: var(--serif); font-size: 15px; font-weight: 700; margin: 22px 0 10px; letter-spacing: .1px; }
   .h2:first-child { margin-top: 0; }
   .muted { color: var(--muted); }
