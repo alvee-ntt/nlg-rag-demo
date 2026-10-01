@@ -31,6 +31,33 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+### Run and debug in VS Code (Windows)
+
+The checked-in VS Code configuration runs the FastAPI process on the host under the
+Python debugger and starts only PostgreSQL/pgvector in Docker. This means breakpoints
+in `src/rag_layer/*.py` work normally.
+
+First-time setup:
+
+1. Open the repository folder in VS Code and install the recommended Python and Docker
+   extensions when prompted.
+2. Run **Terminal > Run Build Task** (`Ctrl+Shift+B`). The
+   `setup: local development` task creates `.venv`, installs runtime and test
+   dependencies, and copies `.env.example` to the ignored `.env` file if needed.
+3. Fill in the Azure credentials in `.env`. At minimum, API startup needs
+   `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`; ingestion also needs the Blob
+   Storage connection string or SAS token. Run the `dev: validate configuration` task
+   for a complete configuration check.
+4. Open **Run and Debug**, select **RAG API (local debug)**, and press `F5`.
+
+The debug launch starts Docker Desktop when needed, starts the bundled Postgres service,
+waits for it to become healthy, and opens `http://127.0.0.1:8000/learn` when Uvicorn is
+ready. Stopping the debugger leaves Postgres running for faster restarts. Run the
+`dev: stop Postgres` task when you want to stop it; its data remains in the Docker
+volume.
+
+Tests can be run from VS Code's Test Explorer or with the `test: pytest` task.
+
 ## Database
 
 Postgres (pgvector) is part of `docker-compose.yml`, so you no longer start it by hand. `docker compose up --build -d` brings up the `postgres` service alongside the API, with a persistent `pgdata` volume and `restart: unless-stopped` so it survives reboots. The port is published on `localhost:5432` for host-side tools.

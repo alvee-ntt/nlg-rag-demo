@@ -166,9 +166,77 @@ def _extract_answer(data: dict) -> tuple[str, list[dict]]:
     return text.strip(), citations
 
 
-def chat(*, settings: Settings, message: str, history: list[dict]) -> dict:
+def _current_user_content(
+    *,
+    question: str,
+    preferences: dict | None = None,
+    about_me: str = "",
+    memories: list[str] | None = None,
+) -> str:
+    """Serialize the separately sourced Ask inputs only at the provider boundary."""
+    prefs = preferences or {}
+    style: list[str] = []
+    length = {
+        "brief": "Be brief and to the point.",
+        "balanced": "",
+        "detailed": "Give a thorough, detailed answer.",
+    }
+    output_format = {
+        "bullets": "Prefer bullet points.",
+        "prose": "Answer in prose paragraphs, not lists.",
+        "auto": "",
+    }
+    tone = {
+        "plain": "Use a neutral, plain tone.",
+        "warm": "Use a warm, encouraging tone.",
+        "formal": "Use a formal, professional tone.",
+    }
+    if length.get(prefs.get("length", "balanced")):
+        style.append(length[prefs.get("length", "balanced")])
+    if output_format.get(prefs.get("format", "auto")):
+        style.append(output_format[prefs.get("format", "auto")])
+    if tone.get(prefs.get("tone", "warm")):
+        style.append(tone[prefs.get("tone", "warm")])
+    if prefs.get("plain"):
+        style.append("Explain simply, so a brand-new agent can follow.")
+    if prefs.get("always_sources"):
+        style.append("Always cite the source documents.")
+
+    lines: list[str] = []
+    if style:
+        lines.append("Answer style: " + " ".join(style))
+    if about_me.strip():
+        lines.append("About me: " + about_me.strip())
+    clean_memories = [text.strip() for text in (memories or []) if text.strip()]
+    if clean_memories:
+        lines.append("Remember: " + "; ".join(clean_memories))
+
+    preamble = (
+        "[Context for how to answer — do not repeat this back to me:\n"
+        + "\n".join(lines)
+        + "]\n\n"
+        if lines
+        else ""
+    )
+    return preamble + question
+
+
+def chat(
+    *,
+    settings: Settings,
+    question: str,
+    history: list[dict],
+    preferences: dict | None = None,
+    about_me: str = "",
+    memories: list[str] | None = None,
+) -> dict:
     """One turn against the hosted Foundry agent, with the running conversation replayed
-    as context (the endpoint is stateless per call unless you thread response ids)."""
+    as context (the endpoint is stateless per call unless you thread response ids).
+
+    The question, answer preferences, user description, memories, and history cross into
+    this module as distinct values. They are serialized only when constructing the final
+    provider message below.
+    """
     client = FoundryAgentClient(settings)
 
     conversation: list[dict] = []
@@ -177,7 +245,15 @@ def chat(*, settings: Settings, message: str, history: list[dict]) -> dict:
         text = str(turn.get("text", "")).strip()
         if role in {"user", "assistant"} and text:
             conversation.append({"role": role, "content": text})
-    conversation.append({"role": "user", "content": message})
+    conversation.append({
+        "role": "user",
+        "content": _current_user_content(
+            question=question,
+            preferences=preferences,
+            about_me=about_me,
+            memories=memories,
+        ),
+    })
 
     data = client.respond({"input": conversation})
     answer, citations = _extract_answer(data)

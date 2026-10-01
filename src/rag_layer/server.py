@@ -90,9 +90,20 @@ class ChatRequest(BaseModel):
     limit: int = Field(default=6, ge=1, le=20)
 
 
+class FoundryAnswerPreferences(BaseModel):
+    length: Literal["brief", "balanced", "detailed"] = "balanced"
+    format: Literal["auto", "bullets", "prose"] = "auto"
+    tone: Literal["warm", "plain", "formal"] = "warm"
+    plain: bool = False
+    always_sources: bool = False
+
+
 class FoundryChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=20)
+    preferences: FoundryAnswerPreferences = Field(default_factory=FoundryAnswerPreferences)
+    about_me: str = Field(default="", max_length=1000)
+    memories: list[str] = Field(default_factory=list, max_length=20)
 
 
 class FoundryCitation(BaseModel):
@@ -477,8 +488,11 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
     try:
         return foundry_chat(
             settings=settings,
-            message=payload.message.strip(),
+            question=payload.message.strip(),
             history=[t.model_dump() for t in payload.history],
+            preferences=payload.preferences.model_dump(),
+            about_me=payload.about_me.strip(),
+            memories=[memory.strip() for memory in payload.memories if memory.strip()],
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
