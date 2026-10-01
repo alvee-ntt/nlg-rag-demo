@@ -493,6 +493,7 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
             preferences=payload.preferences.model_dump(),
             about_me=payload.about_me.strip(),
             memories=[memory.strip() for memory in payload.memories if memory.strip()],
+            trace_session_id=request.app.state.auth.trace_session_id(request),
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
@@ -783,8 +784,8 @@ def login_endpoint(payload: LoginRequest, request: Request, response: Response) 
     auth: Auth = request.app.state.auth
     if not auth.check(payload.username, payload.password):
         raise HTTPException(status_code=401, detail="Incorrect username or password")
-    auth.set_cookie(response)
-    return {"ok": True, "username": auth.username}
+    trace_session_id = auth.set_cookie(response)
+    return {"ok": True, "username": auth.username, "trace_session_id": trace_session_id}
 
 
 @app.post("/v1/auth/logout")

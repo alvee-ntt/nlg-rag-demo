@@ -16,7 +16,11 @@ Wire protocol (confirmed against the live endpoint):
 
 from __future__ import annotations
 
+import json
+import secrets
 import time
+from datetime import datetime
+from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import requests
@@ -221,6 +225,95 @@ def _current_user_content(
     return preamble + question
 
 
+def _write_json(path: Path, value: dict) -> None:
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _flatten_provider_request(payload: dict) -> str:
+    """Human-readable rendering; provider-request.json remains authoritative."""
+    sections: list[str] = []
+    for index, item in enumerate(payload.get("input", []) or [], start=1):
+        role = str(item.get("role", "unknown")).upper()
+        content = item.get("content", "")
+        if not isinstance(content, str):
+            content = json.dumps(content, ensure_ascii=False, indent=2)
+        sections.append(f"===== MESSAGE {index}: {role} =====\n{content}")
+    return "\n\n".join(sections) + "\n"
+
+
+class _RequestTrace:
+    def __init__(
+        self,
+        *,
+        root: str,
+        session_id: str | None,
+        inputs: dict,
+    ) -> None:
+        self.directory: Path | None = None
+        if not root:
+            return
+        if not session_id:
+            # Normally created at login. This fallback covers API clients carrying an
+            # older auth cookie while still keeping their requests grouped together.
+            session_id = "missing-login-session"
+        now = datetime.now().astimezone()
+        timestamp = (
+            now.strftime("%Y-%m-%d_%H-%M-%S-")
+            + f"{now.microsecond // 1000:03d}_"
+            + now.strftime("%z")
+        )
+        request_id = f"{timestamp}_request_{secrets.token_hex(4)}"
+        self.directory = Path(root) / session_id / request_id
+        self.directory.mkdir(parents=True, exist_ok=False)
+        _write_json(
+            self.directory / "inputs.json",
+            {
+                "trace_session_id": session_id,
+                "request_id": request_id,
+                "received_at": now.isoformat(),
+                **inputs,
+            },
+        )
+
+    def provider_request(self, payload: dict) -> None:
+        if self.directory is None:
+            return
+        _write_json(self.directory / "provider-request.json", payload)
+        (self.directory / "prompt.txt").write_text(
+            _flatten_provider_request(payload), encoding="utf-8"
+        )
+
+    def response(self, data: dict) -> None:
+        if self.directory is not None:
+            _write_json(self.directory / "response.json", data)
+
+    def error(self, exc: Exception) -> None:
+        if self.directory is None:
+            return
+        error = {
+            "error_type": type(exc).__name__,
+            "message": str(exc),
+            "recorded_at": datetime.now().astimezone().isoformat(),
+        }
+        response = getattr(exc, "response", None)
+        if response is not None:
+            error["http_status"] = response.status_code
+            error["http_reason"] = response.reason
+            error["response_body"] = response.text
+            _write_json(
+                self.directory / "response.json",
+                {
+                    "status_code": response.status_code,
+                    "reason": response.reason,
+                    "body": response.text,
+                },
+            )
+        _write_json(self.directory / "error.json", error)
+
+
 def chat(
     *,
     settings: Settings,
@@ -229,6 +322,7 @@ def chat(
     preferences: dict | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
+    trace_session_id: str | None = None,
 ) -> dict:
     """One turn against the hosted Foundry agent, with the running conversation replayed
     as context (the endpoint is stateless per call unless you thread response ids).
@@ -237,25 +331,42 @@ def chat(
     this module as distinct values. They are serialized only when constructing the final
     provider message below.
     """
-    client = FoundryAgentClient(settings)
+    trace = _RequestTrace(
+        root=settings.foundry_trace_path,
+        session_id=trace_session_id,
+        inputs={
+            "question": question,
+            "history": history,
+            "preferences": preferences or {},
+            "about_me": about_me,
+            "memories": memories or [],
+        },
+    )
+    try:
+        client = FoundryAgentClient(settings)
+        conversation: list[dict] = []
+        for turn in history:
+            role = turn.get("role")
+            text = str(turn.get("text", "")).strip()
+            if role in {"user", "assistant"} and text:
+                conversation.append({"role": role, "content": text})
+        conversation.append({
+            "role": "user",
+            "content": _current_user_content(
+                question=question,
+                preferences=preferences,
+                about_me=about_me,
+                memories=memories,
+            ),
+        })
 
-    conversation: list[dict] = []
-    for turn in history:
-        role = turn.get("role")
-        text = str(turn.get("text", "")).strip()
-        if role in {"user", "assistant"} and text:
-            conversation.append({"role": role, "content": text})
-    conversation.append({
-        "role": "user",
-        "content": _current_user_content(
-            question=question,
-            preferences=preferences,
-            about_me=about_me,
-            memories=memories,
-        ),
-    })
-
-    data = client.respond({"input": conversation})
+        provider_payload = {"input": conversation}
+        trace.provider_request(provider_payload)
+        data = client.respond(provider_payload)
+        trace.response(data)
+    except Exception as exc:
+        trace.error(exc)
+        raise
     answer, citations = _extract_answer(data)
     return {
         "answer": answer or "(the agent returned no text)",
