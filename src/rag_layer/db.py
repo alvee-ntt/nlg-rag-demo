@@ -106,6 +106,23 @@ CREATE TABLE IF NOT EXISTS app_settings (
     value JSONB NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Ask Navigator context is user-scoped even though the demo currently resolves every
+-- login to one fixed user id. This avoids a schema change when real identity arrives.
+CREATE TABLE IF NOT EXISTS ask_user_profiles (
+    user_id TEXT PRIMARY KEY,
+    about_me TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ask_user_memories (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES ask_user_profiles(user_id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ask_user_memories_user_idx
+    ON ask_user_memories(user_id, created_at, id);
 """
 
 
@@ -631,6 +648,52 @@ def set_app_settings(conn, values: dict[str, Any]) -> None:
             (key, Jsonb(value)),
         )
     conn.commit()
+
+
+def get_ask_user_context(conn, user_id: str) -> dict[str, Any]:
+    profile = conn.execute(
+        "SELECT about_me FROM ask_user_profiles WHERE user_id = %s",
+        (user_id,),
+    ).fetchone()
+    rows = conn.execute(
+        "SELECT id, text, created_at FROM ask_user_memories "
+        "WHERE user_id = %s ORDER BY created_at, id",
+        (user_id,),
+    ).fetchall()
+    return {
+        "user_id": user_id,
+        "about_me": str(profile["about_me"]) if profile else "",
+        "memories": [
+            {
+                "id": str(row["id"]),
+                "text": str(row["text"]),
+                "createdAt": row["created_at"].isoformat(),
+            }
+            for row in rows
+        ],
+    }
+
+
+def replace_ask_user_context(
+    conn,
+    *,
+    user_id: str,
+    about_me: str,
+    memories: list[dict[str, str]],
+) -> dict[str, Any]:
+    conn.execute(
+        "INSERT INTO ask_user_profiles (user_id, about_me) VALUES (%s, %s) "
+        "ON CONFLICT (user_id) DO UPDATE SET about_me = EXCLUDED.about_me, updated_at = now()",
+        (user_id, about_me),
+    )
+    conn.execute("DELETE FROM ask_user_memories WHERE user_id = %s", (user_id,))
+    for memory in memories:
+        conn.execute(
+            "INSERT INTO ask_user_memories (id, user_id, text) VALUES (%s, %s, %s)",
+            (memory["id"], user_id, memory["text"]),
+        )
+    conn.commit()
+    return get_ask_user_context(conn, user_id)
 
 
 def _vector_literal(values: list[float]) -> str:

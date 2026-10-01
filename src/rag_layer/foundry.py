@@ -322,6 +322,7 @@ def chat(
     preferences: dict | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
+    user_id: str | None = None,
     trace_session_id: str | None = None,
 ) -> dict:
     """One turn against the hosted Foundry agent, with the running conversation replayed
@@ -340,6 +341,7 @@ def chat(
             "preferences": preferences or {},
             "about_me": about_me,
             "memories": memories or [],
+            "user_id": user_id,
         },
     )
     try:
