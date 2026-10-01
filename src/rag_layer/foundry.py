@@ -233,14 +233,32 @@ def _write_json(path: Path, value: dict) -> None:
 
 
 def _flatten_provider_request(payload: dict) -> str:
-    """Human-readable rendering; provider-request.json remains authoritative."""
+    """Render every prompt-bearing field; provider-request.json remains authoritative."""
     sections: list[str] = []
-    for index, item in enumerate(payload.get("input", []) or [], start=1):
-        role = str(item.get("role", "unknown")).upper()
-        content = item.get("content", "")
-        if not isinstance(content, str):
-            content = json.dumps(content, ensure_ascii=False, indent=2)
-        sections.append(f"===== MESSAGE {index}: {role} =====\n{content}")
+    if "instructions" in payload:
+        instructions = payload.get("instructions", "")
+        if not isinstance(instructions, str):
+            instructions = json.dumps(instructions, ensure_ascii=False, indent=2)
+        sections.append(f"===== INSTRUCTIONS =====\n{instructions}")
+
+    request_input = payload.get("input", [])
+    if isinstance(request_input, str):
+        sections.append(f"===== INPUT =====\n{request_input}")
+    else:
+        for index, item in enumerate(request_input or [], start=1):
+            role = str(item.get("role", "unknown")).upper()
+            content = item.get("content", "")
+            if not isinstance(content, str):
+                content = json.dumps(content, ensure_ascii=False, indent=2)
+            sections.append(f"===== MESSAGE {index}: {role} =====\n{content}")
+
+    # Render every remaining request field generically. This deliberately favors a
+    # complete trace over guessing which future Responses fields affect model context.
+    for field, field_value in payload.items():
+        if field in {"instructions", "input"}:
+            continue
+        value = json.dumps(field_value, ensure_ascii=False, indent=2)
+        sections.append(f"===== {field.upper()} =====\n{value}")
     return "\n\n".join(sections) + "\n"
 
 
@@ -317,6 +335,9 @@ class _RequestTrace:
 def chat(
     *,
     settings: Settings,
+    instructions: str,
+    prompt_key: str,
+    prompt_version: int,
     question: str,
     history: list[dict],
     preferences: dict | None = None,
@@ -336,6 +357,8 @@ def chat(
         root=settings.foundry_trace_path,
         session_id=trace_session_id,
         inputs={
+            "prompt_key": prompt_key,
+            "prompt_version": prompt_version,
             "question": question,
             "history": history,
             "preferences": preferences or {},
@@ -346,13 +369,19 @@ def chat(
     )
     try:
         client = FoundryAgentClient(settings)
-        conversation: list[dict] = []
+        # Agent-scoped Foundry endpoints reject the top-level Responses
+        # ``instructions`` field ("Not allowed when agent is specified"). Put the
+        # application-managed prompt in the input as a system message instead.
+        conversation: list[dict] = [
+            {"type": "message", "role": "system", "content": instructions}
+        ]
         for turn in history:
             role = turn.get("role")
             text = str(turn.get("text", "")).strip()
             if role in {"user", "assistant"} and text:
-                conversation.append({"role": role, "content": text})
+                conversation.append({"type": "message", "role": role, "content": text})
         conversation.append({
+            "type": "message",
             "role": "user",
             "content": _current_user_content(
                 question=question,

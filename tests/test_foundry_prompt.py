@@ -1,7 +1,10 @@
 import json
+from types import SimpleNamespace
 
 from src.rag_layer.auth import Auth
-from src.rag_layer.foundry import _RequestTrace, _current_user_content
+from src.rag_layer.db import PromptConfigurationError, get_selected_prompt
+from src.rag_layer import foundry
+from src.rag_layer.foundry import _RequestTrace, _current_user_content, _flatten_provider_request
 
 
 def test_foundry_inputs_remain_separate_until_provider_serialization():
@@ -56,6 +59,8 @@ def test_request_trace_writes_inputs_prompt_payload_and_response(tmp_path):
         root=str(tmp_path),
         session_id="session-1",
         inputs={
+            "prompt_key": "ask.navigator",
+            "prompt_version": 1,
             "question": "How do caps work?",
             "history": [],
             "preferences": {"tone": "warm"},
@@ -63,7 +68,12 @@ def test_request_trace_writes_inputs_prompt_payload_and_response(tmp_path):
             "memories": ["California market"],
         },
     )
-    payload = {"input": [{"role": "user", "content": "Final prompt"}]}
+    payload = {
+        "input": [
+            {"type": "message", "role": "system", "content": "System instructions"},
+            {"type": "message", "role": "user", "content": "Final prompt"},
+        ],
+    }
     response = {"id": "response-1", "output": [{"type": "message"}]}
 
     trace.provider_request(payload)
@@ -72,8 +82,104 @@ def test_request_trace_writes_inputs_prompt_payload_and_response(tmp_path):
     request_dir = next((tmp_path / "session-1").iterdir())
     inputs = json.loads((request_dir / "inputs.json").read_text(encoding="utf-8"))
     assert inputs["question"] == "How do caps work?"
+    assert inputs["prompt_key"] == "ask.navigator"
+    assert inputs["prompt_version"] == 1
     assert json.loads((request_dir / "provider-request.json").read_text(encoding="utf-8")) == payload
     assert (request_dir / "prompt.txt").read_text(encoding="utf-8") == (
-        "===== MESSAGE 1: USER =====\nFinal prompt\n"
+        "===== MESSAGE 1: SYSTEM =====\nSystem instructions\n\n"
+        "===== MESSAGE 2: USER =====\nFinal prompt\n"
     )
     assert json.loads((request_dir / "response.json").read_text(encoding="utf-8")) == response
+
+
+def test_flatten_provider_request_includes_all_prompt_bearing_fields():
+    payload = {
+        "instructions": "Base instructions",
+        "input": [
+            {"role": "developer", "content": [{"type": "input_text", "text": "Be concise"}]},
+            {"role": "user", "content": "Question"},
+        ],
+        "structured_inputs": {"audience": "new agent"},
+    }
+
+    rendered = _flatten_provider_request(payload)
+
+    assert "===== INSTRUCTIONS =====\nBase instructions" in rendered
+    assert '"text": "Be concise"' in rendered
+    assert "===== MESSAGE 2: USER =====\nQuestion" in rendered
+    assert '===== STRUCTURED_INPUTS =====\n{\n  "audience": "new agent"\n}' in rendered
+
+
+def test_get_selected_prompt_resolves_definition_and_version():
+    expected = {
+        "key": "ask.navigator",
+        "purpose": "Answer questions",
+        "version": 3,
+        "instructions": "Current instructions",
+    }
+
+    class Result:
+        def fetchone(self):
+            return expected
+
+    class Connection:
+        def execute(self, query, params):
+            assert "d.selected_version" in query
+            assert params == ("ask.navigator",)
+            return Result()
+
+    assert get_selected_prompt(Connection(), "ask.navigator") == expected
+
+
+def test_get_selected_prompt_fails_when_no_version_is_selected():
+    class Result:
+        def fetchone(self):
+            return None
+
+    class Connection:
+        def execute(self, query, params):
+            return Result()
+
+    try:
+        get_selected_prompt(Connection(), "ask.navigator")
+    except PromptConfigurationError as exc:
+        assert "ask.navigator" in str(exc)
+    else:
+        raise AssertionError("Expected missing selected prompt to fail")
+
+
+def test_chat_sends_resolved_instructions_as_system_input_message(monkeypatch):
+    sent = {}
+
+    class Client:
+        agent = "KnowledgeBase"
+
+        def __init__(self, settings):
+            pass
+
+        def respond(self, payload):
+            sent.update(payload)
+            return {"id": "response-1", "status": "completed", "output_text": "Answer"}
+
+    monkeypatch.setattr(foundry, "FoundryAgentClient", Client)
+    settings = SimpleNamespace(foundry_trace_path="")
+
+    result = foundry.chat(
+        settings=settings,
+        instructions="Versioned application instructions",
+        prompt_key="ask.navigator",
+        prompt_version=1,
+        question="How do caps work?",
+        history=[],
+    )
+
+    assert "instructions" not in sent
+    assert sent["input"][0] == {
+        "type": "message",
+        "role": "system",
+        "content": "Versioned application instructions",
+    }
+    assert all(item["type"] == "message" for item in sent["input"])
+    assert sent["input"][-1]["role"] == "user"
+    assert sent["input"][-1]["content"].endswith("How do caps work?")
+    assert result["answer"] == "Answer"

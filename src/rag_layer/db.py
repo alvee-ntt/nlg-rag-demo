@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -9,6 +10,11 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from .config import Settings, load_settings
+
+
+class PromptConfigurationError(RuntimeError):
+    """A backend prompt key has no usable selected version."""
+
 
 SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -107,6 +113,44 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Application-managed Foundry prompts. Definitions identify a backend function;
+-- versions are immutable snapshots, and selected_version is the one used now.
+CREATE TABLE IF NOT EXISTS prompt_definitions (
+    key TEXT PRIMARY KEY,
+    purpose TEXT NOT NULL,
+    selected_version INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT prompt_definitions_key_format
+        CHECK (key ~ '^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_-]*)+$')
+);
+
+CREATE TABLE IF NOT EXISTS prompt_versions (
+    prompt_key TEXT NOT NULL REFERENCES prompt_definitions(key) ON DELETE RESTRICT,
+    version INTEGER NOT NULL CHECK (version > 0),
+    instructions TEXT NOT NULL CHECK (length(instructions) > 0),
+    change_notes TEXT NOT NULL DEFAULT '',
+    created_by TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (prompt_key, version)
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'prompt_definitions_selected_version_fk'
+          AND conrelid = 'prompt_definitions'::regclass
+    ) THEN
+        ALTER TABLE prompt_definitions
+        ADD CONSTRAINT prompt_definitions_selected_version_fk
+        FOREIGN KEY (key, selected_version)
+        REFERENCES prompt_versions(prompt_key, version)
+        DEFERRABLE INITIALLY DEFERRED;
+    END IF;
+END $$;
+
 -- Ask Navigator context is user-scoped even though the demo currently resolves every
 -- login to one fixed user id. This avoids a schema change when real identity arrives.
 CREATE TABLE IF NOT EXISTS ask_user_profiles (
@@ -133,7 +177,74 @@ def connect(settings: Settings):
 def init_db(settings: Settings) -> None:
     with connect(settings) as conn:
         conn.execute(SCHEMA_SQL.replace("__EMBEDDING_DIMENSIONS__", str(settings.embedding_dimensions)))
+        _seed_prompt(
+            conn,
+            key="ask.navigator",
+            purpose="Answer user questions using the hosted Foundry knowledge agent",
+            version=1,
+            path=Path(__file__).resolve().parents[2] / "Prompts" / "ask.navigator.prompt.md",
+        )
         conn.commit()
+
+
+def _seed_prompt(
+    conn,
+    *,
+    key: str,
+    purpose: str,
+    version: int,
+    path: Path,
+) -> None:
+    """Seed an initial immutable prompt version without changing existing DB content."""
+    try:
+        instructions = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Prompt seed file is missing: {path}") from exc
+    if not instructions.strip():
+        raise RuntimeError(f"Prompt seed file is empty: {path}")
+
+    conn.execute(
+        "INSERT INTO prompt_definitions (key, purpose) VALUES (%s, %s) "
+        "ON CONFLICT (key) DO NOTHING",
+        (key, purpose),
+    )
+    conn.execute(
+        """
+        INSERT INTO prompt_versions
+            (prompt_key, version, instructions, change_notes, created_by)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (prompt_key, version) DO NOTHING
+        """,
+        (key, version, instructions, "Initial prompt imported from the repository", "seed"),
+    )
+    conn.execute(
+        """
+        UPDATE prompt_definitions
+        SET selected_version = %s, updated_at = now()
+        WHERE key = %s AND selected_version IS NULL
+        """,
+        (version, key),
+    )
+
+
+def get_selected_prompt(conn, key: str) -> dict[str, Any]:
+    """Resolve the immutable prompt version currently selected for a function key."""
+    row = conn.execute(
+        """
+        SELECT d.key, d.purpose, v.version, v.instructions
+        FROM prompt_definitions AS d
+        JOIN prompt_versions AS v
+          ON v.prompt_key = d.key
+         AND v.version = d.selected_version
+        WHERE d.key = %s
+        """,
+        (key,),
+    ).fetchone()
+    if not row:
+        raise PromptConfigurationError(
+            f"No selected prompt version is configured for prompt key {key!r}"
+        )
+    return dict(row)
 
 
 def count_documents(settings: Settings) -> int:

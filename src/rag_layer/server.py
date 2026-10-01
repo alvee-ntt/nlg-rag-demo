@@ -27,6 +27,7 @@ if _VENDOR_WAS_ON_PATH:
 from .auth import Auth
 from .config import load_settings
 from .db import (
+    PromptConfigurationError,
     connect,
     create_mix,
     delete_mix,
@@ -35,6 +36,7 @@ from .db import (
     get_mix,
     get_mix_audio,
     get_roleplay_session,
+    get_selected_prompt,
     init_db,
     list_audio_mixes_without_audio,
     list_mixes,
@@ -140,6 +142,7 @@ class FoundryStatusResponse(BaseModel):
 # The schema and API are user-scoped now; authentication can replace this resolver when
 # the demo grows real user accounts.
 DEMO_ASK_USER_ID = "demo-user"
+ASK_NAVIGATOR_PROMPT_KEY = "ask.navigator"
 
 
 class FactCheckRequest(BaseModel):
@@ -528,8 +531,12 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
     try:
         with connect(settings) as conn:
             user_context = get_ask_user_context(conn, DEMO_ASK_USER_ID)
+            prompt = get_selected_prompt(conn, ASK_NAVIGATOR_PROMPT_KEY)
         return foundry_chat(
             settings=settings,
+            instructions=prompt["instructions"],
+            prompt_key=prompt["key"],
+            prompt_version=prompt["version"],
             question=payload.message.strip(),
             history=[t.model_dump() for t in payload.history],
             preferences=payload.preferences.model_dump(),
@@ -538,6 +545,8 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
             user_id=DEMO_ASK_USER_ID,
             trace_session_id=request.app.state.auth.trace_session_id(request),
         )
+    except PromptConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
 
