@@ -7,6 +7,12 @@ from src.rag_layer import foundry
 from src.rag_layer.foundry import _RequestTrace, _current_user_content, _flatten_provider_request
 
 
+PROMPT_AUGMENTATIONS = [
+    {"key": "ask.about_me", "version": 1, "instructions": "About me: {{about_me}}"},
+    {"key": "ask.memories", "version": 1, "instructions": "Remember: {{memories}}"},
+]
+
+
 def test_foundry_inputs_remain_separate_until_provider_serialization():
     content = _current_user_content(
         question="How do caps work?",
@@ -17,6 +23,7 @@ def test_foundry_inputs_remain_separate_until_provider_serialization():
             "plain": True,
             "always_sources": True,
         },
+        prompt_augmentations=PROMPT_AUGMENTATIONS,
         about_me="I am a new agent.",
         memories=["My market is California.", "Define insurance terms."],
     )
@@ -64,6 +71,10 @@ def test_request_trace_writes_inputs_prompt_payload_and_response(tmp_path):
             "question": "How do caps work?",
             "history": [],
             "preferences": {"tone": "warm"},
+            "prompt_augmentations": [
+                {"key": "ask.about_me", "version": 1},
+                {"key": "ask.memories", "version": 1},
+            ],
             "about_me": "New agent",
             "memories": ["California market"],
         },
@@ -84,6 +95,7 @@ def test_request_trace_writes_inputs_prompt_payload_and_response(tmp_path):
     assert inputs["question"] == "How do caps work?"
     assert inputs["prompt_key"] == "ask.navigator"
     assert inputs["prompt_version"] == 1
+    assert inputs["prompt_augmentations"][1]["key"] == "ask.memories"
     assert json.loads((request_dir / "provider-request.json").read_text(encoding="utf-8")) == payload
     assert (request_dir / "prompt.txt").read_text(encoding="utf-8") == (
         "===== MESSAGE 1: SYSTEM =====\nSystem instructions\n\n"
@@ -171,6 +183,9 @@ def test_chat_sends_resolved_instructions_as_system_input_message(monkeypatch):
         prompt_version=1,
         question="How do caps work?",
         history=[],
+        prompt_augmentations=PROMPT_AUGMENTATIONS,
+        about_me="New agent",
+        memories=["California market"],
     )
 
     assert "instructions" not in sent
@@ -181,5 +196,32 @@ def test_chat_sends_resolved_instructions_as_system_input_message(monkeypatch):
     }
     assert all(item["type"] == "message" for item in sent["input"])
     assert sent["input"][-1]["role"] == "user"
+    assert "About me: New agent" in sent["input"][-1]["content"]
+    assert "Remember: California market" in sent["input"][-1]["content"]
     assert sent["input"][-1]["content"].endswith("How do caps work?")
     assert result["answer"] == "Answer"
+
+
+def test_prompt_augmentation_is_omitted_when_its_user_value_is_empty():
+    content = _current_user_content(
+        question="Hello",
+        prompt_augmentations=PROMPT_AUGMENTATIONS,
+    )
+
+    assert "About me:" not in content
+    assert "Remember:" not in content
+
+
+def test_prompt_augmentation_requires_its_expected_placeholder():
+    try:
+        _current_user_content(
+            question="Hello",
+            prompt_augmentations=[
+                {"key": "ask.about_me", "version": 2, "instructions": "Profile follows"}
+            ],
+            about_me="New agent",
+        )
+    except ValueError as exc:
+        assert "{{about_me}}" in str(exc)
+    else:
+        raise AssertionError("Expected an invalid augmentation template to fail")

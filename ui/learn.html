@@ -1066,6 +1066,7 @@
     const d = await api("/v1/foundry/chat", { method: "POST", body: JSON.stringify({
       message,
       history,
+      prompt_augmentation_keys: ["ask.about_me", "ask.memories"],
       preferences: {
         length: chatPrefs.length,
         format: chatPrefs.format,

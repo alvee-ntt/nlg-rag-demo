@@ -177,13 +177,31 @@ def connect(settings: Settings):
 def init_db(settings: Settings) -> None:
     with connect(settings) as conn:
         conn.execute(SCHEMA_SQL.replace("__EMBEDDING_DIMENSIONS__", str(settings.embedding_dimensions)))
-        _seed_prompt(
-            conn,
-            key="ask.navigator",
-            purpose="Answer user questions using the hosted Foundry knowledge agent",
-            version=1,
-            path=Path(__file__).resolve().parents[2] / "Prompts" / "ask.navigator.prompt.md",
-        )
+        prompt_root = Path(__file__).resolve().parents[2] / "Prompts"
+        for key, purpose, filename in (
+            (
+                "ask.navigator",
+                "Answer user questions using the hosted Foundry knowledge agent",
+                "ask.navigator.prompt.md",
+            ),
+            (
+                "ask.about_me",
+                "Add the user's About me profile to an Ask request",
+                "ask.about_me.prompt.md",
+            ),
+            (
+                "ask.memories",
+                "Add the user's saved memories to an Ask request",
+                "ask.memories.prompt.md",
+            ),
+        ):
+            _seed_prompt(
+                conn,
+                key=key,
+                purpose=purpose,
+                version=1,
+                path=prompt_root / filename,
+            )
         conn.commit()
 
 

@@ -174,6 +174,7 @@ def _current_user_content(
     *,
     question: str,
     preferences: dict | None = None,
+    prompt_augmentations: list[dict] | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
 ) -> str:
@@ -209,11 +210,25 @@ def _current_user_content(
     lines: list[str] = []
     if style:
         lines.append("Answer style: " + " ".join(style))
-    if about_me.strip():
-        lines.append("About me: " + about_me.strip())
+    clean_about_me = about_me.strip()
     clean_memories = [text.strip() for text in (memories or []) if text.strip()]
-    if clean_memories:
-        lines.append("Remember: " + "; ".join(clean_memories))
+    augmentation_values = {
+        "ask.about_me": ("{{about_me}}", clean_about_me),
+        "ask.memories": ("{{memories}}", "; ".join(clean_memories)),
+    }
+    for augmentation in prompt_augmentations or []:
+        key = str(augmentation.get("key", ""))
+        if key not in augmentation_values:
+            raise ValueError(f"Unsupported prompt augmentation key: {key!r}")
+        placeholder, value = augmentation_values[key]
+        if not value:
+            continue
+        template = str(augmentation.get("instructions", ""))
+        if placeholder not in template:
+            raise ValueError(
+                f"Prompt augmentation {key!r} is missing required placeholder {placeholder}"
+            )
+        lines.append(template.replace(placeholder, value).strip())
 
     preamble = (
         "[Context for how to answer — do not repeat this back to me:\n"
@@ -341,6 +356,7 @@ def chat(
     question: str,
     history: list[dict],
     preferences: dict | None = None,
+    prompt_augmentations: list[dict] | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
     user_id: str | None = None,
@@ -362,6 +378,10 @@ def chat(
             "question": question,
             "history": history,
             "preferences": preferences or {},
+            "prompt_augmentations": [
+                {"key": item.get("key"), "version": item.get("version")}
+                for item in (prompt_augmentations or [])
+            ],
             "about_me": about_me,
             "memories": memories or [],
             "user_id": user_id,
@@ -386,6 +406,7 @@ def chat(
             "content": _current_user_content(
                 question=question,
                 preferences=preferences,
+                prompt_augmentations=prompt_augmentations,
                 about_me=about_me,
                 memories=memories,
             ),

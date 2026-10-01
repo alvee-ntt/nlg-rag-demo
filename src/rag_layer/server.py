@@ -116,6 +116,10 @@ class FoundryChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=20)
     preferences: FoundryAnswerPreferences = Field(default_factory=FoundryAnswerPreferences)
+    prompt_augmentation_keys: list[Literal["ask.about_me", "ask.memories"]] = Field(
+        default_factory=lambda: ["ask.about_me", "ask.memories"],
+        max_length=2,
+    )
 
 
 class FoundryCitation(BaseModel):
@@ -532,6 +536,10 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
         with connect(settings) as conn:
             user_context = get_ask_user_context(conn, DEMO_ASK_USER_ID)
             prompt = get_selected_prompt(conn, ASK_NAVIGATOR_PROMPT_KEY)
+            prompt_augmentations = [
+                get_selected_prompt(conn, key)
+                for key in dict.fromkeys(payload.prompt_augmentation_keys)
+            ]
         return foundry_chat(
             settings=settings,
             instructions=prompt["instructions"],
@@ -540,6 +548,7 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
             question=payload.message.strip(),
             history=[t.model_dump() for t in payload.history],
             preferences=payload.preferences.model_dump(),
+            prompt_augmentations=prompt_augmentations,
             about_me=user_context["about_me"],
             memories=[memory["text"] for memory in user_context["memories"]],
             user_id=DEMO_ASK_USER_ID,
