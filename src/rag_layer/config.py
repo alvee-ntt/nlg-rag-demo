@@ -9,6 +9,14 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[2]
 
+# Shown when either citation track cannot support an answer from approved FlexLife
+# material (M03 abstention). Defined once here — a neutral module both service.py and
+# foundry.py already import — so both tracks and the M09 handoff share the exact wording.
+NLG_SUPPORT_MESSAGE = (
+    "I couldn't find enough approved FlexLife material to answer that confidently. "
+    "Please reach out to NLG support so they can help."
+)
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -54,6 +62,11 @@ class Settings:
     # alone gets a low reasoning effort; "" sends no reasoning parameter at all.
     reply_reasoning_effort: str = "minimal"
     rag_search_limit: int = 8
+    # Citation selection (M03). max_sources caps cited sources on BOTH tracks (trim on
+    # Foundry, aggregate-cap on local). min_similarity is the LOCAL-track relevance floor
+    # only — the Foundry track exposes no per-citation scores.
+    max_sources: int = 4
+    min_similarity: float = 0.30
     # How long a generated persona's coaching/fact-check results wait per turn, etc.
     model_warm_interval_seconds: int = 240
 
@@ -82,6 +95,11 @@ def _bool(name: str, default: bool = False) -> bool:
 def _int(name: str, default: int) -> int:
     value = os.getenv(name)
     return int(value) if value else default
+
+
+def _float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    return float(value) if value else default
 
 
 def _csv(name: str) -> list[str]:
@@ -125,6 +143,8 @@ def load_settings() -> Settings:
         force_reindex=_bool("FORCE_REINDEX", False),
         reply_reasoning_effort=os.getenv("AZURE_OPENAI_REPLY_REASONING_EFFORT", "minimal").strip(),
         rag_search_limit=_int("RAG_SEARCH_LIMIT", 8),
+        max_sources=_int("MAX_SOURCES", 4),
+        min_similarity=_float("MIN_SIMILARITY", 0.30),
         model_warm_interval_seconds=_int("MODEL_WARM_INTERVAL_SECONDS", 240),
         login_username=os.getenv("LOGIN_USERNAME", "user"),
         login_password=os.getenv("LOGIN_PASSWORD", "flexlife"),

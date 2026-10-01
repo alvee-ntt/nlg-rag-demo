@@ -117,7 +117,7 @@ def _generate(client: AzureOpenAIClient, settings: Settings, prompt: str) -> str
 
 
 def answer_with_context(client: AzureOpenAIClient, settings: Settings, question: str, contexts: list[dict]) -> str:
-    prompt = f"""Answer the question using only the context below. If the context does not contain the answer, say you do not know.
+    prompt = f"""Answer the question using only the context below. If the context does not contain the answer, say the approved FlexLife material does not cover it and suggest contacting NLG support — do not guess or fill gaps with general knowledge.
 
 Context:
 {_context_text(contexts)}
@@ -152,6 +152,38 @@ def _history_text(history: list[dict]) -> str:
     return "\n".join(lines) or "(this is the first message)"
 
 
+def classify_domain(
+    client: AzureOpenAIClient,
+    settings: Settings,
+    message: str,
+    history: list[dict],
+) -> str:
+    """Route a chat turn to IN_DOMAIN / OUT_OF_DOMAIN before it reaches the hosted
+    Foundry agent, so the app declines clearly non-FlexLife requests instead of
+    answering them like a general chatbot (M02).
+
+    Fails open to IN_DOMAIN on any error or unparseable reply, so a classifier
+    hiccup never blocks a legitimate FlexLife question.
+    """
+    prompt = f"""You are a router for a FlexLife life-insurance sales-support assistant.
+Decide if the user's latest message is about FlexLife, its products/riders/
+pricing/eligibility/benefits/process, life insurance, or selling/servicing it.
+Greetings and conversational follow-ups that continue a FlexLife thread count as
+IN_DOMAIN. General knowledge, coding, other companies, creative writing, or
+anything unrelated is OUT_OF_DOMAIN.
+Reply with exactly one token: IN_DOMAIN or OUT_OF_DOMAIN.
+
+Conversation so far:
+{_history_text(history)}
+Latest message: {message}
+"""
+    try:
+        raw = _generate(client, settings, prompt)
+    except Exception:  # noqa: BLE001 - a classifier hiccup must never block a real question
+        return "IN_DOMAIN"
+    return "OUT_OF_DOMAIN" if "OUT_OF_DOMAIN" in raw.upper() else "IN_DOMAIN"
+
+
 def chat_with_context(
     client: AzureOpenAIClient,
     settings: Settings,
@@ -169,7 +201,7 @@ def chat_with_context(
 
 How to reply:
 - Answer the agent's latest message directly in 1-3 short sentences of plain prose, like a text message. No bullet points, no headings, no markdown, no numbered lists.
-- Use only the source context below for product facts and approved wording. If the sources do not cover it, say so in one sentence and give safe general guidance without inventing product details. Never promise guarantees or returns.
+- Use only the source context below for product facts and approved wording. If the sources do not cover it, say in one sentence that the approved FlexLife material doesn't cover that and suggest reaching out to NLG support — do NOT guess or give general guidance from outside the sources. Never promise guarantees or returns.
 - If the agent asked something broad, give the single most useful point and offer to go deeper rather than listing everything.
 - Keep the conversation going: the reply should read naturally after the earlier messages.
 

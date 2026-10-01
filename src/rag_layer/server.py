@@ -42,7 +42,7 @@ from .db import (
     roleplay_stats,
 )
 from .embeddings import get_openai_client
-from .foundry import chat as foundry_chat, foundry_configured
+from .foundry import foundry_configured
 from .curriculum import CURRICULUM, curriculum_outline
 from .learn import (
     KINDS,
@@ -60,6 +60,7 @@ from .roleplay import OUTCOME_LABELS, Roleplay
 from .service import (
     answer,
     chat,
+    chat_foundry,
     check_transcript,
     corpus,
     document_chunks,
@@ -90,6 +91,18 @@ class ChatRequest(BaseModel):
     limit: int = Field(default=6, ge=1, le=20)
 
 
+class Source(BaseModel):
+    document_id: int | None = None
+    blob_name: str
+    chunk_index: int
+    citation: str
+    page: Any | None = None
+    zone: str
+    similarity: float
+    preview: str
+    chunk_count: int | None = None
+
+
 class FoundryChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=20)
@@ -104,10 +117,18 @@ class FoundryCitation(BaseModel):
 class FoundryChatResponse(BaseModel):
     answer: str
     citations: list[FoundryCitation]
+    # Populated when the local pipeline answers (Foundry fallback); Foundry answers use
+    # `citations` instead. The UI renders whichever is present.
+    sources: list[Source] = []
     agent: str
     model: str | None = None
     response_id: str | None = None
     status: str | None = None
+    domain: Literal["in_domain", "out_of_domain"] = "in_domain"
+    escalate: bool = False
+    escalate_reason: str | None = None
+    # Which engine produced this turn: "foundry", "local" (fallback), or "gate" (declined).
+    source_engine: str | None = None
 
 
 class FoundryStatusResponse(BaseModel):
@@ -131,27 +152,19 @@ class TranscriptCheckRequest(BaseModel):
     max_statements: int = Field(default=50, ge=1, le=200)
 
 
-class Source(BaseModel):
-    blob_name: str
-    chunk_index: int
-    citation: str
-    page: Any | None = None
-    zone: str
-    similarity: float
-    preview: str
-
-
 class SearchResponse(BaseModel):
     sources: list[Source]
 
 
 class AnswerResponse(SearchResponse):
     answer: str
+    insufficient_support: bool = False
 
 
 class ChatResponse(SearchResponse):
     answer: str
     follow_ups: list[str]
+    insufficient_support: bool = False
 
 
 class FactCheckResponse(SearchResponse):
@@ -475,8 +488,9 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
             detail="Foundry is not configured. Set FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_API_KEY in .env.",
         )
     try:
-        return foundry_chat(
+        return chat_foundry(
             settings=settings,
+            client=request.app.state.openai_client,
             message=payload.message.strip(),
             history=[t.model_dump() for t in payload.history],
         )

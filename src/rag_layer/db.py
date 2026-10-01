@@ -222,6 +222,7 @@ def search_chunks(conn, query_embedding: list[float], limit: int = 8) -> list[di
                 c.content,
                 c.chunk_index,
                 c.metadata,
+                d.id AS document_id,
                 d.blob_name,
                 1 - (c.embedding <=> %s::vector) AS similarity
             FROM rag_chunks c

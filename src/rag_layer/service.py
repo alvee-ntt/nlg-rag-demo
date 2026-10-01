@@ -3,7 +3,8 @@
 import re
 from typing import Any
 
-from .config import Settings
+from . import foundry
+from .config import NLG_SUPPORT_MESSAGE, Settings
 from .db import (
     citation,
     connect,
@@ -15,9 +16,16 @@ from .embeddings import (
     AzureOpenAIClient,
     answer_with_context,
     chat_with_context,
+    classify_domain,
     embed_texts,
     factcheck_claim,
     parse_verdict,
+)
+
+# Shown when the out-of-domain guard declines a turn (M02). Kept short and redirecting.
+DOMAIN_DECLINE = (
+    "I'm the FlexLife Navigator, so I can only help with FlexLife products, "
+    "riders, and approved wording. Ask me anything about that."
 )
 
 
@@ -36,6 +44,7 @@ def retrieve_contexts(
 def format_sources(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
+            "document_id": row.get("document_id"),
             "blob_name": row["blob_name"],
             "chunk_index": row["chunk_index"],
             "citation": citation(row),
@@ -43,9 +52,37 @@ def format_sources(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "zone": (row.get("metadata") or {}).get("zone", "body"),
             "similarity": float(row["similarity"]),
             "preview": row["content"][:500],
+            "chunk_count": row.get("chunk_count"),
         }
         for row in contexts
     ]
+
+
+def select_citations(
+    contexts: list[dict[str, Any]], *, settings: Settings
+) -> list[dict[str, Any]]:
+    """Choose the citations for a grounded answer (M03, local track).
+
+    Filters chunks below ``min_similarity``, aggregates the survivors to distinct
+    documents (keeping each document's best-matching chunk for the locator/preview and
+    counting how many chunks contributed), then returns the top ``max_sources``
+    documents best-similarity first. Contexts arrive best-first from ``search_chunks``.
+    Returns ``[]`` when nothing clears the floor — the caller's abstention signal.
+    """
+    by_doc: dict[Any, dict[str, Any]] = {}
+    for row in contexts:
+        if float(row["similarity"]) < settings.min_similarity:
+            continue
+        doc_id = row.get("document_id")
+        best = by_doc.get(doc_id)
+        if best is None:
+            by_doc[doc_id] = {**row, "chunk_count": 1}
+        else:
+            best["chunk_count"] += 1
+            if float(row["similarity"]) > float(best["similarity"]):
+                by_doc[doc_id] = {**row, "chunk_count": best["chunk_count"]}
+    ranked = sorted(by_doc.values(), key=lambda r: float(r["similarity"]), reverse=True)
+    return ranked[: settings.max_sources]
 
 
 def search(
@@ -67,9 +104,14 @@ def answer(
     limit: int,
 ) -> dict[str, Any]:
     contexts = retrieve_contexts(settings=settings, client=client, text=question, limit=limit)
+    selected = select_citations(contexts, settings=settings)
+    if not selected:
+        return {"answer": NLG_SUPPORT_MESSAGE, "sources": [], "insufficient_support": True}
+    kept = [c for c in contexts if float(c["similarity"]) >= settings.min_similarity]
     return {
-        "answer": answer_with_context(client, settings, question, contexts),
-        "sources": format_sources(contexts),
+        "answer": answer_with_context(client, settings, question, kept),
+        "sources": format_sources(selected),
+        "insufficient_support": False,
     }
 
 
@@ -89,8 +131,77 @@ def chat(
     prior_user = [t["text"] for t in history if t.get("role") == "user" and t.get("text")]
     query = f"{prior_user[-1]}\n{message}" if prior_user else message
     contexts = retrieve_contexts(settings=settings, client=client, text=query, limit=limit)
-    reply = chat_with_context(client, settings, message, history, contexts)
-    return {**reply, "sources": format_sources(contexts)}
+    selected = select_citations(contexts, settings=settings)
+    if not selected:
+        return {
+            "answer": NLG_SUPPORT_MESSAGE,
+            "follow_ups": [],
+            "sources": [],
+            "insufficient_support": True,
+        }
+    kept = [c for c in contexts if float(c["similarity"]) >= settings.min_similarity]
+    reply = chat_with_context(client, settings, message, history, kept)
+    return {**reply, "sources": format_sources(selected), "insufficient_support": False}
+
+
+def chat_foundry(
+    *,
+    settings: Settings,
+    client: AzureOpenAIClient,
+    message: str,
+    history: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Foundry chat with an in-repo out-of-domain guard (M02).
+
+    The turn is classified first; a clearly non-FlexLife request is declined here
+    without ever calling the hosted agent, so the app does not behave as a
+    general-purpose chatbot. In-domain turns proxy to the agent unchanged. Either
+    way the reply carries a ``domain`` flag so the UI and tests can tell an
+    answered turn from a decline.
+    """
+    if classify_domain(client, settings, message, history) == "OUT_OF_DOMAIN":
+        return {
+            "answer": DOMAIN_DECLINE,
+            "citations": [],
+            "sources": [],
+            "agent": settings.foundry_agent_name,
+            "model": None,
+            "response_id": None,
+            "status": "declined",
+            "domain": "out_of_domain",
+            "escalate": False,
+            "escalate_reason": None,
+            "source_engine": "gate",
+        }
+    try:
+        result = foundry.chat(settings=settings, message=message, history=history)
+        return {**result, "sources": [], "domain": "in_domain", "source_engine": "foundry"}
+    except Exception:  # noqa: BLE001
+        # Foundry is unavailable or misconfigured (e.g. the hosted agent's OBO-auth
+        # setting rejects API-key calls). Rather than fail the turn, serve the local
+        # grounded pipeline — same corpus-grounded, cited, abstaining behavior — and map
+        # it into the Foundry response shape so the UI renders it unchanged.
+        local = chat(
+            settings=settings,
+            client=client,
+            message=message,
+            history=history,
+            limit=settings.rag_search_limit,
+        )
+        insufficient = bool(local.get("insufficient_support"))
+        return {
+            "answer": local["answer"],
+            "citations": [],
+            "sources": local.get("sources", []),
+            "agent": settings.foundry_agent_name,
+            "model": None,
+            "response_id": None,
+            "status": "local_fallback",
+            "domain": "in_domain",
+            "escalate": insufficient,
+            "escalate_reason": "insufficient_support" if insufficient else None,
+            "source_engine": "local",
+        }
 
 
 def _prefix(blob_name: str) -> str:

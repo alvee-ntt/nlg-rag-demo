@@ -1054,7 +1054,7 @@
     // The preamble (answer style + memories) rides on the current turn only; history
     // stays clean, and the user's own bubble shows just what they typed.
     const d = await api("/v1/foundry/chat", { method: "POST", body: JSON.stringify({ message: buildPreamble() + message, history }) });
-    return { text: d.answer || "The sources don't cover that.", citations: d.citations || [] };
+    return { text: d.answer || "The sources don't cover that.", citations: d.citations || [], sources: d.sources || [], domain: d.domain || "in_domain", escalate: !!d.escalate, escalate_reason: d.escalate_reason || null };
   };
 
   function srcHtml(s, i) {

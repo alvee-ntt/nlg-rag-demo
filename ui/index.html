@@ -522,8 +522,14 @@
   function render(d, dt) {
     let h = "";
     if (mode === "answer") {
-      h += '<div class="card"><div class="answer-label">Answer</div><div class="answer-body">' + bold(d.answer || "(no answer)") + '</div></div>';
-      h += sourcesHtml(d.sources, dt);
+      if (d.insufficient_support) {
+        // M03 abstention: no corpus support cleared the floor — show the NLG-support
+        // redirect and suppress the (empty) sources block.
+        h += '<div class="card"><div class="answer-label">No supported answer</div><div class="answer-body">' + bold(d.answer || "") + '</div></div>';
+      } else {
+        h += '<div class="card"><div class="answer-label">Answer</div><div class="answer-body">' + bold(d.answer || "(no answer)") + '</div></div>';
+        h += sourcesHtml(d.sources, dt);
+      }
     } else if (mode === "fact-check") {
       const v = d.verdict || "UNKNOWN";
       const cls = v === "NOT ADDRESSED" ? "v-NOT" : "v-" + v;
