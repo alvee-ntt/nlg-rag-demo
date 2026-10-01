@@ -171,6 +171,10 @@ def chat_foundry(
     client: AzureOpenAIClient,
     message: str,
     history: list[dict[str, Any]],
+    preferences: dict[str, Any] | None = None,
+    about_me: str = "",
+    memories: list[str] | None = None,
+    trace_session_id: str | None = None,
 ) -> dict[str, Any]:
     """Foundry chat with an in-repo out-of-domain guard (M02).
 
@@ -195,7 +199,15 @@ def chat_foundry(
             "source_engine": "gate",
         }
     try:
-        result = foundry.chat(settings=settings, message=message, history=history)
+        result = foundry.chat(
+            settings=settings,
+            question=message,
+            history=history,
+            preferences=preferences,
+            about_me=about_me,
+            memories=memories,
+            trace_session_id=trace_session_id,
+        )
         return {**result, "sources": [], "domain": "in_domain", "source_engine": "foundry"}
     except Exception:  # noqa: BLE001
         # Foundry is unavailable or misconfigured (e.g. the hosted agent's OBO-auth

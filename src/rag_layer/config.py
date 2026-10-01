@@ -51,6 +51,7 @@ class Settings:
     foundry_api_key: str
     foundry_agent_name: str
     foundry_api_version: str
+    foundry_trace_path: str
 
     embedding_dimensions: int
     chunk_size: int
@@ -140,6 +141,7 @@ def load_settings() -> Settings:
         foundry_api_key=os.getenv("FOUNDRY_API_KEY", ""),
         foundry_agent_name=os.getenv("FOUNDRY_AGENT_NAME", "KnowledgeBase"),
         foundry_api_version=os.getenv("FOUNDRY_API_VERSION", "v1"),
+        foundry_trace_path=os.getenv("FOUNDRY_TRACE_PATH", "").strip(),
         embedding_dimensions=_int("EMBEDDING_DIMENSIONS", 1536),
         chunk_size=_int("CHUNK_SIZE", 1000),
         chunk_overlap=_int("CHUNK_OVERLAP", 150),
@@ -155,5 +157,4 @@ def load_settings() -> Settings:
         cookie_secure=_bool("COOKIE_SECURE", False),
         nlg_support_email=os.getenv("NLG_SUPPORT_EMAIL", "flexlife-support@nlgic.example.com"),
     )
-
 
