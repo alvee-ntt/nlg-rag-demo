@@ -1019,30 +1019,14 @@
     return arr.sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || (b.updatedAt - a.updatedAt));
   }
   // --- Answer preferences + saved memories (localStorage) ----------------------
-  // These shape how the agent answers. They ride along on every question as a short
-  // preamble prepended to the message (the visible user bubble stays clean).
+  // These shape how the agent answers. They remain separate request fields until
+  // foundry.py serializes the provider message (the visible user bubble stays clean).
   const PREFS_KEY = "chatPrefs", MEM_KEY = "chatMemories";
   const DEFAULT_PREFS = { length: "balanced", format: "auto", tone: "warm", plain: false, alwaysSources: false, role: "" };
   let chatPrefs = Object.assign({}, DEFAULT_PREFS, store.get(PREFS_KEY, {}));
   const savePrefs = () => store.set(PREFS_KEY, chatPrefs);
   let chatMemories = store.get(MEM_KEY, []) || [];
   const saveMemories = () => store.set(MEM_KEY, chatMemories);
-  function buildPreamble() {
-    const p = chatPrefs, style = [];
-    const len = { brief: "Be brief and to the point.", balanced: "", detailed: "Give a thorough, detailed answer." };
-    const fmt = { bullets: "Prefer bullet points.", prose: "Answer in prose paragraphs, not lists.", auto: "" };
-    const tone = { plain: "Use a neutral, plain tone.", warm: "Use a warm, encouraging tone.", formal: "Use a formal, professional tone." };
-    if (len[p.length]) style.push(len[p.length]);
-    if (fmt[p.format]) style.push(fmt[p.format]);
-    if (tone[p.tone]) style.push(tone[p.tone]);
-    if (p.plain) style.push("Explain simply, so a brand-new agent can follow.");
-    if (p.alwaysSources) style.push("Always cite the source documents.");
-    const lines = [];
-    if (style.length) lines.push("Answer style: " + style.join(" "));
-    if ((p.role || "").trim()) lines.push("About me: " + p.role.trim());
-    if (chatMemories.length) lines.push("Remember: " + chatMemories.map((m) => m.text).join("; "));
-    return lines.length ? `[Context for how to answer — do not repeat this back to me:\n${lines.join("\n")}]\n\n` : "";
-  }
   const NAV_CHIPS = [
     ["What do I ask next?", "A prospect just told me their spouse's employer already covers them. What should I ask next?"],
     ["Living benefits", "How should I describe living benefits, and what wording is approved?"],
@@ -1051,9 +1035,20 @@
   const NAV_INTRO = "Ask me anything about the products, riders, or approved wording. I only answer from the source library, and you can open the sources under any answer.";
   // One turn against the hosted Foundry agent; shared by the Ask page and the pull-up sheet.
   const navSend = async (message, history) => {
-    // The preamble (answer style + memories) rides on the current turn only; history
-    // stays clean, and the user's own bubble shows just what they typed.
-    const d = await api("/v1/foundry/chat", { method: "POST", body: JSON.stringify({ message: buildPreamble() + message, history }) });
+    // Preserve each source as a separate field until foundry.py constructs the provider request.
+    const d = await api("/v1/foundry/chat", { method: "POST", body: JSON.stringify({
+      message,
+      history,
+      preferences: {
+        length: chatPrefs.length,
+        format: chatPrefs.format,
+        tone: chatPrefs.tone,
+        plain: chatPrefs.plain,
+        always_sources: chatPrefs.alwaysSources,
+      },
+      about_me: chatPrefs.role || "",
+      memories: chatMemories.map((m) => m.text),
+    }) });
     return { text: d.answer || "The sources don't cover that.", citations: d.citations || [] };
   };
 
@@ -1355,8 +1350,8 @@
     setTimeout(() => searchEl.focus(), 60);
   }
 
-  // Answer preferences + saved memories. Both feed buildPreamble(), so they shape every
-  // answer the Navigator gives. Stored per-deployment (single login) in localStorage.
+  // Answer preferences + saved memories shape every Navigator answer. They are stored
+  // per browser in localStorage and sent to the API as distinct request fields.
   function openChatSettings() {
     if ($(".sheet-wrap.sets")) return;
     const w = document.createElement("div"); w.className = "sheet-wrap sets";
