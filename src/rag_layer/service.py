@@ -142,7 +142,22 @@ def chat(
         }
     kept = [c for c in contexts if float(c["similarity"]) >= settings.min_similarity]
     reply = chat_with_context(client, settings, message, history, kept)
-    return {**reply, "sources": format_sources(selected), "insufficient_support": False}
+    # The chunks cleared the similarity floor, but the model may still report that they
+    # don't actually answer the question. Treat that as an abstention too (M03): keep the
+    # model's helpful decline, drop the non-supporting sources, and raise the flag M09 uses.
+    if not reply.get("grounded", True):
+        return {
+            "answer": reply.get("answer") or NLG_SUPPORT_MESSAGE,
+            "follow_ups": [],
+            "sources": [],
+            "insufficient_support": True,
+        }
+    return {
+        "answer": reply["answer"],
+        "follow_ups": reply.get("follow_ups", []),
+        "sources": format_sources(selected),
+        "insufficient_support": False,
+    }
 
 
 def chat_foundry(

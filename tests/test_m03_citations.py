@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.rag_layer import foundry, service  # noqa: E402
+from src.rag_layer import embeddings, foundry, service  # noqa: E402
 from src.rag_layer.config import NLG_SUPPORT_MESSAGE  # noqa: E402
 
 
@@ -190,9 +190,38 @@ def test_chat_success_returns_sources_and_flag(monkeypatch):
     ctx = [_row(1, 0.9), _row(2, 0.7)]
     monkeypatch.setattr(service, "retrieve_contexts", lambda **k: ctx)
     monkeypatch.setattr(service, "chat_with_context",
-                        lambda client, settings, msg, hist, chunks: {"answer": "ok", "follow_ups": ["next?"]})
+                        lambda client, settings, msg, hist, chunks: {"answer": "ok", "follow_ups": ["next?"], "grounded": True})
     res = service.chat(settings=_LOCAL, client=None, message="floor?", history=[], limit=6)
     assert res["insufficient_support"] is False
     assert res["answer"] == "ok"
     assert res["follow_ups"] == ["next?"]
     assert len(res["sources"]) == 2
+
+
+def test_chat_abstains_when_model_reports_not_grounded(monkeypatch):
+    # Chunks clear the similarity floor, but the model says they don't answer the question.
+    ctx = [_row(1, 0.9), _row(2, 0.7)]
+    monkeypatch.setattr(service, "retrieve_contexts", lambda **k: ctx)
+    monkeypatch.setattr(service, "chat_with_context", lambda client, settings, msg, hist, chunks: {
+        "answer": "The approved FlexLife material doesn't cover that — contact NLG support.",
+        "follow_ups": ["x?"], "grounded": False,
+    })
+    res = service.chat(settings=_LOCAL, client=None, message="crypto premiums?", history=[], limit=6)
+    assert res["insufficient_support"] is True   # -> chat_foundry maps this to escalate
+    assert res["sources"] == []                  # non-supporting chunks are dropped
+    assert res["follow_ups"] == []
+    assert "NLG support" in res["answer"]         # keeps the model's helpful decline
+
+
+def test_chat_with_context_parses_grounded_false(monkeypatch):
+    monkeypatch.setattr(embeddings, "_generate",
+                        lambda *a, **k: '{"answer": "not covered", "grounded": false, "follow_ups": []}')
+    out = embeddings.chat_with_context(None, None, "q", [], [])
+    assert out["grounded"] is False
+    assert out["answer"] == "not covered"
+
+
+def test_chat_with_context_grounded_defaults_true_on_bad_json(monkeypatch):
+    monkeypatch.setattr(embeddings, "_generate", lambda *a, **k: "plain prose, not json")
+    out = embeddings.chat_with_context(None, None, "q", [], [])
+    assert out["grounded"] is True   # fail-open: don't over-escalate on a parse hiccup

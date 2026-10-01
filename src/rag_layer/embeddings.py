@@ -204,10 +204,11 @@ How to reply:
 - Use only the source context below for product facts and approved wording. If the sources do not cover it, say in one sentence that the approved FlexLife material doesn't cover that and suggest reaching out to NLG support — do NOT guess or give general guidance from outside the sources. Never promise guarantees or returns.
 - If the agent asked something broad, give the single most useful point and offer to go deeper rather than listing everything.
 - Keep the conversation going: the reply should read naturally after the earlier messages.
+- Set "grounded" to false whenever the source context does not actually answer the agent's question (even when the topic is FlexLife-related) — i.e. you had to decline or point them to NLG support. Set it to true only when your answer is supported by the sources above.
 
 Then suggest up to two short follow-up questions the agent might tap next (each under 6 words, phrased as the agent would ask them, e.g. "What do I ask next?").
 
-Return ONLY a JSON object: {{"answer": "...", "follow_ups": ["...", "..."]}}
+Return ONLY a JSON object: {{"answer": "...", "grounded": true, "follow_ups": ["...", "..."]}}
 
 Conversation so far:
 {_history_text(history)}
@@ -223,9 +224,14 @@ Source context:
         data = _parse_json_object(raw)
         answer = str(data.get("answer", "")).strip()
         follow_ups = [str(x).strip() for x in data.get("follow_ups", []) if str(x).strip()][:2]
+        grounded = bool(data.get("grounded", True))
     except Exception:  # noqa: BLE001 - a malformed JSON reply still has a usable answer in it
-        answer, follow_ups = raw.strip(), []
-    return {"answer": answer or "I couldn't find that in the sources.", "follow_ups": follow_ups}
+        answer, follow_ups, grounded = raw.strip(), [], True
+    return {
+        "answer": answer or "I couldn't find that in the sources.",
+        "follow_ups": follow_ups,
+        "grounded": grounded,
+    }
 
 
 def generate_support_email(
