@@ -4,10 +4,12 @@ import re
 from typing import Any
 
 from . import foundry
+from .blob_store import get_blob_store
 from .config import NLG_SUPPORT_MESSAGE, Settings
 from .db import (
     citation,
     connect,
+    get_document_blob_name,
     get_document_chunks,
     list_documents,
     search_chunks,
@@ -46,6 +48,9 @@ def format_sources(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
             "document_id": row.get("document_id"),
+            # Same-origin, authed link to open the original document (M10). Relative so the
+            # browser sends the sign-in cookie; None when the id is somehow absent.
+            "url": f"/v1/documents/{row['document_id']}/open" if row.get("document_id") is not None else None,
             "blob_name": row["blob_name"],
             "chunk_index": row["chunk_index"],
             "citation": citation(row),
@@ -218,6 +223,20 @@ def chat_foundry(
             "escalate_reason": "insufficient_support" if insufficient else None,
             "source_engine": "local",
         }
+
+
+def open_document(*, settings: Settings, document_id: int) -> tuple[str, bytes] | None:
+    """Resolve a document id to its blob and download the original bytes (M10).
+
+    Returns (blob_name, data), or None if the id is unknown. Raises on a blob-fetch
+    failure (the endpoint maps that to 502). The container SAS token stays server-side.
+    """
+    with connect(settings) as conn:
+        blob_name = get_document_blob_name(conn, document_id)
+    if blob_name is None:
+        return None
+    data = get_blob_store(settings).download_blob(blob_name)
+    return blob_name, data
 
 
 def draft_support_email(

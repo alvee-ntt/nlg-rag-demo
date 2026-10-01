@@ -1073,7 +1073,10 @@
     const parts = String(s.citation || "").split(" | ").map((x) => x.trim()).filter(Boolean);
     const title = parts.length > 1 ? parts[parts.length - 1] : (parts[0] || file);
     const meta = [file, s.page != null ? `page ${s.page}` : null, s.zone && s.zone !== "body" ? s.zone : null].filter(Boolean).join(" · ");
-    return `<div class="nsrc" data-i="${i}"><div class="nsrc-top"><span class="nsrc-cite">${esc(title)}</span><span class="nsrc-sim">${pct}%</span></div>
+    // Open the original source document (M10). Same-origin + authed, so the cookie rides along.
+    const href = s.url || (s.document_id != null ? `/v1/documents/${s.document_id}/open` : "");
+    const citeEl = href ? `<a class="nsrc-cite" href="${esc(href)}" target="_blank" rel="noopener">${esc(title)} ↗</a>` : `<span class="nsrc-cite">${esc(title)}</span>`;
+    return `<div class="nsrc" data-i="${i}"><div class="nsrc-top">${citeEl}<span class="nsrc-sim">${pct}%</span></div>
       <div class="nsrc-meta">${esc(meta)}</div><div class="nsrc-preview">${esc(s.preview || "")}</div></div>`;
   }
 

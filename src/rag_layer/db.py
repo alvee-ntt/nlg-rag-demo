@@ -296,6 +296,14 @@ def get_document_chunks(conn, document_id: int) -> dict[str, Any] | None:
     return {"document": dict(doc), "chunks": [dict(row) for row in chunks]}
 
 
+def get_document_blob_name(conn, document_id: int) -> str | None:
+    """The blob_name for a document id, or None if unknown (M10 open-document route)."""
+    row = conn.execute(
+        "SELECT blob_name FROM rag_documents WHERE id = %s", (document_id,)
+    ).fetchone()
+    return row["blob_name"] if row else None
+
+
 def citation(row: dict[str, Any]) -> str:
     """Human-readable source locator: page and heading when the chunk carries them."""
     metadata = row.get("metadata") or {}

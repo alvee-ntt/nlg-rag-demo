@@ -1,12 +1,14 @@
 ﻿from __future__ import annotations
 
+import mimetypes
 import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
+from urllib.parse import quote
 
 _VENDOR = Path(__file__).resolve().parents[2] / ".vendor"
 _VENDOR_PATH = str(_VENDOR)
@@ -66,6 +68,7 @@ from .service import (
     document_chunks,
     draft_support_email,
     fact_check,
+    open_document,
     search,
 )
 from .speech import speech_configured
@@ -94,6 +97,7 @@ class ChatRequest(BaseModel):
 
 class Source(BaseModel):
     document_id: int | None = None
+    url: str | None = None
     blob_name: str
     chunk_index: int
     citation: str
@@ -577,6 +581,46 @@ def document_chunks_endpoint(document_id: int, request: Request) -> dict[str, An
     if result is None:
         raise HTTPException(status_code=404, detail=f"No document with id {document_id}")
     return result
+
+
+# Viewable in-browser vs. download-only. The office formats have no reliable inline viewer,
+# so they download with their original filename; the rest render inline (M10).
+_INLINE_EXTENSIONS = {".pdf", ".html", ".htm", ".txt", ".md", ".csv"}
+_EXTENSION_CONTENT_TYPES = {
+    ".pdf": "application/pdf",
+    ".html": "text/html", ".htm": "text/html",
+    ".txt": "text/plain; charset=utf-8",
+    ".md": "text/markdown; charset=utf-8",
+    ".csv": "text/csv; charset=utf-8",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
+@app.get("/v1/documents/{document_id}/open", include_in_schema=True)
+def open_document_endpoint(document_id: int, request: Request) -> Response:
+    """Open/stream a citation's original source document (M10). Proxies the blob through the
+    app so the container SAS token never reaches the browser; rides the /v1 sign-in gate."""
+    try:
+        result = open_document(settings=request.app.state.settings, document_id=document_id)
+    except Exception as exc:  # blob download / storage failures — do not leak the SAS URL
+        raise HTTPException(
+            status_code=502, detail=f"Could not fetch source document: {type(exc).__name__}"
+        ) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No document with id {document_id}")
+    blob_name, data = result
+    filename = PurePosixPath(blob_name).name
+    ext = PurePosixPath(blob_name).suffix.lower()
+    media_type = _EXTENSION_CONTENT_TYPES.get(ext) or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    disposition = "inline" if ext in _INLINE_EXTENSIONS else "attachment"
+    cd = f"{disposition}; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}"
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Content-Disposition": cd, "Cache-Control": "private, max-age=3600"},
+    )
 
 
 # --- Learn (salesDJ) routes ---------------------------------------------------------

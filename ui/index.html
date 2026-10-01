@@ -508,8 +508,12 @@
       const pct = Math.round((s.similarity || 0) * 100);
       const meta = [s.blob_name, s.page != null ? "page " + s.page : null, s.zone && s.zone !== "body" ? s.zone : null].filter(Boolean).join("  ·  ");
       const long = (s.preview || "").length > 320;
+      const href = s.url || (s.document_id != null ? '/v1/documents/' + s.document_id + '/open' : '');
+      const cite = href
+        ? '<a class="src-cite" href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(s.citation || s.blob_name) + ' ↗</a>'
+        : '<span class="src-cite">' + esc(s.citation || s.blob_name) + '</span>';
       h += '<div class="src">' +
-        '<div class="src-top"><span class="src-cite">' + esc(s.citation || s.blob_name) + '</span>' +
+        '<div class="src-top">' + cite +
         '<span class="src-sim">' + pct + '% <span class="bar"><i style="width:' + pct + '%"></i></span></span></div>' +
         '<div class="src-meta">' + esc(meta) + '</div>' +
         '<div class="src-preview' + (long ? '' : ' open') + '" id="pv' + i + '">' + esc(s.preview || "") + '</div>' +
@@ -607,8 +611,12 @@
     sources.forEach(s => {
       const pct = Math.round((s.similarity || 0) * 100);
       const meta = [s.blob_name, s.page != null ? "page " + s.page : null, s.zone && s.zone !== "body" ? s.zone : null].filter(Boolean).join("  ·  ");
+      const href = s.url || (s.document_id != null ? '/v1/documents/' + s.document_id + '/open' : '');
+      const cite = href
+        ? '<a class="src-cite" href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(s.citation || s.blob_name) + ' ↗</a>'
+        : '<span class="src-cite">' + esc(s.citation || s.blob_name) + '</span>';
       h += '<div class="src">' +
-        '<div class="src-top"><span class="src-cite">' + esc(s.citation || s.blob_name) + '</span>' +
+        '<div class="src-top">' + cite +
         '<span class="src-sim">' + pct + '% <span class="bar"><i style="width:' + pct + '%"></i></span></span></div>' +
         '<div class="src-meta">' + esc(meta) + '</div>' +
         '<div class="src-preview open">' + esc(s.preview || "") + '</div>' +
