@@ -76,6 +76,10 @@ class Settings:
     login_password: str = "flexlife"
     cookie_secure: bool = False
 
+    # NLG Support handoff (M09). Where a drafted support email is addressed. A
+    # placeholder is fine for the POC — nothing is actually sent.
+    nlg_support_email: str = "flexlife-support@nlgic.example.com"
+
     @property
     def postgres_dsn(self) -> str:
         return (
@@ -149,6 +153,7 @@ def load_settings() -> Settings:
         login_username=os.getenv("LOGIN_USERNAME", "user"),
         login_password=os.getenv("LOGIN_PASSWORD", "flexlife"),
         cookie_secure=_bool("COOKIE_SECURE", False),
+        nlg_support_email=os.getenv("NLG_SUPPORT_EMAIL", "flexlife-support@nlgic.example.com"),
     )
 
 

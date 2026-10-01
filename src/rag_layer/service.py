@@ -19,6 +19,7 @@ from .embeddings import (
     classify_domain,
     embed_texts,
     factcheck_claim,
+    generate_support_email,
     parse_verdict,
 )
 
@@ -202,6 +203,30 @@ def chat_foundry(
             "escalate_reason": "insufficient_support" if insufficient else None,
             "source_engine": "local",
         }
+
+
+def draft_support_email(
+    *,
+    settings: Settings,
+    client: AzureOpenAIClient,
+    question: str,
+    history: list[dict[str, Any]],
+    reason: str,
+    limit: int,
+) -> dict[str, Any]:
+    """Prepare (not send) a draft NLG Support email from the conversation (M09).
+
+    Retrieval is used only to let the draft describe what the corpus could and could
+    not confirm; the email itself is a one-shot local completion. Nothing is sent.
+    """
+    contexts = retrieve_contexts(settings=settings, client=client, text=question, limit=limit)
+    draft = generate_support_email(client, settings, question, history, contexts, reason)
+    return {
+        "to": settings.nlg_support_email,
+        "subject": draft["subject"],
+        "body": draft["body"],
+        "reason": reason,
+    }
 
 
 def _prefix(blob_name: str) -> str:

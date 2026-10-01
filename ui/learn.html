@@ -753,6 +753,15 @@
   .modal .two { display: flex; gap: 10px; }
   .modal .two .btn { margin: 0; border-radius: 8px; padding: 11px 14px; }
   .modal .two .btn.ghost { border-width: 1px; }
+  /* M09 — NLG Support handoff draft sheet */
+  .modal.handoff-modal { max-width: 460px; max-height: 86%; overflow-y: auto; }
+  .modal.handoff-modal .two { margin-top: 14px; }
+  .handoff-note { font-size: 12px; color: var(--ink-2); margin-bottom: 10px; line-height: 1.45; }
+  .handoff-l { display: block; font-size: 11px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .03em; margin: 10px 0 4px; }
+  .handoff-in, .handoff-ta { width: 100%; box-sizing: border-box; border: 1.5px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; font-size: 13.5px; background: #fff; color: var(--ink); }
+  .handoff-ta { resize: vertical; line-height: 1.5; min-height: 170px; }
+  .handoff-cta { display: inline-block; margin: 8px 0 2px; background: var(--g700); color: #fff; border: 0; border-radius: 8px; padding: 8px 12px; font: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+  .handoff-cta:hover { background: var(--g800); }
 
   /* ===== Feedback ===== */
   .fbgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -1162,9 +1171,10 @@
         const refine = isLast ? `<span class="act" data-act="shorter">Shorter</span><span class="act" data-act="more">More detail</span><span class="act" data-act="regen">Regenerate</span><span class="act" data-act="edit">Edit</span>` : "";
         const tools = m.pending || m.intro ? "" : m.failed
           ? `<div class="thumbs"><span class="act" data-act="retry" style="margin-left:0">Try again</span></div>`
-          : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${n ? `<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="copy">Copy</span>${refine}</div>`;
+          : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${n ? `<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="copy">Copy</span>${refine}<span class="act" data-act="handoff">Ask NLG Support</span></div>`;
         const body = rich ? mdToHtml(m.text) : esc(m.text);
-        return `<div class="ai-row${m.failed ? " failed" : ""}" data-i="${i}"><span class="orb sm"></span><div><div class="bubble ai${rich ? " md" : ""}${m.pending ? " pending" : ""}">${body}</div>${tools}<div class="nsrc-list${m.open ? " open" : ""}">${(m.citations || []).map(citeHtml).join("")}${(m.sources || []).map(srcHtml).join("")}</div></div></div>`;
+        const handoffCta = (rich && m.escalate) ? `<div><button class="handoff-cta" data-act="handoff">${m.escalate_reason === "case_specific" ? "Ask NLG for a decision" : "Prepare a request to NLG Support"}</button></div>` : "";
+        return `<div class="ai-row${m.failed ? " failed" : ""}" data-i="${i}"><span class="orb sm"></span><div><div class="bubble ai${rich ? " md" : ""}${m.pending ? " pending" : ""}">${body}</div>${tools}${handoffCta}<div class="nsrc-list${m.open ? " open" : ""}">${(m.citations || []).map(citeHtml).join("")}${(m.sources || []).map(srcHtml).join("")}</div></div></div>`;
       }).join("");
       logEl.scrollTop = logEl.scrollHeight;
     };
@@ -1218,6 +1228,12 @@
         const q = log[i - 1].text; log.splice(i - 1, 2); paint(); paintChips(); save();
         input.value = q; input.focus();
       }
+      else if (a === "handoff") {
+        const hasQ = log[i - 1] && log[i - 1].who === "user";
+        const q = m.question || (hasQ ? log[i - 1].text : "");
+        const reason = m.escalate ? (m.escalate_reason === "case_specific" ? "case_specific" : "insufficient") : "manual";
+        openHandoff({ question: q, log, reason });
+      }
     };
     const submit = () => { const q = input.value; input.value = ""; send(q); };
     root.querySelector(".sendb").onclick = submit;
@@ -1238,6 +1254,41 @@
     return { send, mic, paint, focus: () => setTimeout(() => input.focus(), 50),
       clear: () => { log.length = 0; save(); paint(); paintChips(); },
       destroy: () => { if (rec) { try { rec.stop(); } catch {} } } };
+  }
+
+  // M09 — Handoff to NLG Support. Builds a draft support email from the chat log and
+  // shows it in an editable sheet. The "send" is simulated: nothing leaves the browser.
+  async function openHandoff({ question, log, reason = "manual" }) {
+    const turns = (log || []).filter((m) => !m.pending && !m.failed);
+    const history = turns.slice(-8).map((m) => ({ role: m.who === "user" ? "user" : "assistant", text: m.text }));
+    if (!question) { const u = [...turns].reverse().find((m) => m.who === "user"); question = u ? u.text : ""; }
+    if (!question) { toast("Ask a question first, then I can prepare the request."); return; }
+    let draft;
+    try {
+      draft = await api("/v1/handoff/draft", { method: "POST", body: JSON.stringify({ question, history, reason }) });
+    } catch (err) { toast(err.message || "Couldn't prepare the request"); return; }
+    showDraftSheet(draft);
+  }
+
+  function showDraftSheet(draft) {
+    const w = document.createElement("div"); w.className = "sheet-wrap center";
+    w.innerHTML = `<div class="modal handoff-modal"><h3>Request to NLG Support</h3>
+      <p class="handoff-note">Review and edit this draft before sending. This is a simulated handoff for the demo — nothing is actually sent.</p>
+      <label class="handoff-l">To</label><input class="handoff-in" id="hoTo" value="${esc(draft.to || "")}">
+      <label class="handoff-l">Subject</label><input class="handoff-in" id="hoSubj" value="${esc(draft.subject || "")}">
+      <label class="handoff-l">Message</label><textarea class="handoff-ta" id="hoBody">${esc(draft.body || "")}</textarea>
+      <div class="two"><button class="btn ghost" id="hoCancel">Cancel</button><button class="btn green" id="hoSend">Send to NLG Support</button></div></div>`;
+    $("#phone").appendChild(w);
+    const close = () => w.remove();
+    w.onclick = (e) => { if (e.target === w) close(); };
+    w.querySelector("#hoCancel").onclick = close;
+    w.querySelector("#hoSend").onclick = () => {
+      // Simulated send: nothing leaves the browser. We read the (possibly edited) values
+      // only to prove the edits are what a real send would carry.
+      void w.querySelector("#hoTo").value; void w.querySelector("#hoSubj").value; void w.querySelector("#hoBody").value;
+      close();
+      toast("Draft ready to send to NLG Support — simulated, nothing was sent.");
+    };
   }
 
   // Ask Navigator: a pull-up bottom sheet over the current screen. Both the Ask tab and the

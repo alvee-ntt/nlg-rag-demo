@@ -64,6 +64,7 @@ from .service import (
     check_transcript,
     corpus,
     document_chunks,
+    draft_support_email,
     fact_check,
     search,
 )
@@ -129,6 +130,23 @@ class FoundryChatResponse(BaseModel):
     escalate_reason: str | None = None
     # Which engine produced this turn: "foundry", "local" (fallback), or "gate" (declined).
     source_engine: str | None = None
+
+
+class HandoffDraftRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=12)
+    # Why the handoff was triggered; steers wording. "insufficient" = corpus gap,
+    # "case_specific" = needs an authoritative NLG decision, "manual" = user asked to
+    # escalate. The UI maps M03's `escalate_reason: "insufficient_support"` -> "insufficient".
+    reason: Literal["insufficient", "case_specific", "manual"] = "manual"
+    limit: int = Field(default=6, ge=1, le=20)
+
+
+class HandoffDraftResponse(BaseModel):
+    to: str
+    subject: str
+    body: str
+    reason: str
 
 
 class FoundryStatusResponse(BaseModel):
@@ -460,6 +478,22 @@ def chat_endpoint(payload: ChatRequest, request: Request) -> dict[str, Any]:
             client=request.app.state.openai_client,
             message=payload.message.strip(),
             history=[t.model_dump() for t in payload.history],
+            limit=payload.limit,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+
+
+@app.post("/v1/handoff/draft", response_model=HandoffDraftResponse)
+def handoff_draft_endpoint(payload: HandoffDraftRequest, request: Request) -> dict[str, Any]:
+    """Prepare (not send) a draft NLG Support email from the current conversation (M09)."""
+    try:
+        return draft_support_email(
+            settings=request.app.state.settings,
+            client=request.app.state.openai_client,
+            question=payload.question.strip(),
+            history=[t.model_dump() for t in payload.history],
+            reason=payload.reason,
             limit=payload.limit,
         )
     except Exception as exc:

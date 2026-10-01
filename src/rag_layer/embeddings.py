@@ -228,6 +228,56 @@ Source context:
     return {"answer": answer or "I couldn't find that in the sources.", "follow_ups": follow_ups}
 
 
+def generate_support_email(
+    client: AzureOpenAIClient,
+    settings: Settings,
+    question: str,
+    history: list[dict],
+    contexts: list[dict],
+    reason: str,
+) -> dict:
+    """Draft an NLG Support email from the conversation (M09). First person, as the agent.
+
+    Returns {"subject": str, "body": str}. Falls back to raw-text-as-body on a malformed
+    JSON reply, mirroring chat_with_context.
+    """
+    reason_note = {
+        "insufficient": "The Agent Navigator could not find this in the Knowledge Foundation.",
+        "case_specific": "This needs an authoritative, case-specific decision from NLG.",
+        "manual": "The agent chose to escalate this question to NLG Support.",
+    }.get(reason, "The agent chose to escalate this question to NLG Support.")
+    prompt = f"""You are drafting a support email ON BEHALF OF a FlexLife sales agent, addressed to NLG Support.
+Write the body in the FIRST PERSON as the agent ("I ..."). Never describe the agent in the third person and never say you are an AI.
+
+Why they are escalating: {reason_note}
+
+Write a professional, concise email whose body has three clear parts:
+1. The specific question that needs answering.
+2. The relevant context the agent already established in the conversation (product, client details, what was and was not confirmed). Do not invent facts.
+3. A clear statement of exactly what clarification or assistance is being requested from NLG Support.
+Close with a sign-off line ending in "[Your name]". Do not promise guarantees or returns.
+
+Return ONLY a JSON object: {{"subject": "<concise topic line>", "body": "<the full email body>"}}
+
+Conversation so far:
+{_history_text(history)}
+
+The question that triggered this handoff:
+{question}
+
+What the app was able to find in the sources (reference only, to describe what could not be confirmed):
+{_context_text(contexts) or "(nothing relevant retrieved)"}
+"""
+    raw = _generate(client, settings, prompt)
+    try:
+        data = _parse_json_object(raw)
+        subject = str(data.get("subject", "")).strip() or "FlexLife question for NLG Support"
+        body = str(data.get("body", "")).strip()
+    except Exception:  # noqa: BLE001 - a malformed JSON reply still has a usable body in it
+        subject, body = "FlexLife question for NLG Support", raw.strip()
+    return {"subject": subject, "body": body or "Please see my question above."}
+
+
 def factcheck_claim(client: AzureOpenAIClient, settings: Settings, claim: str, contexts: list[dict]) -> str:
     prompt = f"""You are verifying a claim against the source documents below.
 
