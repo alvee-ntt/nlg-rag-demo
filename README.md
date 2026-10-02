@@ -62,6 +62,12 @@ Tests can be run from VS Code's Test Explorer or with the `test: pytest` task.
 
 Postgres (pgvector) is part of `docker-compose.yml`, so you no longer start it by hand. `docker compose up --build -d` brings up the `postgres` service alongside the API, with a persistent `pgdata` volume and `restart: unless-stopped` so it survives reboots. The port is published on `localhost:5432` for host-side tools.
 
+Foundry diagnostics are stored in Postgres as well. Login metadata lives in
+`foundry_trace_sessions`, and each model call is one row in
+`foundry_request_traces` with its inputs, provider payload, flattened prompt,
+response, and error details. The API creates these tables during normal schema
+initialization; no trace-directory setting is required.
+
 The schema (the `vector` extension, `rag_documents`/`rag_chunks` tables, and the HNSW index) is created **automatically on API startup** — see `_ensure_schema` in `src/rag_layer/server.py`. You can still initialize it manually if you are running the code outside the container:
 
 ```powershell

@@ -45,6 +45,10 @@
     }
     .brand { font: 600 19px/1.1 Georgia, serif; letter-spacing: .01em; }
     .brand small { display: block; margin-top: 3px; color: #a8c1ba; font: 500 10px/1 ui-sans-serif, system-ui; text-transform: uppercase; letter-spacing: .16em; }
+    .studio-nav { display: flex; align-items: center; gap: 5px; margin-left: 20px; }
+    .studio-nav a { padding: 8px 11px; border-radius: 8px; color: #bcd0ca; text-decoration: none; font-size: 12px; font-weight: 750; }
+    .studio-nav a:hover { color: white; background: rgba(255,255,255,.08); }
+    .studio-nav a.on { color: white; background: rgba(99,198,170,.18); }
     .top-spacer { flex: 1; }
     .demo-pill { padding: 6px 10px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; color: #c7d9d4; font-size: 12px; }
     .layout { min-height: 0; display: grid; grid-template-columns: 310px minmax(0, 1fr); }
@@ -175,6 +179,7 @@
     <header class="topbar">
       <div class="mark">P</div>
       <div class="brand">Prompt Studio<small>NLG RAG Demo</small></div>
+      <nav class="studio-nav" aria-label="Prompt Studio"><a class="on" href="/prompts">Prompts</a><a href="/traces">Traces</a></nav>
       <div class="top-spacer"></div>
       <div class="demo-pill">Open demo workspace</div>
     </header>

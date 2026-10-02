@@ -1,6 +1,6 @@
-import json
 from types import SimpleNamespace
 
+from src.rag_layer import auth as auth_module
 from src.rag_layer.auth import Auth
 from src.rag_layer.db import PromptConfigurationError, get_selected_prompt
 from src.rag_layer import foundry
@@ -45,10 +45,25 @@ def test_foundry_defaults_match_the_existing_warm_style():
     assert content.endswith("\n\nHello")
 
 
-def test_login_creates_a_unique_human_readable_trace_session(tmp_path):
+def test_login_creates_a_unique_human_readable_trace_session(monkeypatch):
+    sessions = []
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    monkeypatch.setattr(auth_module, "connect", lambda settings: Connection())
+    monkeypatch.setattr(
+        auth_module,
+        "create_foundry_trace_session",
+        lambda conn, **values: sessions.append(values),
+    )
     auth = Auth.__new__(Auth)
     auth.username = "demo.user"
-    auth.trace_root = tmp_path
+    auth.settings = object()
 
     first = auth._create_trace_session()
     second = auth._create_trace_session()
@@ -56,14 +71,35 @@ def test_login_creates_a_unique_human_readable_trace_session(tmp_path):
     assert first != second
     assert first.startswith("20")
     assert "demo.user" in first
-    metadata = json.loads((tmp_path / first / "session.json").read_text(encoding="utf-8"))
-    assert metadata["session_id"] == first
-    assert metadata["username"] == "demo.user"
+    assert sessions[0]["session_id"] == first
+    assert sessions[0]["username"] == "demo.user"
+    assert sessions[0]["created_at"].tzinfo is not None
 
 
-def test_request_trace_writes_inputs_prompt_payload_and_response(tmp_path):
+def test_request_trace_writes_inputs_prompt_payload_and_response(monkeypatch):
+    created = []
+    updates = []
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    monkeypatch.setattr(foundry, "connect", lambda settings: Connection())
+    monkeypatch.setattr(
+        foundry,
+        "create_foundry_request_trace",
+        lambda conn, **values: created.append(values),
+    )
+    monkeypatch.setattr(
+        foundry,
+        "update_foundry_request_trace",
+        lambda conn, request_id, **values: updates.append((request_id, values)),
+    )
     trace = _RequestTrace(
-        root=str(tmp_path),
+        settings=object(),
         session_id="session-1",
         inputs={
             "prompt_key": "ask.navigator",
@@ -90,18 +126,19 @@ def test_request_trace_writes_inputs_prompt_payload_and_response(tmp_path):
     trace.provider_request(payload)
     trace.response(response)
 
-    request_dir = next((tmp_path / "session-1").iterdir())
-    inputs = json.loads((request_dir / "inputs.json").read_text(encoding="utf-8"))
+    assert created[0]["session_id"] == "session-1"
+    inputs = created[0]["inputs"]
     assert inputs["question"] == "How do caps work?"
     assert inputs["prompt_key"] == "ask.navigator"
     assert inputs["prompt_version"] == 1
     assert inputs["prompt_augmentations"][1]["key"] == "ask.memories"
-    assert json.loads((request_dir / "provider-request.json").read_text(encoding="utf-8")) == payload
-    assert (request_dir / "prompt.txt").read_text(encoding="utf-8") == (
+    assert updates[0][0] == created[0]["request_id"]
+    assert updates[0][1]["provider_request"] == payload
+    assert updates[0][1]["prompt"] == (
         "===== MESSAGE 1: SYSTEM =====\nSystem instructions\n\n"
         "===== MESSAGE 2: USER =====\nFinal prompt\n"
     )
-    assert json.loads((request_dir / "response.json").read_text(encoding="utf-8")) == response
+    assert updates[1] == (created[0]["request_id"], {"response": response})
 
 
 def test_flatten_provider_request_includes_all_prompt_bearing_fields():
@@ -174,7 +211,12 @@ def test_chat_sends_resolved_instructions_as_system_input_message(monkeypatch):
             return {"id": "response-1", "status": "completed", "output_text": "Answer"}
 
     monkeypatch.setattr(foundry, "FoundryAgentClient", Client)
-    settings = SimpleNamespace(foundry_trace_path="")
+    monkeypatch.setattr(foundry, "_RequestTrace", lambda **kwargs: SimpleNamespace(
+        provider_request=lambda payload: None,
+        response=lambda data: None,
+        error=lambda exc: None,
+    ))
+    settings = SimpleNamespace()
 
     result = foundry.chat(
         settings=settings,

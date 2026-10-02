@@ -18,17 +18,16 @@ sign-in screen; nothing in it is secret), and the ``/`` API banner. Everything u
 
 from __future__ import annotations
 
-import json
 import re
 import secrets
 from datetime import datetime
-from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from .config import Settings
+from .db import connect, create_foundry_trace_session
 
 COOKIE_NAME = "salesdj_auth"
 TRACE_SESSION_COOKIE_NAME = "salesdj_trace_session"
@@ -38,7 +37,9 @@ _SAFE_TRACE_SESSION = re.compile(r"^[A-Za-z0-9_.-]+$")
 _OPEN_PATHS = {"/", "/health", "/v1/auth/login", "/v1/auth/logout", "/v1/auth/me"}
 # Prompt Studio and its API are deliberately open for this demo. Production prompt
 # authoring will need a separate, explicit authorization design.
-_OPEN_PREFIXES = ("/app/", "/learn", "/prepare", "/prompts", "/v1/prompt-admin/")
+_OPEN_PREFIXES = (
+    "/app/", "/learn", "/prepare", "/prompts", "/traces", "/v1/prompt-admin/"
+)
 
 
 class Auth:
@@ -47,7 +48,7 @@ class Auth:
         self.password = settings.login_password
         self.secure = settings.cookie_secure
         self.token = secrets.token_urlsafe(32)
-        self.trace_root = Path(settings.foundry_trace_path) if settings.foundry_trace_path else None
+        self.settings = settings
 
     def is_authed(self, request: Request) -> bool:
         value = request.cookies.get(COOKIE_NAME, "")
@@ -81,20 +82,12 @@ class Auth:
         )
         username = re.sub(r"[^A-Za-z0-9_.-]+", "-", self.username).strip("-.") or "user"
         session_id = f"{timestamp}_{username}_{secrets.token_hex(4)}"
-        if self.trace_root is not None:
-            session_dir = self.trace_root / session_id
-            session_dir.mkdir(parents=True, exist_ok=False)
-            (session_dir / "session.json").write_text(
-                json.dumps(
-                    {
-                        "session_id": session_id,
-                        "username": self.username,
-                        "created_at": now.isoformat(),
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                ) + "\n",
-                encoding="utf-8",
+        with connect(self.settings) as conn:
+            create_foundry_trace_session(
+                conn,
+                session_id=session_id,
+                username=self.username,
+                created_at=now,
             )
         return session_id
 

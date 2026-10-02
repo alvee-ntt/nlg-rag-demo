@@ -635,6 +635,12 @@ def prompts_redirect() -> RedirectResponse:
     return RedirectResponse(url="/app/prompts.html")
 
 
+@app.get("/traces", include_in_schema=False)
+def traces_redirect() -> RedirectResponse:
+    """Request-trace explorer within the Prompt Studio demo workspace."""
+    return RedirectResponse(url="/app/traces.html")
+
+
 @app.get("/v1/learn/status", response_model=LearnStatusResponse)
 def learn_status(request: Request) -> dict[str, Any]:
     return {

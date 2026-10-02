@@ -4,8 +4,11 @@ from pathlib import Path
 from src.rag_layer.auth import Auth
 from src.rag_layer.prompt_admin import (
     create_prompt_version,
+    get_request_trace,
     get_prompt_definition,
+    get_trace_session,
     list_prompt_definitions,
+    list_trace_sessions,
     select_prompt_version,
 )
 
@@ -24,7 +27,9 @@ class Result:
 
 def test_prompt_studio_routes_are_deliberately_open_for_the_demo():
     assert Auth.is_open("/prompts")
+    assert Auth.is_open("/traces")
     assert Auth.is_open("/v1/prompt-admin/prompts")
+    assert Auth.is_open("/v1/prompt-admin/trace-sessions")
 
 
 def test_list_prompt_definitions_serializes_dates():
@@ -160,6 +165,79 @@ def test_select_prompt_version_updates_definition_and_commits():
     assert conn.committed is True
 
 
+def test_list_trace_sessions_serializes_summary_dates():
+    now = datetime(2026, 10, 2, 15, 45, tzinfo=timezone.utc)
+
+    class Connection:
+        def execute(self, query, params):
+            assert "foundry_trace_sessions" in query
+            assert params == (100,)
+            return Result(all_rows=[{
+                "session_id": "session-1",
+                "username": "demo.user",
+                "created_at": now,
+                "request_count": 3,
+                "error_count": 1,
+                "last_request_at": now,
+            }])
+
+    sessions = list_trace_sessions(Connection())
+
+    assert sessions[0]["request_count"] == 3
+    assert sessions[0]["error_count"] == 1
+    assert sessions[0]["last_request_at"] == "2026-10-02T15:45:00+00:00"
+
+
+def test_trace_session_lists_request_summaries():
+    now = datetime(2026, 10, 2, 15, 45, tzinfo=timezone.utc)
+
+    class Connection:
+        calls = 0
+
+        def execute(self, query, params):
+            self.calls += 1
+            assert params == ("session-1",)
+            if self.calls == 1:
+                return Result(one={
+                    "session_id": "session-1", "username": "demo.user", "created_at": now,
+                })
+            return Result(all_rows=[{
+                "request_id": "request-1", "received_at": now, "updated_at": now,
+                "prompt_key": "ask.navigator", "prompt_version": 2,
+                "question": "How do caps work?", "response_id": "response-1",
+                "has_provider_request": True, "has_response": True, "has_error": False,
+            }])
+
+    session = get_trace_session(Connection(), "session-1")
+
+    assert session["username"] == "demo.user"
+    assert session["requests"][0]["question"] == "How do caps work?"
+    assert session["requests"][0]["received_at"] == "2026-10-02T15:45:00+00:00"
+
+
+def test_request_trace_returns_all_saved_content():
+    now = datetime(2026, 10, 2, 15, 45, tzinfo=timezone.utc)
+
+    class Connection:
+        def execute(self, query, params):
+            assert params == ("request-1",)
+            return Result(one={
+                "request_id": "request-1", "session_id": "session-1",
+                "received_at": now, "updated_at": now,
+                "inputs": {"question": "Question"},
+                "provider_request": {"input": []}, "prompt": "Rendered prompt",
+                "response": {"id": "response-1"}, "error": None,
+            })
+
+    trace = get_request_trace(Connection(), "request-1")
+
+    assert trace["inputs"]["question"] == "Question"
+    assert trace["provider_request"] == {"input": []}
+    assert trace["prompt"] == "Rendered prompt"
+    assert trace["response"]["id"] == "response-1"
+    assert trace["received_at"] == "2026-10-02T15:45:00+00:00"
+
+
 def test_prompt_studio_page_is_standalone_and_uses_prompt_admin_api():
     page = (Path(__file__).resolve().parents[1] / "ui" / "prompts.html").read_text(encoding="utf-8")
 
@@ -167,3 +245,15 @@ def test_prompt_studio_page_is_standalone_and_uses_prompt_admin_api():
     assert "/v1/prompt-admin/prompts" in page
     assert "Create a new version" in page
     assert "Use this version" in page
+    assert 'href="/traces"' in page
+
+
+def test_trace_explorer_page_drills_from_sessions_into_saved_request_content():
+    page = (Path(__file__).resolve().parents[1] / "ui" / "traces.html").read_text(encoding="utf-8")
+
+    assert "Trace Explorer" in page
+    assert "/v1/prompt-admin/trace-sessions" in page
+    assert "/v1/prompt-admin/trace-requests/" in page
+    assert "Flattened prompt" in page
+    assert "Provider request" in page
+    assert "Provider response" in page

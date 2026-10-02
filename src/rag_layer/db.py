@@ -167,6 +167,31 @@ CREATE TABLE IF NOT EXISTS ask_user_memories (
 );
 CREATE INDEX IF NOT EXISTS ask_user_memories_user_idx
     ON ask_user_memories(user_id, created_at, id);
+
+-- Foundry request diagnostics used to be emitted as a directory tree containing
+-- session.json, inputs.json, provider-request.json, prompt.txt, and response/error
+-- JSON files. Keep the same information as structured, durable rows instead.
+CREATE TABLE IF NOT EXISTS foundry_trace_sessions (
+    session_id TEXT PRIMARY KEY,
+    username TEXT,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS foundry_request_traces (
+    request_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES foundry_trace_sessions(session_id) ON DELETE CASCADE,
+    received_at TIMESTAMPTZ NOT NULL,
+    inputs JSONB NOT NULL,
+    provider_request JSONB,
+    prompt TEXT,
+    response JSONB,
+    error JSONB,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS foundry_request_traces_session_idx
+    ON foundry_request_traces(session_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS foundry_request_traces_received_idx
+    ON foundry_request_traces(received_at DESC);
 """
 
 
@@ -263,6 +288,73 @@ def get_selected_prompt(conn, key: str) -> dict[str, Any]:
             f"No selected prompt version is configured for prompt key {key!r}"
         )
     return dict(row)
+
+
+# --- Foundry request traces -----------------------------------------------------
+
+def create_foundry_trace_session(
+    conn,
+    *,
+    session_id: str,
+    username: str | None,
+    created_at: _dt.datetime,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO foundry_trace_sessions (session_id, username, created_at)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (session_id) DO NOTHING
+        """,
+        (session_id, username, created_at),
+    )
+
+
+def create_foundry_request_trace(
+    conn,
+    *,
+    request_id: str,
+    session_id: str,
+    received_at: _dt.datetime,
+    inputs: dict[str, Any],
+) -> None:
+    # An old auth cookie can outlive the deployment that first issued it. Ensure its
+    # session exists so the request still has a valid parent after this migration.
+    create_foundry_trace_session(
+        conn,
+        session_id=session_id,
+        username=None,
+        created_at=received_at,
+    )
+    conn.execute(
+        """
+        INSERT INTO foundry_request_traces
+            (request_id, session_id, received_at, inputs)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (request_id, session_id, received_at, Jsonb(inputs)),
+    )
+
+
+def update_foundry_request_trace(conn, request_id: str, **fields: Any) -> None:
+    """Persist a request/response phase on an existing trace row."""
+    allowed = {"provider_request", "prompt", "response", "error"}
+    unknown = set(fields) - allowed
+    if unknown:
+        raise ValueError(f"Unsupported Foundry trace fields: {sorted(unknown)}")
+    if not fields:
+        return
+    json_columns = {"provider_request", "response", "error"}
+    assignments: list[str] = []
+    values: list[Any] = []
+    for column, value in fields.items():
+        assignments.append(f"{column} = %s")
+        values.append(Jsonb(value) if column in json_columns else value)
+    values.append(request_id)
+    conn.execute(
+        f"UPDATE foundry_request_traces SET {', '.join(assignments)}, "
+        "updated_at = now() WHERE request_id = %s",
+        values,
+    )
 
 
 def count_documents(settings: Settings) -> int:

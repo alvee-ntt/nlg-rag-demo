@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Trace Explorer · Prompt Studio</title>
+  <style>
+    :root {
+      --ink:#17211f; --muted:#64716d; --faint:#8b9692; --paper:#f5f3ed;
+      --panel:#fffefa; --line:#dcded7; --line-strong:#c5cac2; --accent:#176b5b;
+      --accent-dark:#0f5145; --accent-soft:#e3f0eb; --navy:#20324a; --red:#a4423d;
+      --red-soft:#f8e9e6; --shadow:0 18px 50px rgba(24,39,35,.09); --radius:18px;
+    }
+    * { box-sizing:border-box; }
+    html,body { height:100%; }
+    body {
+      margin:0; color:var(--ink); background:radial-gradient(circle at 8% 4%,rgba(23,107,91,.08),transparent 26rem),var(--paper);
+      font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    }
+    button,input { font:inherit; color:inherit; }
+    .shell { min-height:100%; display:grid; grid-template-rows:64px 1fr; }
+    .topbar { display:flex; align-items:center; gap:14px; padding:0 24px; color:#eef7f4; background:#142c27; border-bottom:1px solid rgba(255,255,255,.08); }
+    .mark { display:grid; place-items:center; width:35px; height:35px; border-radius:11px; background:linear-gradient(145deg,#63c6aa,#2b8b75); color:#0b2a23; font:700 21px Georgia,serif; box-shadow:inset 0 1px rgba(255,255,255,.45); }
+    .brand { font:600 19px/1.1 Georgia,serif; letter-spacing:.01em; }
+    .brand small { display:block; margin-top:3px; color:#a8c1ba; font:500 10px/1 ui-sans-serif,system-ui; text-transform:uppercase; letter-spacing:.16em; }
+    .studio-nav { display:flex; align-items:center; gap:5px; margin-left:20px; }
+    .studio-nav a { padding:8px 11px; border-radius:8px; color:#bcd0ca; text-decoration:none; font-size:12px; font-weight:750; }
+    .studio-nav a:hover { color:white; background:rgba(255,255,255,.08); }
+    .studio-nav a.on { color:white; background:rgba(99,198,170,.18); }
+    .top-spacer { flex:1; }
+    .demo-pill { padding:6px 10px; border:1px solid rgba(255,255,255,.16); border-radius:999px; color:#c7d9d4; font-size:12px; }
+    .layout { min-height:0; display:grid; grid-template-columns:320px minmax(0,1fr); }
+    .sidebar { min-height:0; overflow:hidden; display:grid; grid-template-rows:auto auto 1fr auto; background:rgba(255,254,250,.8); border-right:1px solid var(--line); backdrop-filter:blur(16px); }
+    .side-head { padding:25px 22px 14px; }
+    .eyebrow { color:var(--accent); text-transform:uppercase; letter-spacing:.13em; font-size:11px; font-weight:800; }
+    h1,h2,h3,p { margin-top:0; }
+    .side-head h1 { margin:5px 0 6px; font:600 27px/1.15 Georgia,serif; }
+    .side-head p { margin-bottom:0; color:var(--muted); font-size:13px; }
+    .search { position:relative; margin:0 16px 13px; }
+    .search svg { position:absolute; width:16px; left:12px; top:11px; color:var(--faint); }
+    .search input { width:100%; height:39px; padding:0 12px 0 36px; border:1px solid var(--line); border-radius:11px; outline:none; background:rgba(255,255,255,.8); }
+    .search input:focus { border-color:#77a99d; box-shadow:0 0 0 3px rgba(23,107,91,.1); }
+    .session-list { min-height:0; overflow-y:auto; padding:1px 10px 16px; }
+    .session-card { width:100%; padding:12px; margin:3px 0; border:1px solid transparent; border-radius:13px; background:transparent; cursor:pointer; text-align:left; transition:background .15s,border-color .15s,transform .15s; }
+    .session-card:hover { background:#f0f3ef; transform:translateY(-1px); }
+    .session-card.on { background:var(--accent-soft); border-color:#b8d2c8; }
+    .session-user { display:flex; align-items:center; gap:7px; font-weight:800; color:var(--navy); }
+    .session-id { display:block; margin-top:4px; color:var(--muted); font:10px/1.4 "SFMono-Regular",Consolas,monospace; overflow-wrap:anywhere; }
+    .session-meta { display:flex; align-items:center; gap:8px; margin-top:8px; color:var(--faint); font-size:11px; }
+    .badge { display:inline-flex; align-items:center; gap:5px; padding:3px 7px; border-radius:99px; background:#edf1ee; color:#53615d; font-size:10px; font-weight:800; }
+    .badge.error { color:var(--red); background:var(--red-soft); }
+    .side-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 18px; border-top:1px solid var(--line); color:var(--faint); font-size:11px; }
+    .refresh { border:0; padding:3px 0; background:none; color:var(--accent); cursor:pointer; font-weight:800; }
+    .workspace { min-width:0; min-height:0; overflow:auto; padding:30px clamp(22px,4vw,56px) 50px; }
+    .loading,.empty-state,.error-state { min-height:65vh; display:grid; place-items:center; color:var(--muted); text-align:center; }
+    .loader { width:30px; height:30px; margin:0 auto 12px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .session-head { display:flex; align-items:flex-start; gap:22px; margin-bottom:24px; }
+    .head-main { min-width:0; flex:1; }
+    .head-main h2 { margin:6px 0 7px; font:600 clamp(25px,3vw,36px)/1.12 Georgia,serif; }
+    .head-main p { margin:0; color:var(--muted); }
+    .head-id { display:block; margin-top:8px; color:var(--faint); font:11px/1.5 "SFMono-Regular",Consolas,monospace; overflow-wrap:anywhere; }
+    .content-grid { display:grid; grid-template-columns:300px minmax(0,1fr); gap:18px; align-items:start; }
+    .request-panel,.detail-panel { border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); box-shadow:var(--shadow); overflow:hidden; }
+    .request-panel { position:sticky; top:0; }
+    .panel-title { padding:15px 17px 12px; border-bottom:1px solid var(--line); color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    .request-list { max-height:calc(100vh - 235px); overflow-y:auto; padding:8px; }
+    .request-card { width:100%; padding:11px; margin-bottom:5px; border:1px solid transparent; border-radius:11px; background:none; cursor:pointer; text-align:left; }
+    .request-card:hover { background:#f5f6f2; }
+    .request-card.on { background:#edf4f0; border-color:#c6dbd3; }
+    .request-title { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; }
+    .request-question { display:-webkit-box; margin-top:5px; color:var(--muted); font-size:11px; overflow:hidden; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .request-time { display:block; margin-top:7px; color:var(--faint); font-size:10px; }
+    .status-dot { width:7px; height:7px; flex:0 0 auto; border-radius:50%; background:#40a887; }
+    .status-dot.error { background:#cb625c; }
+    .detail-head { display:flex; align-items:center; gap:10px; min-height:68px; padding:13px 18px; border-bottom:1px solid var(--line); }
+    .detail-head strong { font:600 18px Georgia,serif; }
+    .detail-id { color:var(--faint); font:10px "SFMono-Regular",Consolas,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .detail-body { padding:18px; }
+    .summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:17px; }
+    .summary-item { padding:11px 12px; border:1px solid var(--line); border-radius:11px; background:#fafaf6; }
+    .summary-item label { display:block; margin-bottom:3px; color:var(--faint); font-size:9px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+    .summary-item span { display:block; overflow-wrap:anywhere; font-size:12px; font-weight:700; }
+    .trace-section { margin-top:13px; border:1px solid var(--line); border-radius:13px; overflow:hidden; }
+    .trace-section.error-section { border-color:#e4bbb7; }
+    .section-head { display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid var(--line); background:#f7f7f3; }
+    .error-section .section-head { background:var(--red-soft); }
+    .section-head strong { font-size:12px; }
+    .section-head span { color:var(--faint); font-size:10px; }
+    .section-spacer { flex:1; }
+    .copy { border:0; background:none; color:var(--accent); cursor:pointer; font-size:10px; font-weight:800; }
+    pre { max-height:520px; margin:0; overflow:auto; padding:16px; background:#fcfcf8; color:#25302d; font:12px/1.65 "SFMono-Regular",Consolas,"Liberation Mono",monospace; white-space:pre-wrap; overflow-wrap:anywhere; tab-size:2; }
+    .empty-value { padding:15px; color:var(--faint); font-style:italic; }
+    .btn { min-height:39px; padding:0 14px; border:1px solid var(--line-strong); border-radius:10px; background:var(--panel); cursor:pointer; font-weight:750; }
+    .toast { position:fixed; right:24px; bottom:24px; z-index:20; padding:11px 14px; border-radius:10px; color:white; background:#18312b; box-shadow:0 14px 40px rgba(0,0,0,.2); }
+    @media (max-width:900px) {
+      .layout { grid-template-columns:1fr; }
+      .sidebar { max-height:330px; border-right:0; border-bottom:1px solid var(--line); }
+      .content-grid { grid-template-columns:1fr; }
+      .request-panel { position:static; }
+      .request-list { display:flex; max-height:none; overflow-x:auto; }
+      .request-card { min-width:245px; }
+      .summary-grid { grid-template-columns:1fr; }
+      .demo-pill { display:none; }
+    }
+    @media (max-width:600px) { .topbar { padding:0 12px; } .studio-nav { margin-left:auto; } .brand { display:none; } .workspace { padding:22px 14px 40px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="mark">P</div>
+      <div class="brand">Prompt Studio<small>NLG RAG Demo</small></div>
+      <nav class="studio-nav" aria-label="Prompt Studio"><a href="/prompts">Prompts</a><a class="on" href="/traces">Traces</a></nav>
+      <div class="top-spacer"></div><div class="demo-pill">Open demo workspace</div>
+    </header>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="side-head"><div class="eyebrow">Diagnostics</div><h1>Sessions</h1><p>Follow a login session into each saved Foundry request.</p></div>
+        <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" placeholder="Find a session…" autocomplete="off"></div>
+        <div class="session-list" id="sessionList"></div>
+        <div class="side-foot"><span id="sessionCount">Loading sessions…</span><button class="refresh" id="refresh">Refresh</button></div>
+      </aside>
+      <main class="workspace" id="workspace"><div class="loading"><div><div class="loader"></div>Loading traces…</div></div></main>
+    </div>
+  </div>
+  <div id="toastRoot"></div>
+  <script>
+    (() => {
+      "use strict";
+      const $ = (query, root = document) => root.querySelector(query);
+      const state = { sessions:[], session:null, request:null, query:"", loading:false };
+
+      async function api(path) {
+        const response = await fetch(path);
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
+        return body;
+      }
+      function formatDate(value, long = false) {
+        if (!value) return "No requests yet";
+        const options = long
+          ? { dateStyle:"medium", timeStyle:"medium" }
+          : { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" };
+        return new Intl.DateTimeFormat(undefined, options).format(new Date(value));
+      }
+      function parseHash() {
+        const values = new URLSearchParams(location.hash.slice(1));
+        return { session:values.get("session"), request:values.get("request") };
+      }
+      function syncHash() {
+        if (!state.session) return;
+        const values = new URLSearchParams({ session:state.session.session_id });
+        if (state.request) values.set("request", state.request.request_id);
+        history.replaceState(null, "", `#${values}`);
+      }
+      function toast(message) {
+        const root = $("#toastRoot"); root.innerHTML = "";
+        const item = document.createElement("div"); item.className = "toast"; item.textContent = message; root.appendChild(item);
+        setTimeout(() => item.remove(), 2200);
+      }
+      function filteredSessions() {
+        const query = state.query.trim().toLowerCase();
+        if (!query) return state.sessions;
+        return state.sessions.filter((item) => `${item.username || ""} ${item.session_id}`.toLowerCase().includes(query));
+      }
+      function renderSessions() {
+        const root = $("#sessionList"); root.innerHTML = "";
+        const sessions = filteredSessions();
+        sessions.forEach((item) => {
+          const button = document.createElement("button");
+          button.className = `session-card${state.session?.session_id === item.session_id ? " on" : ""}`;
+          const user = document.createElement("span"); user.className = "session-user"; user.textContent = item.username || "Unknown user";
+          const id = document.createElement("span"); id.className = "session-id"; id.textContent = item.session_id;
+          const meta = document.createElement("span"); meta.className = "session-meta";
+          const requests = document.createElement("span"); requests.className = "badge"; requests.textContent = `${item.request_count} request${item.request_count === 1 ? "" : "s"}`;
+          meta.append(requests);
+          if (item.error_count) { const errors = document.createElement("span"); errors.className = "badge error"; errors.textContent = `${item.error_count} error${item.error_count === 1 ? "" : "s"}`; meta.append(errors); }
+          const time = document.createElement("span"); time.textContent = formatDate(item.last_request_at || item.created_at); meta.append(time);
+          button.append(user,id,meta); button.onclick = () => selectSession(item.session_id); root.appendChild(button);
+        });
+        if (!sessions.length) { const empty = document.createElement("div"); empty.className = "empty-value"; empty.textContent = "No sessions match your search."; root.appendChild(empty); }
+        $("#sessionCount").textContent = `${state.sessions.length} recent session${state.sessions.length === 1 ? "" : "s"}`;
+      }
+      async function loadSessions(preserve = false) {
+        if (state.loading) return;
+        state.loading = true;
+        try {
+          const data = await api("/v1/prompt-admin/trace-sessions");
+          state.sessions = data.sessions || []; renderSessions();
+          if (!state.sessions.length) return renderEmpty("No trace sessions have been recorded yet.");
+          const hash = parseHash();
+          const preferred = preserve ? state.session?.session_id : hash.session;
+          const selected = state.sessions.find((item) => item.session_id === preferred) || state.sessions[0];
+          await selectSession(selected.session_id, preserve ? state.request?.request_id : hash.request);
+        } catch (error) { renderError(error.message); }
+        finally { state.loading = false; }
+      }
+      async function selectSession(sessionId, preferredRequest = null) {
+        $("#workspace").innerHTML = '<div class="loading"><div><div class="loader"></div>Loading session…</div></div>';
+        try {
+          state.session = await api(`/v1/prompt-admin/trace-sessions/${encodeURIComponent(sessionId)}`);
+          renderSessions(); renderSession();
+          const selected = state.session.requests.find((item) => item.request_id === preferredRequest) || state.session.requests[0];
+          if (selected) await selectRequest(selected.request_id); else { state.request = null; syncHash(); }
+        } catch (error) { renderError(error.message); }
+      }
+      function renderSession() {
+        const session = state.session;
+        $("#workspace").innerHTML = `
+          <section class="session-head"><div class="head-main"><div class="eyebrow">Trace session</div><h2 id="sessionUser"></h2><p id="sessionSummary"></p><code class="head-id" id="sessionId"></code></div></section>
+          <section class="content-grid"><aside class="request-panel"><div class="panel-title" id="requestCount"></div><div class="request-list" id="requestList"></div></aside><article class="detail-panel" id="detailPanel"><div class="empty-state"><div><h3>Select a request</h3><p>Choose a request to inspect everything that was saved.</p></div></div></article></section>`;
+        $("#sessionUser").textContent = session.username || "Unknown user";
+        $("#sessionSummary").textContent = `Started ${formatDate(session.created_at,true)}`;
+        $("#sessionId").textContent = session.session_id;
+        $("#requestCount").textContent = `${session.requests.length} request${session.requests.length === 1 ? "" : "s"}`;
+        renderRequests();
+      }
+      function renderRequests() {
+        const root = $("#requestList"); if (!root) return; root.innerHTML = "";
+        state.session.requests.forEach((item) => {
+          const button = document.createElement("button"); button.className = `request-card${state.request?.request_id === item.request_id ? " on" : ""}`;
+          const title = document.createElement("span"); title.className = "request-title";
+          const dot = document.createElement("i"); dot.className = `status-dot${item.has_error ? " error" : ""}`;
+          const name = document.createElement("span"); name.textContent = `${item.prompt_key || "Request"}${item.prompt_version ? ` · v${item.prompt_version}` : ""}`;
+          const question = document.createElement("span"); question.className = "request-question"; question.textContent = item.question || "No question saved";
+          const time = document.createElement("span"); time.className = "request-time"; time.textContent = formatDate(item.received_at,true);
+          title.append(dot,name); button.append(title,question,time); button.onclick = () => selectRequest(item.request_id); root.appendChild(button);
+        });
+        if (!state.session.requests.length) { root.innerHTML = '<div class="empty-value">This session has no requests.</div>'; }
+      }
+      async function selectRequest(requestId) {
+        try {
+          state.request = await api(`/v1/prompt-admin/trace-requests/${encodeURIComponent(requestId)}`);
+          renderRequests(); renderRequestDetail(); syncHash();
+        } catch (error) { renderError(error.message); }
+      }
+      function jsonText(value) { return value == null ? "" : JSON.stringify(value,null,2); }
+      function addSection(root, title, value, options = {}) {
+        const section = document.createElement("section"); section.className = `trace-section${options.error ? " error-section" : ""}`;
+        const head = document.createElement("div"); head.className = "section-head";
+        const label = document.createElement("strong"); label.textContent = title;
+        const kind = document.createElement("span"); kind.textContent = options.text ? "text" : "JSON";
+        const spacer = document.createElement("span"); spacer.className = "section-spacer";
+        head.append(label,kind,spacer); section.appendChild(head);
+        const content = options.text ? (value || "") : jsonText(value);
+        if (content) {
+          const copy = document.createElement("button"); copy.className = "copy"; copy.textContent = "Copy";
+          copy.onclick = async () => { await navigator.clipboard.writeText(content); toast(`Copied ${title}`); };
+          head.appendChild(copy);
+          const pre = document.createElement("pre"); pre.textContent = content; section.appendChild(pre);
+        } else {
+          const empty = document.createElement("div"); empty.className = "empty-value"; empty.textContent = "Not recorded"; section.appendChild(empty);
+        }
+        root.appendChild(section);
+      }
+      function renderRequestDetail() {
+        const item = state.request, panel = $("#detailPanel");
+        panel.innerHTML = '<div class="detail-head"><strong>Request details</strong><span class="detail-id" id="requestId"></span></div><div class="detail-body"><div class="summary-grid" id="summaryGrid"></div><div id="traceSections"></div></div>';
+        $("#requestId").textContent = item.request_id;
+        const inputs = item.inputs || {};
+        const values = [
+          ["Received",formatDate(item.received_at,true)],
+          ["Prompt",`${inputs.prompt_key || "Unknown"}${inputs.prompt_version ? ` · v${inputs.prompt_version}` : ""}`],
+          ["User",inputs.user_id || state.session.username || "Unknown"],
+        ];
+        const summary = $("#summaryGrid");
+        values.forEach(([label,value]) => { const box = document.createElement("div"); box.className = "summary-item"; const l = document.createElement("label"); l.textContent = label; const v = document.createElement("span"); v.textContent = value; box.append(l,v); summary.appendChild(box); });
+        const sections = $("#traceSections");
+        if (item.error) addSection(sections,"Error",item.error,{ error:true });
+        addSection(sections,"Inputs",item.inputs);
+        addSection(sections,"Flattened prompt",item.prompt,{ text:true });
+        addSection(sections,"Provider request",item.provider_request);
+        addSection(sections,"Provider response",item.response);
+      }
+      function renderEmpty(message) { $("#workspace").innerHTML = '<div class="empty-state"><div><h2>Nothing to show</h2><p></p></div></div>'; $(".empty-state p").textContent = message; }
+      function renderError(message) { $("#workspace").innerHTML = '<div class="error-state"><div><h2>Trace Explorer couldn’t load</h2><p></p><button class="btn">Try again</button></div></div>'; $(".error-state p").textContent = message; $(".error-state button").onclick = () => loadSessions(true); }
+      $("#search").oninput = (event) => { state.query = event.target.value; renderSessions(); };
+      $("#refresh").onclick = () => loadSessions(true);
+      loadSessions();
+    })();
+  </script>
+</body>
+</html>

@@ -20,13 +20,13 @@ import json
 import secrets
 import time
 from datetime import datetime
-from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import requests
 import urllib3
 
 from .config import Settings
+from .db import connect, create_foundry_request_trace, update_foundry_request_trace
 
 # Same transient-failure handling as embeddings.py: Foundry / the model behind it can
 # throttle (429) or blip (5xx), so back off and retry rather than failing the chat turn.
@@ -240,13 +240,6 @@ def _current_user_content(
     return preamble + question
 
 
-def _write_json(path: Path, value: dict) -> None:
-    path.write_text(
-        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-
 def _flatten_provider_request(payload: dict) -> str:
     """Render every prompt-bearing field; provider-request.json remains authoritative."""
     sections: list[str] = []
@@ -281,13 +274,11 @@ class _RequestTrace:
     def __init__(
         self,
         *,
-        root: str,
+        settings: Settings,
         session_id: str | None,
         inputs: dict,
     ) -> None:
-        self.directory: Path | None = None
-        if not root:
-            return
+        self.settings = settings
         if not session_id:
             # Normally created at login. This fallback covers API clients carrying an
             # older auth cookie while still keeping their requests grouped together.
@@ -298,53 +289,53 @@ class _RequestTrace:
             + f"{now.microsecond // 1000:03d}_"
             + now.strftime("%z")
         )
-        request_id = f"{timestamp}_request_{secrets.token_hex(4)}"
-        self.directory = Path(root) / session_id / request_id
-        self.directory.mkdir(parents=True, exist_ok=False)
-        _write_json(
-            self.directory / "inputs.json",
-            {
-                "trace_session_id": session_id,
-                "request_id": request_id,
-                "received_at": now.isoformat(),
-                **inputs,
-            },
-        )
+        self.request_id = f"{timestamp}_request_{secrets.token_hex(4)}"
+        with connect(settings) as conn:
+            create_foundry_request_trace(
+                conn,
+                request_id=self.request_id,
+                session_id=session_id,
+                received_at=now,
+                inputs={
+                    "trace_session_id": session_id,
+                    "request_id": self.request_id,
+                    "received_at": now.isoformat(),
+                    **inputs,
+                },
+            )
 
     def provider_request(self, payload: dict) -> None:
-        if self.directory is None:
-            return
-        _write_json(self.directory / "provider-request.json", payload)
-        (self.directory / "prompt.txt").write_text(
-            _flatten_provider_request(payload), encoding="utf-8"
-        )
+        with connect(self.settings) as conn:
+            update_foundry_request_trace(
+                conn,
+                self.request_id,
+                provider_request=payload,
+                prompt=_flatten_provider_request(payload),
+            )
 
     def response(self, data: dict) -> None:
-        if self.directory is not None:
-            _write_json(self.directory / "response.json", data)
+        with connect(self.settings) as conn:
+            update_foundry_request_trace(conn, self.request_id, response=data)
 
     def error(self, exc: Exception) -> None:
-        if self.directory is None:
-            return
         error = {
             "error_type": type(exc).__name__,
             "message": str(exc),
             "recorded_at": datetime.now().astimezone().isoformat(),
         }
         response = getattr(exc, "response", None)
+        fields: dict = {"error": error}
         if response is not None:
             error["http_status"] = response.status_code
             error["http_reason"] = response.reason
             error["response_body"] = response.text
-            _write_json(
-                self.directory / "response.json",
-                {
-                    "status_code": response.status_code,
-                    "reason": response.reason,
-                    "body": response.text,
-                },
-            )
-        _write_json(self.directory / "error.json", error)
+            fields["response"] = {
+                "status_code": response.status_code,
+                "reason": response.reason,
+                "body": response.text,
+            }
+        with connect(self.settings) as conn:
+            update_foundry_request_trace(conn, self.request_id, **fields)
 
 
 def chat(
@@ -370,7 +361,7 @@ def chat(
     provider message below.
     """
     trace = _RequestTrace(
-        root=settings.foundry_trace_path,
+        settings=settings,
         session_id=trace_session_id,
         inputs={
             "prompt_key": prompt_key,
