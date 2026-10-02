@@ -25,8 +25,8 @@ from urllib.parse import unquote, urlparse
 import requests
 import urllib3
 
-from .config import Settings
 from .db import connect, create_foundry_request_trace, update_foundry_request_trace
+from .config import NLG_SUPPORT_MESSAGE, Settings
 
 # Same transient-failure handling as embeddings.py: Foundry / the model behind it can
 # throttle (429) or blip (5xx), so back off and retry rather than failing the chat turn.
@@ -341,11 +341,12 @@ class _RequestTrace:
 def chat(
     *,
     settings: Settings,
-    instructions: str,
-    prompt_key: str,
-    prompt_version: int,
-    question: str,
     history: list[dict],
+    question: str | None = None,
+    message: str | None = None,
+    instructions: str = "",
+    prompt_key: str = "ask.navigator",
+    prompt_version: int = 0,
     preferences: dict | None = None,
     prompt_augmentations: list[dict] | None = None,
     about_me: str = "",
@@ -360,13 +361,16 @@ def chat(
     this module as distinct values. They are serialized only when constructing the final
     provider message below.
     """
+    resolved_question = question if question is not None else message
+    if resolved_question is None:
+        raise ValueError("question is required")
     trace = _RequestTrace(
         settings=settings,
         session_id=trace_session_id,
         inputs={
             "prompt_key": prompt_key,
             "prompt_version": prompt_version,
-            "question": question,
+            "question": resolved_question,
             "history": history,
             "preferences": preferences or {},
             "prompt_augmentations": [
@@ -395,7 +399,7 @@ def chat(
             "type": "message",
             "role": "user",
             "content": _current_user_content(
-                question=question,
+                question=resolved_question,
                 preferences=preferences,
                 prompt_augmentations=prompt_augmentations,
                 about_me=about_me,
@@ -411,12 +415,39 @@ def chat(
         trace.error(exc)
         raise
     answer, citations = _extract_answer(data)
-    return {
-        "answer": answer or "(the agent returned no text)",
-        "citations": citations,
+
+    # M03 — cap the agent's already-deduped, already-numbered citation list. Order and the
+    # existing [n] numbering are preserved; this is a simple length cap.
+    max_sources = getattr(settings, "max_sources", 0)
+    if max_sources and len(citations) > max_sources:
+        citations = citations[:max_sources]
+
+    meta = {
         "agent": client.agent,
         "model": data.get("model"),
         "response_id": data.get("id"),
         "status": data.get("status"),
         "trace_request_id": getattr(trace, "request_id", None),
+    }
+
+    # M03 abstention — the practical low-confidence signal on this track is the agent
+    # returning no grounded sources (min_similarity can't be used: no scores are exposed).
+    # Rather than surface ungrounded prose, hand off to NLG support and raise a discrete
+    # escalate flag that M09 can branch on.
+    non_answer = (not answer) or answer.strip() in {"", "(the agent returned no text)"}
+    if not citations or non_answer:
+        return {
+            "answer": NLG_SUPPORT_MESSAGE,
+            "citations": [],
+            "escalate": True,
+            "escalate_reason": "no_citations" if not citations else "empty_answer",
+            **meta,
+        }
+
+    return {
+        "answer": answer,
+        "citations": citations,
+        "escalate": False,
+        "escalate_reason": None,
+        **meta,
     }

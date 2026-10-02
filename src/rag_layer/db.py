@@ -510,6 +510,7 @@ def search_chunks(conn, query_embedding: list[float], limit: int = 8) -> list[di
                 c.content,
                 c.chunk_index,
                 c.metadata,
+                d.id AS document_id,
                 d.blob_name,
                 1 - (c.embedding <=> %s::vector) AS similarity
             FROM rag_chunks c
@@ -581,6 +582,14 @@ def get_document_chunks(conn, document_id: int) -> dict[str, Any] | None:
         (document_id,),
     ).fetchall()
     return {"document": dict(doc), "chunks": [dict(row) for row in chunks]}
+
+
+def get_document_blob_name(conn, document_id: int) -> str | None:
+    """The blob_name for a document id, or None if unknown (M10 open-document route)."""
+    row = conn.execute(
+        "SELECT blob_name FROM rag_documents WHERE id = %s", (document_id,)
+    ).fetchone()
+    return row["blob_name"] if row else None
 
 
 def citation(row: dict[str, Any]) -> str:

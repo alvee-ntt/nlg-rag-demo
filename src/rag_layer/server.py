@@ -1,12 +1,14 @@
 ﻿from __future__ import annotations
 
+import mimetypes
 import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
+from urllib.parse import quote
 
 _VENDOR = Path(__file__).resolve().parents[2] / ".vendor"
 _VENDOR_PATH = str(_VENDOR)
@@ -46,7 +48,7 @@ from .db import (
     replace_ask_user_context,
 )
 from .embeddings import get_openai_client
-from .foundry import chat as foundry_chat, foundry_configured
+from .foundry import foundry_configured
 from .curriculum import CURRICULUM, curriculum_outline
 from .learn import (
     KINDS,
@@ -65,10 +67,13 @@ from .roleplay import OUTCOME_LABELS, Roleplay
 from .service import (
     answer,
     chat,
+    chat_foundry,
     check_transcript,
     corpus,
     document_chunks,
+    draft_support_email,
     fact_check,
+    open_document,
     search,
 )
 from .speech import speech_configured
@@ -93,6 +98,19 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=1000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=12)
     limit: int = Field(default=6, ge=1, le=20)
+
+
+class Source(BaseModel):
+    document_id: int | None = None
+    url: str | None = None
+    blob_name: str
+    chunk_index: int
+    citation: str
+    page: Any | None = None
+    zone: str
+    similarity: float
+    preview: str
+    chunk_count: int | None = None
 
 
 class FoundryAnswerPreferences(BaseModel):
@@ -132,10 +150,36 @@ class FoundryCitation(BaseModel):
 class FoundryChatResponse(BaseModel):
     answer: str
     citations: list[FoundryCitation]
+    # Populated when the local pipeline answers (Foundry fallback); Foundry answers use
+    # `citations` instead. The UI renders whichever is present.
+    sources: list[Source] = []
     agent: str
     model: str | None = None
     response_id: str | None = None
+    trace_request_id: str | None = None
     status: str | None = None
+    domain: Literal["in_domain", "out_of_domain"] = "in_domain"
+    escalate: bool = False
+    escalate_reason: str | None = None
+    # Which engine produced this turn: "foundry", "local" (fallback), or "gate" (declined).
+    source_engine: str | None = None
+
+
+class HandoffDraftRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=12)
+    # Why the handoff was triggered; steers wording. "insufficient" = corpus gap,
+    # "case_specific" = needs an authoritative NLG decision, "manual" = user asked to
+    # escalate. The UI maps M03's `escalate_reason: "insufficient_support"` -> "insufficient".
+    reason: Literal["insufficient", "case_specific", "manual"] = "manual"
+    limit: int = Field(default=6, ge=1, le=20)
+
+
+class HandoffDraftResponse(BaseModel):
+    to: str
+    subject: str
+    body: str
+    reason: str
 
 
 class FoundryStatusResponse(BaseModel):
@@ -165,27 +209,19 @@ class TranscriptCheckRequest(BaseModel):
     max_statements: int = Field(default=50, ge=1, le=200)
 
 
-class Source(BaseModel):
-    blob_name: str
-    chunk_index: int
-    citation: str
-    page: Any | None = None
-    zone: str
-    similarity: float
-    preview: str
-
-
 class SearchResponse(BaseModel):
     sources: list[Source]
 
 
 class AnswerResponse(SearchResponse):
     answer: str
+    insufficient_support: bool = False
 
 
 class ChatResponse(SearchResponse):
     answer: str
     follow_ups: list[str]
+    insufficient_support: bool = False
 
 
 class FactCheckResponse(SearchResponse):
@@ -488,6 +524,22 @@ def chat_endpoint(payload: ChatRequest, request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
 
 
+@app.post("/v1/handoff/draft", response_model=HandoffDraftResponse)
+def handoff_draft_endpoint(payload: HandoffDraftRequest, request: Request) -> dict[str, Any]:
+    """Prepare (not send) a draft NLG Support email from the current conversation (M09)."""
+    try:
+        return draft_support_email(
+            settings=request.app.state.settings,
+            client=request.app.state.openai_client,
+            question=payload.question.strip(),
+            history=[t.model_dump() for t in payload.history],
+            reason=payload.reason,
+            limit=payload.limit,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+
+
 @app.get("/v1/foundry/status", response_model=FoundryStatusResponse)
 def foundry_status_endpoint(request: Request) -> dict[str, Any]:
     """Whether the hosted Foundry agent is wired up, for the Coach console's Foundry tab."""
@@ -542,12 +594,13 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
                 get_selected_prompt(conn, key)
                 for key in dict.fromkeys(payload.prompt_augmentation_keys)
             ]
-        return foundry_chat(
+        return chat_foundry(
             settings=settings,
+            client=request.app.state.openai_client,
+            message=payload.message.strip(),
             instructions=prompt["instructions"],
             prompt_key=prompt["key"],
             prompt_version=prompt["version"],
-            question=payload.message.strip(),
             history=[t.model_dump() for t in payload.history],
             preferences=payload.preferences.model_dump(),
             prompt_augmentations=prompt_augmentations,
@@ -607,6 +660,46 @@ def document_chunks_endpoint(document_id: int, request: Request) -> dict[str, An
     if result is None:
         raise HTTPException(status_code=404, detail=f"No document with id {document_id}")
     return result
+
+
+# Viewable in-browser vs. download-only. The office formats have no reliable inline viewer,
+# so they download with their original filename; the rest render inline (M10).
+_INLINE_EXTENSIONS = {".pdf", ".html", ".htm", ".txt", ".md", ".csv"}
+_EXTENSION_CONTENT_TYPES = {
+    ".pdf": "application/pdf",
+    ".html": "text/html", ".htm": "text/html",
+    ".txt": "text/plain; charset=utf-8",
+    ".md": "text/markdown; charset=utf-8",
+    ".csv": "text/csv; charset=utf-8",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
+@app.get("/v1/documents/{document_id}/open", include_in_schema=True)
+def open_document_endpoint(document_id: int, request: Request) -> Response:
+    """Open/stream a citation's original source document (M10). Proxies the blob through the
+    app so the container SAS token never reaches the browser; rides the /v1 sign-in gate."""
+    try:
+        result = open_document(settings=request.app.state.settings, document_id=document_id)
+    except Exception as exc:  # blob download / storage failures — do not leak the SAS URL
+        raise HTTPException(
+            status_code=502, detail=f"Could not fetch source document: {type(exc).__name__}"
+        ) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No document with id {document_id}")
+    blob_name, data = result
+    filename = PurePosixPath(blob_name).name
+    ext = PurePosixPath(blob_name).suffix.lower()
+    media_type = _EXTENSION_CONTENT_TYPES.get(ext) or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    disposition = "inline" if ext in _INLINE_EXTENSIONS else "attachment"
+    cd = f"{disposition}; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}"
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Content-Disposition": cd, "Cache-Control": "private, max-age=3600"},
+    )
 
 
 # --- Learn (salesDJ) routes ---------------------------------------------------------

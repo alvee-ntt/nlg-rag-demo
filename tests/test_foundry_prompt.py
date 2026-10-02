@@ -211,6 +211,10 @@ def test_chat_sends_resolved_instructions_as_system_input_message(monkeypatch):
             return {"id": "response-1", "status": "completed", "output_text": "Answer"}
 
     monkeypatch.setattr(foundry, "FoundryAgentClient", Client)
+    monkeypatch.setattr(foundry, "_extract_answer", lambda data: (
+        "Answer",
+        [{"n": 1, "title": "guide.pdf", "url": "https://example/guide.pdf"}],
+    ))
     monkeypatch.setattr(foundry, "_RequestTrace", lambda **kwargs: SimpleNamespace(
         provider_request=lambda payload: None,
         response=lambda data: None,
