@@ -36,7 +36,9 @@ LOGIN_ROUTE = "/app/learn.html#/login"
 _SAFE_TRACE_SESSION = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 _OPEN_PATHS = {"/", "/health", "/v1/auth/login", "/v1/auth/logout", "/v1/auth/me"}
-_OPEN_PREFIXES = ("/app/", "/learn", "/prepare")
+# Prompt Studio and its API are deliberately open for this demo. Production prompt
+# authoring will need a separate, explicit authorization design.
+_OPEN_PREFIXES = ("/app/", "/learn", "/prepare", "/prompts", "/v1/prompt-admin/")
 
 
 class Auth:

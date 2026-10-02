@@ -60,6 +60,7 @@ from .learn import (
     serialize_mix,
 )
 from . import profile
+from .prompt_admin import router as prompt_admin_router
 from .roleplay import OUTCOME_LABELS, Roleplay
 from .service import (
     answer,
@@ -374,6 +375,7 @@ app = FastAPI(
     description="Local RAG API for source-backed answers and fact checks.",
     lifespan=lifespan,
 )
+app.include_router(prompt_admin_router)
 
 
 def _cors_origins() -> list[str]:
@@ -625,6 +627,12 @@ def chat_redirect() -> RedirectResponse:
 def coach_redirect() -> RedirectResponse:
     """Public Coach entry point; the RAG console remains its implementation for now."""
     return RedirectResponse(url="/app/index.html")
+
+
+@app.get("/prompts", include_in_schema=False)
+def prompts_redirect() -> RedirectResponse:
+    """Standalone prompt-management workspace, separate from the sales application."""
+    return RedirectResponse(url="/app/prompts.html")
 
 
 @app.get("/v1/learn/status", response_model=LearnStatusResponse)
