@@ -26,7 +26,7 @@ from urllib.parse import unquote, urlparse
 import requests
 import urllib3
 
-from .config import Settings
+from .config import NLG_SUPPORT_MESSAGE, Settings
 
 # Same transient-failure handling as embeddings.py: Foundry / the model behind it can
 # throttle (429) or blip (5xx), so back off and retry rather than failing the chat turn.
@@ -368,11 +368,37 @@ def chat(
         trace.error(exc)
         raise
     answer, citations = _extract_answer(data)
-    return {
-        "answer": answer or "(the agent returned no text)",
-        "citations": citations,
+
+    # M03 — cap the agent's already-deduped, already-numbered citation list. Order and the
+    # existing [n] numbering are preserved; this is a simple length cap.
+    if settings.max_sources and len(citations) > settings.max_sources:
+        citations = citations[: settings.max_sources]
+
+    meta = {
         "agent": client.agent,
         "model": data.get("model"),
         "response_id": data.get("id"),
         "status": data.get("status"),
+    }
+
+    # M03 abstention — the practical low-confidence signal on this track is the agent
+    # returning no grounded sources (min_similarity can't be used: no scores are exposed).
+    # Rather than surface ungrounded prose, hand off to NLG support and raise a discrete
+    # escalate flag that M09 can branch on.
+    non_answer = (not answer) or answer.strip() in {"", "(the agent returned no text)"}
+    if not citations or non_answer:
+        return {
+            "answer": NLG_SUPPORT_MESSAGE,
+            "citations": [],
+            "escalate": True,
+            "escalate_reason": "no_citations" if not citations else "empty_answer",
+            **meta,
+        }
+
+    return {
+        "answer": answer,
+        "citations": citations,
+        "escalate": False,
+        "escalate_reason": None,
+        **meta,
     }

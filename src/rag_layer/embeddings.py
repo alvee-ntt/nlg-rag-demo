@@ -117,7 +117,7 @@ def _generate(client: AzureOpenAIClient, settings: Settings, prompt: str) -> str
 
 
 def answer_with_context(client: AzureOpenAIClient, settings: Settings, question: str, contexts: list[dict]) -> str:
-    prompt = f"""Answer the question using only the context below. If the context does not contain the answer, say you do not know.
+    prompt = f"""Answer the question using only the context below. If the context does not contain the answer, say the approved FlexLife material does not cover it and suggest contacting NLG support — do not guess or fill gaps with general knowledge.
 
 Context:
 {_context_text(contexts)}
@@ -152,6 +152,38 @@ def _history_text(history: list[dict]) -> str:
     return "\n".join(lines) or "(this is the first message)"
 
 
+def classify_domain(
+    client: AzureOpenAIClient,
+    settings: Settings,
+    message: str,
+    history: list[dict],
+) -> str:
+    """Route a chat turn to IN_DOMAIN / OUT_OF_DOMAIN before it reaches the hosted
+    Foundry agent, so the app declines clearly non-FlexLife requests instead of
+    answering them like a general chatbot (M02).
+
+    Fails open to IN_DOMAIN on any error or unparseable reply, so a classifier
+    hiccup never blocks a legitimate FlexLife question.
+    """
+    prompt = f"""You are a router for a FlexLife life-insurance sales-support assistant.
+Decide if the user's latest message is about FlexLife, its products/riders/
+pricing/eligibility/benefits/process, life insurance, or selling/servicing it.
+Greetings and conversational follow-ups that continue a FlexLife thread count as
+IN_DOMAIN. General knowledge, coding, other companies, creative writing, or
+anything unrelated is OUT_OF_DOMAIN.
+Reply with exactly one token: IN_DOMAIN or OUT_OF_DOMAIN.
+
+Conversation so far:
+{_history_text(history)}
+Latest message: {message}
+"""
+    try:
+        raw = _generate(client, settings, prompt)
+    except Exception:  # noqa: BLE001 - a classifier hiccup must never block a real question
+        return "IN_DOMAIN"
+    return "OUT_OF_DOMAIN" if "OUT_OF_DOMAIN" in raw.upper() else "IN_DOMAIN"
+
+
 def chat_with_context(
     client: AzureOpenAIClient,
     settings: Settings,
@@ -169,13 +201,14 @@ def chat_with_context(
 
 How to reply:
 - Answer the agent's latest message directly in 1-3 short sentences of plain prose, like a text message. No bullet points, no headings, no markdown, no numbered lists.
-- Use only the source context below for product facts and approved wording. If the sources do not cover it, say so in one sentence and give safe general guidance without inventing product details. Never promise guarantees or returns.
+- Use only the source context below for product facts and approved wording. If the sources do not cover it, say in one sentence that the approved FlexLife material doesn't cover that and suggest reaching out to NLG support — do NOT guess or give general guidance from outside the sources. Never promise guarantees or returns.
 - If the agent asked something broad, give the single most useful point and offer to go deeper rather than listing everything.
 - Keep the conversation going: the reply should read naturally after the earlier messages.
+- Set "grounded" to false whenever the source context does not actually answer the agent's question (even when the topic is FlexLife-related) — i.e. you had to decline or point them to NLG support. Set it to true only when your answer is supported by the sources above.
 
 Then suggest up to two short follow-up questions the agent might tap next (each under 6 words, phrased as the agent would ask them, e.g. "What do I ask next?").
 
-Return ONLY a JSON object: {{"answer": "...", "follow_ups": ["...", "..."]}}
+Return ONLY a JSON object: {{"answer": "...", "grounded": true, "follow_ups": ["...", "..."]}}
 
 Conversation so far:
 {_history_text(history)}
@@ -191,9 +224,64 @@ Source context:
         data = _parse_json_object(raw)
         answer = str(data.get("answer", "")).strip()
         follow_ups = [str(x).strip() for x in data.get("follow_ups", []) if str(x).strip()][:2]
+        grounded = bool(data.get("grounded", True))
     except Exception:  # noqa: BLE001 - a malformed JSON reply still has a usable answer in it
-        answer, follow_ups = raw.strip(), []
-    return {"answer": answer or "I couldn't find that in the sources.", "follow_ups": follow_ups}
+        answer, follow_ups, grounded = raw.strip(), [], True
+    return {
+        "answer": answer or "I couldn't find that in the sources.",
+        "follow_ups": follow_ups,
+        "grounded": grounded,
+    }
+
+
+def generate_support_email(
+    client: AzureOpenAIClient,
+    settings: Settings,
+    question: str,
+    history: list[dict],
+    contexts: list[dict],
+    reason: str,
+) -> dict:
+    """Draft an NLG Support email from the conversation (M09). First person, as the agent.
+
+    Returns {"subject": str, "body": str}. Falls back to raw-text-as-body on a malformed
+    JSON reply, mirroring chat_with_context.
+    """
+    reason_note = {
+        "insufficient": "The Agent Navigator could not find this in the Knowledge Foundation.",
+        "case_specific": "This needs an authoritative, case-specific decision from NLG.",
+        "manual": "The agent chose to escalate this question to NLG Support.",
+    }.get(reason, "The agent chose to escalate this question to NLG Support.")
+    prompt = f"""You are drafting a support email ON BEHALF OF a FlexLife sales agent, addressed to NLG Support.
+Write the body in the FIRST PERSON as the agent ("I ..."). Never describe the agent in the third person and never say you are an AI.
+
+Why they are escalating: {reason_note}
+
+Write a professional, concise email whose body has three clear parts:
+1. The specific question that needs answering.
+2. The relevant context the agent already established in the conversation (product, client details, what was and was not confirmed). Do not invent facts.
+3. A clear statement of exactly what clarification or assistance is being requested from NLG Support.
+Close with a sign-off line ending in "[Your name]". Do not promise guarantees or returns.
+
+Return ONLY a JSON object: {{"subject": "<concise topic line>", "body": "<the full email body>"}}
+
+Conversation so far:
+{_history_text(history)}
+
+The question that triggered this handoff:
+{question}
+
+What the app was able to find in the sources (reference only, to describe what could not be confirmed):
+{_context_text(contexts) or "(nothing relevant retrieved)"}
+"""
+    raw = _generate(client, settings, prompt)
+    try:
+        data = _parse_json_object(raw)
+        subject = str(data.get("subject", "")).strip() or "FlexLife question for NLG Support"
+        body = str(data.get("body", "")).strip()
+    except Exception:  # noqa: BLE001 - a malformed JSON reply still has a usable body in it
+        subject, body = "FlexLife question for NLG Support", raw.strip()
+    return {"subject": subject, "body": body or "Please see my question above."}
 
 
 def factcheck_claim(client: AzureOpenAIClient, settings: Settings, claim: str, contexts: list[dict]) -> str:
