@@ -641,6 +641,12 @@ def traces_redirect() -> RedirectResponse:
     return RedirectResponse(url="/app/traces.html")
 
 
+@app.get("/tests", include_in_schema=False)
+def prompt_tests_redirect() -> RedirectResponse:
+    """Authenticated prompt replay and comparison workspace."""
+    return RedirectResponse(url="/app/tests.html")
+
+
 @app.get("/v1/learn/status", response_model=LearnStatusResponse)
 def learn_status(request: Request) -> dict[str, Any]:
     return {

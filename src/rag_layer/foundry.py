@@ -418,4 +418,5 @@ def chat(
         "model": data.get("model"),
         "response_id": data.get("id"),
         "status": data.get("status"),
+        "trace_request_id": getattr(trace, "request_id", None),
     }

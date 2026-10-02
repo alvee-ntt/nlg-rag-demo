@@ -103,11 +103,18 @@ class Auth:
 
     @staticmethod
     def is_open(path: str) -> bool:
+        if path.startswith("/v1/prompt-admin/test-"):
+            return False
         return path in _OPEN_PATHS or path.startswith(_OPEN_PREFIXES)
 
     def gate(self, request: Request) -> Response | None:
         """The response to send instead of handling the request, or None to proceed."""
         path = request.url.path
+        # Replaying prompt tests calls the billable Foundry endpoint. Keep this part of
+        # Prompt Studio behind the normal sign-in even though prompt authoring and trace
+        # inspection are deliberately open in the demo.
+        if path.startswith("/v1/prompt-admin/test-") and not self.is_authed(request):
+            return JSONResponse({"detail": "Sign in required"}, status_code=401)
         if self.is_open(path) or self.is_authed(request):
             return None
         if path.startswith("/v1/") or request.method != "GET":

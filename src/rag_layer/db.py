@@ -192,6 +192,56 @@ CREATE INDEX IF NOT EXISTS foundry_request_traces_session_idx
     ON foundry_request_traces(session_id, received_at DESC);
 CREATE INDEX IF NOT EXISTS foundry_request_traces_received_idx
     ON foundry_request_traces(received_at DESC);
+
+-- Prompt replay tests are immutable experiment records. A run identifies the saved
+-- request being replayed; each case records one complete prompt-version combination
+-- and its independent result. Test execution never changes selected prompt versions.
+CREATE TABLE IF NOT EXISTS prompt_test_configurations (
+    configuration_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    feature TEXT NOT NULL,
+    source_trace_request_id TEXT NOT NULL
+        REFERENCES foundry_request_traces(request_id) ON DELETE RESTRICT,
+    combinations JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_run_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS prompt_test_configurations_updated_idx
+    ON prompt_test_configurations(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS prompt_test_runs (
+    run_id TEXT PRIMARY KEY,
+    feature TEXT NOT NULL,
+    source_trace_request_id TEXT NOT NULL
+        REFERENCES foundry_request_traces(request_id) ON DELETE RESTRICT,
+    status TEXT NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'running', 'completed', 'failed')),
+    case_count INTEGER NOT NULL CHECK (case_count > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    error TEXT
+);
+CREATE INDEX IF NOT EXISTS prompt_test_runs_created_idx
+    ON prompt_test_runs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS prompt_test_cases (
+    case_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES prompt_test_runs(run_id) ON DELETE CASCADE,
+    position INTEGER NOT NULL CHECK (position > 0),
+    prompt_versions JSONB NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'running', 'completed', 'failed')),
+    result JSONB,
+    error JSONB,
+    trace_request_id TEXT REFERENCES foundry_request_traces(request_id) ON DELETE SET NULL,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    UNIQUE (run_id, position)
+);
+CREATE INDEX IF NOT EXISTS prompt_test_cases_run_idx
+    ON prompt_test_cases(run_id, position);
 """
 
 
