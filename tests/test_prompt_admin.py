@@ -36,8 +36,8 @@ def test_prompt_studio_routes_are_deliberately_open_for_the_demo():
     assert Auth.is_open("/traces")
     assert Auth.is_open("/v1/prompt-admin/prompts")
     assert Auth.is_open("/v1/prompt-admin/trace-sessions")
-    assert not Auth.is_open("/tests")
-    assert not Auth.is_open("/v1/prompt-admin/test-runs")
+    assert Auth.is_open("/tests")
+    assert Auth.is_open("/v1/prompt-admin/test-runs")
 
 
 def test_list_prompt_definitions_serializes_dates():

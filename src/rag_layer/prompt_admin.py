@@ -5,8 +5,8 @@ authoring workflow: browse definitions, inspect immutable versions, create a ver
 and explicitly select the version the application should use. It also provides the
 read-only session/request drill-down used by Trace Explorer.
 
-Prompt authoring and trace inspection remain open in this demo. Test replay endpoints
-use the app's sign-in because they can create billable provider requests.
+Prompt authoring, trace inspection, and test replay are intentionally open in this
+demo workspace. Revisit that boundary before using it with production data.
 """
 
 from __future__ import annotations
