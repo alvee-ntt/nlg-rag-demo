@@ -29,19 +29,23 @@ if _VENDOR_WAS_ON_PATH:
 from .auth import Auth
 from .config import load_settings
 from .db import (
+    PromptConfigurationError,
     connect,
     create_mix,
     delete_mix,
     delete_roleplay_session,
+    get_ask_user_context,
     get_mix,
     get_mix_audio,
     get_roleplay_session,
+    get_selected_prompt,
     init_db,
     list_audio_mixes_without_audio,
     list_mixes,
     list_roleplay_sessions,
     mark_stale_mixes,
     roleplay_stats,
+    replace_ask_user_context,
 )
 from .embeddings import get_openai_client
 from .foundry import foundry_configured
@@ -58,6 +62,7 @@ from .learn import (
     serialize_mix,
 )
 from . import profile
+from .prompt_admin import router as prompt_admin_router
 from .roleplay import OUTCOME_LABELS, Roleplay
 from .service import (
     answer,
@@ -116,12 +121,24 @@ class FoundryAnswerPreferences(BaseModel):
     always_sources: bool = False
 
 
+class FoundryMemory(BaseModel):
+    id: str = Field(..., min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_.-]+$")
+    text: str = Field(..., min_length=1, max_length=140)
+
+
+class FoundryUserContextRequest(BaseModel):
+    about_me: str = Field(default="", max_length=1000)
+    memories: list[FoundryMemory] = Field(default_factory=list, max_length=20)
+
+
 class FoundryChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=20)
     preferences: FoundryAnswerPreferences = Field(default_factory=FoundryAnswerPreferences)
-    about_me: str = Field(default="", max_length=1000)
-    memories: list[str] = Field(default_factory=list, max_length=20)
+    prompt_augmentation_keys: list[Literal["ask.about_me", "ask.memories"]] = Field(
+        default_factory=lambda: ["ask.about_me", "ask.memories"],
+        max_length=2,
+    )
 
 
 class FoundryCitation(BaseModel):
@@ -139,6 +156,7 @@ class FoundryChatResponse(BaseModel):
     agent: str
     model: str | None = None
     response_id: str | None = None
+    trace_request_id: str | None = None
     status: str | None = None
     domain: Literal["in_domain", "out_of_domain"] = "in_domain"
     escalate: bool = False
@@ -168,6 +186,12 @@ class FoundryStatusResponse(BaseModel):
     configured: bool
     agent: str
     endpoint: str
+
+
+# The schema and API are user-scoped now; authentication can replace this resolver when
+# the demo grows real user accounts.
+DEMO_ASK_USER_ID = "demo-user"
+ASK_NAVIGATOR_PROMPT_KEY = "ask.navigator"
 
 
 class FactCheckRequest(BaseModel):
@@ -387,6 +411,7 @@ app = FastAPI(
     description="Local RAG API for source-backed answers and fact checks.",
     lifespan=lifespan,
 )
+app.include_router(prompt_admin_router)
 
 
 def _cors_origins() -> list[str]:
@@ -526,6 +551,31 @@ def foundry_status_endpoint(request: Request) -> dict[str, Any]:
     }
 
 
+@app.get("/v1/foundry/user-context")
+def foundry_user_context_get(request: Request) -> dict[str, Any]:
+    with connect(request.app.state.settings) as conn:
+        return get_ask_user_context(conn, DEMO_ASK_USER_ID)
+
+
+@app.put("/v1/foundry/user-context")
+def foundry_user_context_put(
+    payload: FoundryUserContextRequest,
+    request: Request,
+) -> dict[str, Any]:
+    memories = [
+        {"id": memory.id, "text": memory.text.strip()}
+        for memory in payload.memories
+        if memory.text.strip()
+    ]
+    with connect(request.app.state.settings) as conn:
+        return replace_ask_user_context(
+            conn,
+            user_id=DEMO_ASK_USER_ID,
+            about_me=payload.about_me.strip(),
+            memories=memories,
+        )
+
+
 @app.post("/v1/foundry/chat", response_model=FoundryChatResponse)
 def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict[str, Any]:
     """Proxy one chat turn to the hosted Azure AI Foundry agent (its own knowledge base
@@ -537,16 +587,30 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
             detail="Foundry is not configured. Set FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_API_KEY in .env.",
         )
     try:
+        with connect(settings) as conn:
+            user_context = get_ask_user_context(conn, DEMO_ASK_USER_ID)
+            prompt = get_selected_prompt(conn, ASK_NAVIGATOR_PROMPT_KEY)
+            prompt_augmentations = [
+                get_selected_prompt(conn, key)
+                for key in dict.fromkeys(payload.prompt_augmentation_keys)
+            ]
         return chat_foundry(
             settings=settings,
             client=request.app.state.openai_client,
             message=payload.message.strip(),
+            instructions=prompt["instructions"],
+            prompt_key=prompt["key"],
+            prompt_version=prompt["version"],
             history=[t.model_dump() for t in payload.history],
             preferences=payload.preferences.model_dump(),
-            about_me=payload.about_me.strip(),
-            memories=[memory.strip() for memory in payload.memories if memory.strip()],
+            prompt_augmentations=prompt_augmentations,
+            about_me=user_context["about_me"],
+            memories=[memory["text"] for memory in user_context["memories"]],
+            user_id=DEMO_ASK_USER_ID,
             trace_session_id=request.app.state.auth.trace_session_id(request),
         )
+    except PromptConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
 
@@ -656,6 +720,24 @@ def chat_redirect() -> RedirectResponse:
 def coach_redirect() -> RedirectResponse:
     """Public Coach entry point; the RAG console remains its implementation for now."""
     return RedirectResponse(url="/app/index.html")
+
+
+@app.get("/prompts", include_in_schema=False)
+def prompts_redirect() -> RedirectResponse:
+    """Standalone prompt-management workspace, separate from the sales application."""
+    return RedirectResponse(url="/app/prompts.html")
+
+
+@app.get("/traces", include_in_schema=False)
+def traces_redirect() -> RedirectResponse:
+    """Request-trace explorer within the Prompt Studio demo workspace."""
+    return RedirectResponse(url="/app/traces.html")
+
+
+@app.get("/tests", include_in_schema=False)
+def prompt_tests_redirect() -> RedirectResponse:
+    """Authenticated prompt replay and comparison workspace."""
+    return RedirectResponse(url="/app/tests.html")
 
 
 @app.get("/v1/learn/status", response_model=LearnStatusResponse)

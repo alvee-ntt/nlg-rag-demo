@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -9,6 +10,11 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from .config import Settings, load_settings
+
+
+class PromptConfigurationError(RuntimeError):
+    """A backend prompt key has no usable selected version."""
+
 
 SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -106,6 +112,136 @@ CREATE TABLE IF NOT EXISTS app_settings (
     value JSONB NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Application-managed Foundry prompts. Definitions identify a backend function;
+-- versions are immutable snapshots, and selected_version is the one used now.
+CREATE TABLE IF NOT EXISTS prompt_definitions (
+    key TEXT PRIMARY KEY,
+    purpose TEXT NOT NULL,
+    selected_version INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT prompt_definitions_key_format
+        CHECK (key ~ '^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_-]*)+$')
+);
+
+CREATE TABLE IF NOT EXISTS prompt_versions (
+    prompt_key TEXT NOT NULL REFERENCES prompt_definitions(key) ON DELETE RESTRICT,
+    version INTEGER NOT NULL CHECK (version > 0),
+    instructions TEXT NOT NULL CHECK (length(instructions) > 0),
+    change_notes TEXT NOT NULL DEFAULT '',
+    created_by TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (prompt_key, version)
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'prompt_definitions_selected_version_fk'
+          AND conrelid = 'prompt_definitions'::regclass
+    ) THEN
+        ALTER TABLE prompt_definitions
+        ADD CONSTRAINT prompt_definitions_selected_version_fk
+        FOREIGN KEY (key, selected_version)
+        REFERENCES prompt_versions(prompt_key, version)
+        DEFERRABLE INITIALLY DEFERRED;
+    END IF;
+END $$;
+
+-- Ask Navigator context is user-scoped even though the demo currently resolves every
+-- login to one fixed user id. This avoids a schema change when real identity arrives.
+CREATE TABLE IF NOT EXISTS ask_user_profiles (
+    user_id TEXT PRIMARY KEY,
+    about_me TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ask_user_memories (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES ask_user_profiles(user_id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ask_user_memories_user_idx
+    ON ask_user_memories(user_id, created_at, id);
+
+-- Foundry request diagnostics used to be emitted as a directory tree containing
+-- session.json, inputs.json, provider-request.json, prompt.txt, and response/error
+-- JSON files. Keep the same information as structured, durable rows instead.
+CREATE TABLE IF NOT EXISTS foundry_trace_sessions (
+    session_id TEXT PRIMARY KEY,
+    username TEXT,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS foundry_request_traces (
+    request_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES foundry_trace_sessions(session_id) ON DELETE CASCADE,
+    received_at TIMESTAMPTZ NOT NULL,
+    inputs JSONB NOT NULL,
+    provider_request JSONB,
+    prompt TEXT,
+    response JSONB,
+    error JSONB,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS foundry_request_traces_session_idx
+    ON foundry_request_traces(session_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS foundry_request_traces_received_idx
+    ON foundry_request_traces(received_at DESC);
+
+-- Prompt replay tests are immutable experiment records. A run identifies the saved
+-- request being replayed; each case records one complete prompt-version combination
+-- and its independent result. Test execution never changes selected prompt versions.
+CREATE TABLE IF NOT EXISTS prompt_test_configurations (
+    configuration_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    feature TEXT NOT NULL,
+    source_trace_request_id TEXT NOT NULL
+        REFERENCES foundry_request_traces(request_id) ON DELETE RESTRICT,
+    combinations JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_run_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS prompt_test_configurations_updated_idx
+    ON prompt_test_configurations(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS prompt_test_runs (
+    run_id TEXT PRIMARY KEY,
+    feature TEXT NOT NULL,
+    source_trace_request_id TEXT NOT NULL
+        REFERENCES foundry_request_traces(request_id) ON DELETE RESTRICT,
+    status TEXT NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'running', 'completed', 'failed')),
+    case_count INTEGER NOT NULL CHECK (case_count > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    error TEXT
+);
+CREATE INDEX IF NOT EXISTS prompt_test_runs_created_idx
+    ON prompt_test_runs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS prompt_test_cases (
+    case_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES prompt_test_runs(run_id) ON DELETE CASCADE,
+    position INTEGER NOT NULL CHECK (position > 0),
+    prompt_versions JSONB NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'running', 'completed', 'failed')),
+    result JSONB,
+    error JSONB,
+    trace_request_id TEXT REFERENCES foundry_request_traces(request_id) ON DELETE SET NULL,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    UNIQUE (run_id, position)
+);
+CREATE INDEX IF NOT EXISTS prompt_test_cases_run_idx
+    ON prompt_test_cases(run_id, position);
 """
 
 
@@ -116,7 +252,159 @@ def connect(settings: Settings):
 def init_db(settings: Settings) -> None:
     with connect(settings) as conn:
         conn.execute(SCHEMA_SQL.replace("__EMBEDDING_DIMENSIONS__", str(settings.embedding_dimensions)))
+        prompt_root = Path(__file__).resolve().parents[2] / "Prompts"
+        for key, purpose, filename in (
+            (
+                "ask.navigator",
+                "Answer user questions using the hosted Foundry knowledge agent",
+                "ask.navigator.prompt.md",
+            ),
+            (
+                "ask.about_me",
+                "Add the user's About me profile to an Ask request",
+                "ask.about_me.prompt.md",
+            ),
+            (
+                "ask.memories",
+                "Add the user's saved memories to an Ask request",
+                "ask.memories.prompt.md",
+            ),
+        ):
+            _seed_prompt(
+                conn,
+                key=key,
+                purpose=purpose,
+                version=1,
+                path=prompt_root / filename,
+            )
         conn.commit()
+
+
+def _seed_prompt(
+    conn,
+    *,
+    key: str,
+    purpose: str,
+    version: int,
+    path: Path,
+) -> None:
+    """Seed an initial immutable prompt version without changing existing DB content."""
+    try:
+        instructions = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Prompt seed file is missing: {path}") from exc
+    if not instructions.strip():
+        raise RuntimeError(f"Prompt seed file is empty: {path}")
+
+    conn.execute(
+        "INSERT INTO prompt_definitions (key, purpose) VALUES (%s, %s) "
+        "ON CONFLICT (key) DO NOTHING",
+        (key, purpose),
+    )
+    conn.execute(
+        """
+        INSERT INTO prompt_versions
+            (prompt_key, version, instructions, change_notes, created_by)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (prompt_key, version) DO NOTHING
+        """,
+        (key, version, instructions, "Initial prompt imported from the repository", "seed"),
+    )
+    conn.execute(
+        """
+        UPDATE prompt_definitions
+        SET selected_version = %s, updated_at = now()
+        WHERE key = %s AND selected_version IS NULL
+        """,
+        (version, key),
+    )
+
+
+def get_selected_prompt(conn, key: str) -> dict[str, Any]:
+    """Resolve the immutable prompt version currently selected for a function key."""
+    row = conn.execute(
+        """
+        SELECT d.key, d.purpose, v.version, v.instructions
+        FROM prompt_definitions AS d
+        JOIN prompt_versions AS v
+          ON v.prompt_key = d.key
+         AND v.version = d.selected_version
+        WHERE d.key = %s
+        """,
+        (key,),
+    ).fetchone()
+    if not row:
+        raise PromptConfigurationError(
+            f"No selected prompt version is configured for prompt key {key!r}"
+        )
+    return dict(row)
+
+
+# --- Foundry request traces -----------------------------------------------------
+
+def create_foundry_trace_session(
+    conn,
+    *,
+    session_id: str,
+    username: str | None,
+    created_at: _dt.datetime,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO foundry_trace_sessions (session_id, username, created_at)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (session_id) DO NOTHING
+        """,
+        (session_id, username, created_at),
+    )
+
+
+def create_foundry_request_trace(
+    conn,
+    *,
+    request_id: str,
+    session_id: str,
+    received_at: _dt.datetime,
+    inputs: dict[str, Any],
+) -> None:
+    # An old auth cookie can outlive the deployment that first issued it. Ensure its
+    # session exists so the request still has a valid parent after this migration.
+    create_foundry_trace_session(
+        conn,
+        session_id=session_id,
+        username=None,
+        created_at=received_at,
+    )
+    conn.execute(
+        """
+        INSERT INTO foundry_request_traces
+            (request_id, session_id, received_at, inputs)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (request_id, session_id, received_at, Jsonb(inputs)),
+    )
+
+
+def update_foundry_request_trace(conn, request_id: str, **fields: Any) -> None:
+    """Persist a request/response phase on an existing trace row."""
+    allowed = {"provider_request", "prompt", "response", "error"}
+    unknown = set(fields) - allowed
+    if unknown:
+        raise ValueError(f"Unsupported Foundry trace fields: {sorted(unknown)}")
+    if not fields:
+        return
+    json_columns = {"provider_request", "response", "error"}
+    assignments: list[str] = []
+    values: list[Any] = []
+    for column, value in fields.items():
+        assignments.append(f"{column} = %s")
+        values.append(Jsonb(value) if column in json_columns else value)
+    values.append(request_id)
+    conn.execute(
+        f"UPDATE foundry_request_traces SET {', '.join(assignments)}, "
+        "updated_at = now() WHERE request_id = %s",
+        values,
+    )
 
 
 def count_documents(settings: Settings) -> int:
@@ -640,6 +928,52 @@ def set_app_settings(conn, values: dict[str, Any]) -> None:
             (key, Jsonb(value)),
         )
     conn.commit()
+
+
+def get_ask_user_context(conn, user_id: str) -> dict[str, Any]:
+    profile = conn.execute(
+        "SELECT about_me FROM ask_user_profiles WHERE user_id = %s",
+        (user_id,),
+    ).fetchone()
+    rows = conn.execute(
+        "SELECT id, text, created_at FROM ask_user_memories "
+        "WHERE user_id = %s ORDER BY created_at, id",
+        (user_id,),
+    ).fetchall()
+    return {
+        "user_id": user_id,
+        "about_me": str(profile["about_me"]) if profile else "",
+        "memories": [
+            {
+                "id": str(row["id"]),
+                "text": str(row["text"]),
+                "createdAt": row["created_at"].isoformat(),
+            }
+            for row in rows
+        ],
+    }
+
+
+def replace_ask_user_context(
+    conn,
+    *,
+    user_id: str,
+    about_me: str,
+    memories: list[dict[str, str]],
+) -> dict[str, Any]:
+    conn.execute(
+        "INSERT INTO ask_user_profiles (user_id, about_me) VALUES (%s, %s) "
+        "ON CONFLICT (user_id) DO UPDATE SET about_me = EXCLUDED.about_me, updated_at = now()",
+        (user_id, about_me),
+    )
+    conn.execute("DELETE FROM ask_user_memories WHERE user_id = %s", (user_id,))
+    for memory in memories:
+        conn.execute(
+            "INSERT INTO ask_user_memories (id, user_id, text) VALUES (%s, %s, %s)",
+            (memory["id"], user_id, memory["text"]),
+        )
+    conn.commit()
+    return get_ask_user_context(conn, user_id)
 
 
 def _vector_literal(values: list[float]) -> str:

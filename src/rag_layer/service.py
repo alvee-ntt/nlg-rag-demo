@@ -172,8 +172,13 @@ def chat_foundry(
     message: str,
     history: list[dict[str, Any]],
     preferences: dict[str, Any] | None = None,
+    instructions: str = "",
+    prompt_key: str = "ask.navigator",
+    prompt_version: int = 0,
+    prompt_augmentations: list[dict[str, Any]] | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
+    user_id: str | None = None,
     trace_session_id: str | None = None,
 ) -> dict[str, Any]:
     """Foundry chat with an in-repo out-of-domain guard (M02).
@@ -201,11 +206,16 @@ def chat_foundry(
     try:
         result = foundry.chat(
             settings=settings,
-            question=message,
+            instructions=instructions,
+            prompt_key=prompt_key,
+            prompt_version=prompt_version,
+            message=message,
             history=history,
             preferences=preferences,
+            prompt_augmentations=prompt_augmentations,
             about_me=about_me,
             memories=memories,
+            user_id=user_id,
             trace_session_id=trace_session_id,
         )
         return {**result, "sources": [], "domain": "in_domain", "source_engine": "foundry"}

@@ -1027,15 +1027,42 @@
     if (s) arr = arr.filter((t) => (t.title || titleFrom(t.messages)).toLowerCase().includes(s) || t.messages.some((m) => (m.text || "").toLowerCase().includes(s)));
     return arr.sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || (b.updatedAt - a.updatedAt));
   }
-  // --- Answer preferences + saved memories (localStorage) ----------------------
-  // These shape how the agent answers. They remain separate request fields until
-  // foundry.py serializes the provider message (the visible user bubble stays clean).
+  // --- Answer preferences + server-backed user context -------------------------
+  // Style preferences stay browser-local. About-me and memory records are loaded from
+  // PostgreSQL through the API and resolved again by the server on every Foundry call.
   const PREFS_KEY = "chatPrefs", MEM_KEY = "chatMemories";
-  const DEFAULT_PREFS = { length: "balanced", format: "auto", tone: "warm", plain: false, alwaysSources: false, role: "" };
+  const DEFAULT_PREFS = { length: "balanced", format: "auto", tone: "warm", plain: false, alwaysSources: false };
   let chatPrefs = Object.assign({}, DEFAULT_PREFS, store.get(PREFS_KEY, {}));
   const savePrefs = () => store.set(PREFS_KEY, chatPrefs);
-  let chatMemories = store.get(MEM_KEY, []) || [];
-  const saveMemories = () => store.set(MEM_KEY, chatMemories);
+  let aboutMe = "", chatMemories = [], askContextSave = Promise.resolve();
+  async function loadAskUserContext() {
+    let context = await api("/v1/foundry/user-context");
+    // One-time migration of values saved by the earlier browser-local implementation.
+    const oldAbout = String(chatPrefs.role || "").trim();
+    const oldMemories = store.get(MEM_KEY, []) || [];
+    if (!context.about_me && !(context.memories || []).length && (oldAbout || oldMemories.length)) {
+      context = await api("/v1/foundry/user-context", { method: "PUT", body: JSON.stringify({
+        about_me: oldAbout,
+        memories: oldMemories.filter((m) => m && m.text).slice(0, 20).map((m) => ({ id: m.id || uid(), text: String(m.text).slice(0, 140) })),
+      }) });
+    }
+    aboutMe = context.about_me || "";
+    chatMemories = context.memories || [];
+    if ("role" in chatPrefs) { delete chatPrefs.role; savePrefs(); }
+    try { localStorage.removeItem("salesdj." + MEM_KEY); } catch {}
+    return context;
+  }
+  function saveAskUserContext() {
+    const body = JSON.stringify({
+      about_me: aboutMe,
+      memories: chatMemories.map((m) => ({ id: m.id, text: m.text })),
+    });
+    // Serialize whole-context updates so a blur save and a memory click cannot race.
+    askContextSave = askContextSave.catch(() => {}).then(async () => {
+      return api("/v1/foundry/user-context", { method: "PUT", body });
+    });
+    return askContextSave;
+  }
   const NAV_CHIPS = [
     ["What do I ask next?", "A prospect just told me their spouse's employer already covers them. What should I ask next?"],
     ["Living benefits", "How should I describe living benefits, and what wording is approved?"],
@@ -1049,6 +1076,7 @@
     const d = await api("/v1/foundry/chat", { method: "POST", body: JSON.stringify({
       message,
       history,
+      prompt_augmentation_keys: ["ask.about_me", "ask.memories"],
       preferences: {
         length: chatPrefs.length,
         format: chatPrefs.format,
@@ -1056,8 +1084,6 @@
         plain: chatPrefs.plain,
         always_sources: chatPrefs.alwaysSources,
       },
-      about_me: chatPrefs.role || "",
-      memories: chatMemories.map((m) => m.text),
     }) });
     return { text: d.answer || "The sources don't cover that.", citations: d.citations || [], sources: d.sources || [], domain: d.domain || "in_domain", escalate: !!d.escalate, escalate_reason: d.escalate_reason || null };
   };
@@ -1405,8 +1431,7 @@
     setTimeout(() => searchEl.focus(), 60);
   }
 
-  // Answer preferences + saved memories shape every Navigator answer. They are stored
-  // per browser in localStorage and sent to the API as distinct request fields.
+  // About-me and memory items are persisted in PostgreSQL for the fixed demo user id.
   function openChatSettings() {
     if ($(".sheet-wrap.sets")) return;
     const w = document.createElement("div"); w.className = "sheet-wrap sets";
@@ -1420,7 +1445,7 @@
         <label class="settoggle"><span>Plain language (new-agent friendly)</span><input type="checkbox" id="setPlain" ${chatPrefs.plain ? "checked" : ""}></label>
         <label class="settoggle"><span>Always cite sources</span><input type="checkbox" id="setSources" ${chatPrefs.alwaysSources ? "checked" : ""}></label>
         <label class="setlbl">About me<span class="setsub">Your role, market, or focus</span></label>
-        <textarea id="setRole" class="setarea" rows="2" placeholder="e.g. I sell FlexLife to Spanish-speaking families in California.">${esc(chatPrefs.role || "")}</textarea>
+        <textarea id="setRole" class="setarea" rows="2" placeholder="e.g. I sell FlexLife to Spanish-speaking families in California.">${esc(aboutMe)}</textarea>
         <label class="setlbl">Memories<span class="setsub">Facts to always keep in mind</span></label>
         <div id="memList" class="memlist"></div>
         <div class="memadd"><input id="memInput" placeholder="Remember that…" maxlength="140" autocomplete="off"><button id="memAdd" class="nav-ib">${I.plus}Add</button></div>
@@ -1434,13 +1459,15 @@
     });
     w.querySelector("#setPlain").onchange = (e) => { chatPrefs.plain = e.target.checked; savePrefs(); };
     w.querySelector("#setSources").onchange = (e) => { chatPrefs.alwaysSources = e.target.checked; savePrefs(); };
-    const roleEl = w.querySelector("#setRole"); roleEl.oninput = () => { chatPrefs.role = roleEl.value; savePrefs(); };
+    const roleEl = w.querySelector("#setRole");
+    roleEl.oninput = () => { aboutMe = roleEl.value; };
+    roleEl.onblur = async () => { try { await saveAskUserContext(); } catch (e) { toast(e.message || "Couldn't save About me"); } };
     const memList = w.querySelector("#memList"), memInput = w.querySelector("#memInput");
     const paintMem = () => { memList.innerHTML = chatMemories.length ? chatMemories.map((mm) => `<div class="memitem"><span>${esc(mm.text)}</span><button data-del="${mm.id}" title="Remove">${I.x}</button></div>`).join("") : `<div class="empty" style="padding:8px 2px">No memories yet.</div>`; };
-    const addMem = () => { const v = memInput.value.trim(); if (!v) return; chatMemories.push({ id: uid(), text: v, createdAt: Date.now() }); saveMemories(); memInput.value = ""; paintMem(); };
+    const addMem = async () => { const v = memInput.value.trim(); if (!v) return; const before = chatMemories.slice(); chatMemories.push({ id: uid(), text: v }); memInput.value = ""; paintMem(); try { await saveAskUserContext(); paintMem(); } catch (e) { chatMemories = before; paintMem(); toast(e.message || "Couldn't save memory"); } };
     w.querySelector("#memAdd").onclick = addMem;
     memInput.onkeydown = (e) => { if (e.key === "Enter") addMem(); };
-    memList.onclick = (e) => { const b = e.target.closest("[data-del]"); if (!b) return; chatMemories = chatMemories.filter((mm) => mm.id !== b.dataset.del); saveMemories(); paintMem(); };
+    memList.onclick = async (e) => { const b = e.target.closest("[data-del]"); if (!b) return; const before = chatMemories.slice(); chatMemories = chatMemories.filter((mm) => mm.id !== b.dataset.del); paintMem(); try { await saveAskUserContext(); } catch (err) { chatMemories = before; paintMem(); toast(err.message || "Couldn't remove memory"); } };
     paintMem();
   }
 
@@ -2187,6 +2214,7 @@
       try {
         await api("/v1/auth/login", { method: "POST", body: JSON.stringify({ username: $("#u").value.trim(), password: $("#p").value }) });
         me = { authenticated: true, username: $("#u").value.trim() };
+        await loadAskUserContext();
         if (next && next.startsWith("/") && !next.startsWith("/app/")) { location.href = next; return; }
         const dest = afterLogin.startsWith("/login") ? "/" : afterLogin;
         afterLogin = "/";
@@ -2925,6 +2953,9 @@
     renderSplash();
     const shownAt = Date.now();
     await ensureSignedIn();
+    if (me.authenticated) {
+      try { await loadAskUserContext(); } catch (e) { toast(e.message || "Couldn't load Ask preferences"); }
+    }
     await new Promise((r) => setTimeout(r, Math.max(0, 1400 - (Date.now() - shownAt))));
     route();
   })();

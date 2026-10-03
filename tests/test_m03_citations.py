@@ -36,6 +36,12 @@ class _FakeClient:
 def _foundry_env(monkeypatch, *, answer, citations):
     monkeypatch.setattr(foundry, "FoundryAgentClient", _FakeClient)
     monkeypatch.setattr(foundry, "_extract_answer", lambda data: (answer, citations))
+    monkeypatch.setattr(foundry, "_RequestTrace", lambda **kwargs: SimpleNamespace(
+        request_id="request-1",
+        provider_request=lambda payload: None,
+        response=lambda data: None,
+        error=lambda exc: None,
+    ))
 
 
 def _cites(n):
