@@ -193,6 +193,53 @@ CREATE INDEX IF NOT EXISTS foundry_request_traces_session_idx
 CREATE INDEX IF NOT EXISTS foundry_request_traces_received_idx
     ON foundry_request_traces(received_at DESC);
 
+-- Provider-neutral prompt invocation traces. These tables intentionally start with fresh
+-- demo history; the Foundry-specific trace tables above remain available as legacy data.
+CREATE TABLE IF NOT EXISTS prompt_invocation_traces (
+    invocation_id TEXT PRIMARY KEY,
+    feature_key TEXT NOT NULL,
+    origin TEXT NOT NULL CHECK (origin IN ('live', 'replay')),
+    trace_session_id TEXT,
+    correlation_id TEXT,
+    started_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    status TEXT NOT NULL DEFAULT 'started'
+        CHECK (status IN ('started', 'completed', 'failed')),
+    prompt_recipe JSONB NOT NULL,
+    runtime_inputs JSONB NOT NULL,
+    rendered_prompt TEXT,
+    provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    model_output TEXT,
+    error JSONB,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS prompt_invocation_traces_feature_idx
+    ON prompt_invocation_traces(feature_key, started_at DESC);
+CREATE INDEX IF NOT EXISTS prompt_invocation_traces_session_idx
+    ON prompt_invocation_traces(trace_session_id, started_at DESC)
+    WHERE trace_session_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS prompt_invocation_traces_correlation_idx
+    ON prompt_invocation_traces(correlation_id, started_at DESC)
+    WHERE correlation_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS prompt_provider_attempts (
+    invocation_id TEXT NOT NULL
+        REFERENCES prompt_invocation_traces(invocation_id) ON DELETE CASCADE,
+    attempt_number INTEGER NOT NULL CHECK (attempt_number > 0),
+    reason TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    requested_model TEXT,
+    actual_model_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    started_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    provider_request JSONB NOT NULL,
+    provider_response JSONB,
+    error JSONB,
+    PRIMARY KEY (invocation_id, attempt_number)
+);
+CREATE INDEX IF NOT EXISTS prompt_provider_attempts_started_idx
+    ON prompt_provider_attempts(started_at DESC);
+
 -- Prompt replay tests are immutable experiment records. A run identifies the saved
 -- request being replayed; each case records one complete prompt-version combination
 -- and its independent result. Test execution never changes selected prompt versions.
@@ -404,6 +451,130 @@ def update_foundry_request_trace(conn, request_id: str, **fields: Any) -> None:
         f"UPDATE foundry_request_traces SET {', '.join(assignments)}, "
         "updated_at = now() WHERE request_id = %s",
         values,
+    )
+
+
+# --- Provider-neutral prompt invocation traces ---------------------------------
+
+def create_prompt_invocation_trace(
+    conn,
+    *,
+    invocation_id: str,
+    feature_key: str,
+    origin: str,
+    started_at: _dt.datetime,
+    prompt_recipe: dict[str, int],
+    runtime_inputs: dict[str, Any],
+    trace_session_id: str | None = None,
+    correlation_id: str | None = None,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO prompt_invocation_traces
+            (invocation_id, feature_key, origin, trace_session_id, correlation_id,
+             started_at, prompt_recipe, runtime_inputs)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            invocation_id,
+            feature_key,
+            origin,
+            trace_session_id,
+            correlation_id,
+            started_at,
+            Jsonb(prompt_recipe),
+            Jsonb(runtime_inputs),
+        ),
+    )
+
+
+def update_prompt_invocation_trace(conn, invocation_id: str, **fields: Any) -> None:
+    allowed = {
+        "completed_at",
+        "status",
+        "rendered_prompt",
+        "provider_metadata",
+        "model_output",
+        "error",
+    }
+    unknown = set(fields) - allowed
+    if unknown:
+        raise ValueError(f"Unsupported prompt invocation trace fields: {sorted(unknown)}")
+    if not fields:
+        return
+    json_columns = {"provider_metadata", "error"}
+    assignments: list[str] = []
+    values: list[Any] = []
+    for column, value in fields.items():
+        assignments.append(f"{column} = %s")
+        values.append(Jsonb(value) if column in json_columns and value is not None else value)
+    values.append(invocation_id)
+    conn.execute(
+        f"UPDATE prompt_invocation_traces SET {', '.join(assignments)}, "
+        "updated_at = now() WHERE invocation_id = %s",
+        values,
+    )
+
+
+def create_prompt_provider_attempt(
+    conn,
+    *,
+    invocation_id: str,
+    attempt_number: int,
+    reason: str,
+    provider: str,
+    requested_model: str | None,
+    started_at: _dt.datetime,
+    provider_request: dict[str, Any],
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO prompt_provider_attempts
+            (invocation_id, attempt_number, reason, provider, requested_model,
+             started_at, provider_request)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            invocation_id,
+            attempt_number,
+            reason,
+            provider,
+            requested_model,
+            started_at,
+            Jsonb(provider_request),
+        ),
+    )
+
+
+def complete_prompt_provider_attempt(
+    conn,
+    *,
+    invocation_id: str,
+    attempt_number: int,
+    completed_at: _dt.datetime,
+    actual_model_metadata: dict[str, Any] | None = None,
+    provider_response: dict[str, Any] | None = None,
+    error: dict[str, Any] | None = None,
+) -> None:
+    if provider_response is not None and error is not None:
+        raise ValueError("A provider attempt cannot complete with both a response and an error")
+    conn.execute(
+        """
+        UPDATE prompt_provider_attempts
+        SET completed_at = %s,
+            actual_model_metadata = %s,
+            provider_response = %s,
+            error = %s
+        WHERE invocation_id = %s AND attempt_number = %s
+        """,
+        (
+            completed_at,
+            Jsonb(actual_model_metadata or {}),
+            Jsonb(provider_response) if provider_response is not None else None,
+            Jsonb(error) if error is not None else None,
+            invocation_id,
+            attempt_number,
+        ),
     )
 
 

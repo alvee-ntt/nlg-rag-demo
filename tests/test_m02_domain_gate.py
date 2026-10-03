@@ -155,38 +155,25 @@ def _boom(**kwargs):
     raise RuntimeError("Foundry 400: OBO auth not supported with API key")
 
 
-def test_chat_foundry_falls_back_to_local_when_foundry_errors(monkeypatch):
+def test_chat_foundry_surfaces_foundry_errors_without_local_fallback(monkeypatch):
     monkeypatch.setattr(service, "classify_domain", lambda *a, **k: "IN_DOMAIN")
     monkeypatch.setattr(service.foundry, "chat", _boom)
-    monkeypatch.setattr(service, "chat", lambda **k: {
-        "answer": "local grounded answer",
-        "follow_ups": ["next?"],
-        "sources": [{"document_id": 1, "blob_name": "d.pdf", "citation": "d.pdf | p.1",
-                     "chunk_index": 0, "page": 1, "zone": "body", "similarity": 0.8,
-                     "preview": "...", "chunk_count": 1}],
-        "insufficient_support": False,
-    })
-    s = SimpleNamespace(foundry_agent_name="KnowledgeBase", rag_search_limit=6)
-    out = service.chat_foundry(settings=s, client=None, message="FlexLife floor?", history=[])
-    assert out["source_engine"] == "local"
-    assert out["answer"] == "local grounded answer"
-    assert out["citations"] == [] and len(out["sources"]) == 1
-    assert out["domain"] == "in_domain"
-    assert out["escalate"] is False
+    local_called = False
 
+    def local_must_not_run(**kwargs):
+        nonlocal local_called
+        local_called = True
+        raise AssertionError("local chat fallback must not run")
 
-def test_chat_foundry_fallback_maps_insufficient_support_to_escalate(monkeypatch):
-    monkeypatch.setattr(service, "classify_domain", lambda *a, **k: "IN_DOMAIN")
-    monkeypatch.setattr(service.foundry, "chat", _boom)
-    monkeypatch.setattr(service, "chat", lambda **k: {
-        "answer": service.NLG_SUPPORT_MESSAGE, "follow_ups": [], "sources": [],
-        "insufficient_support": True,
-    })
-    s = SimpleNamespace(foundry_agent_name="KnowledgeBase", rag_search_limit=6)
-    out = service.chat_foundry(settings=s, client=None, message="x", history=[])
-    assert out["source_engine"] == "local"
-    assert out["escalate"] is True
-    assert out["escalate_reason"] == "insufficient_support"
+    monkeypatch.setattr(service, "chat", local_must_not_run)
+    with pytest.raises(RuntimeError, match="Foundry 400"):
+        service.chat_foundry(
+            settings=SimpleNamespace(foundry_agent_name="KnowledgeBase"),
+            client=None,
+            message="FlexLife floor?",
+            history=[],
+        )
+    assert local_called is False
 
 
 # --- endpoint routing (offline; app.state set by hand, lifespan not run) ----------

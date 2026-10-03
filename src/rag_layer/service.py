@@ -203,48 +203,21 @@ def chat_foundry(
             "escalate_reason": None,
             "source_engine": "gate",
         }
-    try:
-        result = foundry.chat(
-            settings=settings,
-            instructions=instructions,
-            prompt_key=prompt_key,
-            prompt_version=prompt_version,
-            message=message,
-            history=history,
-            preferences=preferences,
-            prompt_augmentations=prompt_augmentations,
-            about_me=about_me,
-            memories=memories,
-            user_id=user_id,
-            trace_session_id=trace_session_id,
-        )
-        return {**result, "sources": [], "domain": "in_domain", "source_engine": "foundry"}
-    except Exception:  # noqa: BLE001
-        # Foundry is unavailable or misconfigured (e.g. the hosted agent's OBO-auth
-        # setting rejects API-key calls). Rather than fail the turn, serve the local
-        # grounded pipeline — same corpus-grounded, cited, abstaining behavior — and map
-        # it into the Foundry response shape so the UI renders it unchanged.
-        local = chat(
-            settings=settings,
-            client=client,
-            message=message,
-            history=history,
-            limit=settings.rag_search_limit,
-        )
-        insufficient = bool(local.get("insufficient_support"))
-        return {
-            "answer": local["answer"],
-            "citations": [],
-            "sources": local.get("sources", []),
-            "agent": settings.foundry_agent_name,
-            "model": None,
-            "response_id": None,
-            "status": "local_fallback",
-            "domain": "in_domain",
-            "escalate": insufficient,
-            "escalate_reason": "insufficient_support" if insufficient else None,
-            "source_engine": "local",
-        }
+    result = foundry.chat(
+        settings=settings,
+        instructions=instructions,
+        prompt_key=prompt_key,
+        prompt_version=prompt_version,
+        message=message,
+        history=history,
+        preferences=preferences,
+        prompt_augmentations=prompt_augmentations,
+        about_me=about_me,
+        memories=memories,
+        user_id=user_id,
+        trace_session_id=trace_session_id,
+    )
+    return {**result, "sources": [], "domain": "in_domain", "source_engine": "foundry"}
 
 
 def open_document(*, settings: Settings, document_id: int) -> tuple[str, bytes] | None:

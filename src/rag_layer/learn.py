@@ -21,8 +21,6 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-import requests
-
 from .config import Settings
 from .curriculum import CURRICULUM, CURRICULUM_BY_KEY, CurriculumItem
 from .db import connect, get_chunks_for_source, get_mix, update_mix
@@ -126,14 +124,10 @@ def _llm_json(
     }
     if effort:
         payload["reasoning"] = {"effort": effort}
-    try:
-        data = client.post("/responses", payload, timeout=(10, 300))
-    except requests.HTTPError as error:
-        status = getattr(error.response, "status_code", None)
-        if status != 400:
-            raise
-        payload.pop("text", None)
-        data = client.post("/responses", payload, timeout=(10, 300))
+    # JSON mode is part of this feature's provider contract. If the configured model or
+    # deployment rejects it, surface that compatibility error rather than silently retrying
+    # with a weaker plain-text request.
+    data = client.post("/responses", payload, timeout=(10, 300))
     text = _response_text(data)
     try:
         return _parse_json(text)

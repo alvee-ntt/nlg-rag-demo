@@ -80,6 +80,11 @@ class Settings:
     # placeholder is fine for the POC — nothing is actually sent.
     nlg_support_email: str = "flexlife-support@nlgic.example.com"
 
+    # Prompt invocation tracing fails closed during development so broken tracing is
+    # immediately visible. Demo deployments may opt into best_effort so a trace storage
+    # outage does not interrupt the presentation.
+    prompt_trace_failure_mode: str = "strict"
+
     @property
     def postgres_dsn(self) -> str:
         return (
@@ -109,6 +114,14 @@ def _float(name: str, default: float) -> float:
 def _csv(name: str) -> list[str]:
     value = os.getenv(name, "")
     return [part.strip().strip("/") for part in value.split(",") if part.strip()]
+
+
+def _choice(name: str, default: str, allowed: set[str]) -> str:
+    value = os.getenv(name, default).strip().lower()
+    if value not in allowed:
+        choices = ", ".join(sorted(allowed))
+        raise ValueError(f"{name} must be one of: {choices}")
+    return value
 
 
 def load_settings() -> Settings:
@@ -154,5 +167,7 @@ def load_settings() -> Settings:
         login_password=os.getenv("LOGIN_PASSWORD", "flexlife"),
         cookie_secure=_bool("COOKIE_SECURE", False),
         nlg_support_email=os.getenv("NLG_SUPPORT_EMAIL", "flexlife-support@nlgic.example.com"),
+        prompt_trace_failure_mode=_choice(
+            "PROMPT_TRACE_FAILURE_MODE", "strict", {"strict", "best_effort"}
+        ),
     )
-

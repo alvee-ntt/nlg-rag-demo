@@ -213,7 +213,7 @@ def test_chat_abstains_when_model_reports_not_grounded(monkeypatch):
         "follow_ups": ["x?"], "grounded": False,
     })
     res = service.chat(settings=_LOCAL, client=None, message="crypto premiums?", history=[], limit=6)
-    assert res["insufficient_support"] is True   # -> chat_foundry maps this to escalate
+    assert res["insufficient_support"] is True   # local endpoint reports abstention
     assert res["sources"] == []                  # non-supporting chunks are dropped
     assert res["follow_ups"] == []
     assert "NLG support" in res["answer"]         # keeps the model's helpful decline
