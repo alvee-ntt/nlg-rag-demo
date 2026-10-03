@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir --upgrade --trusted-host pypi.org --trusted-host 
 
 COPY src ./src
 COPY ui ./ui
+COPY Prompts ./Prompts
 
 EXPOSE 8000
 

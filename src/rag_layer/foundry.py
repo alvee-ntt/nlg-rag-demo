@@ -20,12 +20,12 @@ import json
 import secrets
 import time
 from datetime import datetime
-from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import requests
 import urllib3
 
+from .db import connect, create_foundry_request_trace, update_foundry_request_trace
 from .config import NLG_SUPPORT_MESSAGE, Settings
 
 # Same transient-failure handling as embeddings.py: Foundry / the model behind it can
@@ -174,6 +174,7 @@ def _current_user_content(
     *,
     question: str,
     preferences: dict | None = None,
+    prompt_augmentations: list[dict] | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
 ) -> str:
@@ -209,11 +210,25 @@ def _current_user_content(
     lines: list[str] = []
     if style:
         lines.append("Answer style: " + " ".join(style))
-    if about_me.strip():
-        lines.append("About me: " + about_me.strip())
+    clean_about_me = about_me.strip()
     clean_memories = [text.strip() for text in (memories or []) if text.strip()]
-    if clean_memories:
-        lines.append("Remember: " + "; ".join(clean_memories))
+    augmentation_values = {
+        "ask.about_me": ("{{about_me}}", clean_about_me),
+        "ask.memories": ("{{memories}}", "; ".join(clean_memories)),
+    }
+    for augmentation in prompt_augmentations or []:
+        key = str(augmentation.get("key", ""))
+        if key not in augmentation_values:
+            raise ValueError(f"Unsupported prompt augmentation key: {key!r}")
+        placeholder, value = augmentation_values[key]
+        if not value:
+            continue
+        template = str(augmentation.get("instructions", ""))
+        if placeholder not in template:
+            raise ValueError(
+                f"Prompt augmentation {key!r} is missing required placeholder {placeholder}"
+            )
+        lines.append(template.replace(placeholder, value).strip())
 
     preamble = (
         "[Context for how to answer — do not repeat this back to me:\n"
@@ -225,22 +240,33 @@ def _current_user_content(
     return preamble + question
 
 
-def _write_json(path: Path, value: dict) -> None:
-    path.write_text(
-        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-
 def _flatten_provider_request(payload: dict) -> str:
-    """Human-readable rendering; provider-request.json remains authoritative."""
+    """Render every prompt-bearing field; provider-request.json remains authoritative."""
     sections: list[str] = []
-    for index, item in enumerate(payload.get("input", []) or [], start=1):
-        role = str(item.get("role", "unknown")).upper()
-        content = item.get("content", "")
-        if not isinstance(content, str):
-            content = json.dumps(content, ensure_ascii=False, indent=2)
-        sections.append(f"===== MESSAGE {index}: {role} =====\n{content}")
+    if "instructions" in payload:
+        instructions = payload.get("instructions", "")
+        if not isinstance(instructions, str):
+            instructions = json.dumps(instructions, ensure_ascii=False, indent=2)
+        sections.append(f"===== INSTRUCTIONS =====\n{instructions}")
+
+    request_input = payload.get("input", [])
+    if isinstance(request_input, str):
+        sections.append(f"===== INPUT =====\n{request_input}")
+    else:
+        for index, item in enumerate(request_input or [], start=1):
+            role = str(item.get("role", "unknown")).upper()
+            content = item.get("content", "")
+            if not isinstance(content, str):
+                content = json.dumps(content, ensure_ascii=False, indent=2)
+            sections.append(f"===== MESSAGE {index}: {role} =====\n{content}")
+
+    # Render every remaining request field generically. This deliberately favors a
+    # complete trace over guessing which future Responses fields affect model context.
+    for field, field_value in payload.items():
+        if field in {"instructions", "input"}:
+            continue
+        value = json.dumps(field_value, ensure_ascii=False, indent=2)
+        sections.append(f"===== {field.upper()} =====\n{value}")
     return "\n\n".join(sections) + "\n"
 
 
@@ -248,13 +274,11 @@ class _RequestTrace:
     def __init__(
         self,
         *,
-        root: str,
+        settings: Settings,
         session_id: str | None,
         inputs: dict,
     ) -> None:
-        self.directory: Path | None = None
-        if not root:
-            return
+        self.settings = settings
         if not session_id:
             # Normally created at login. This fallback covers API clients carrying an
             # older auth cookie while still keeping their requests grouped together.
@@ -265,63 +289,69 @@ class _RequestTrace:
             + f"{now.microsecond // 1000:03d}_"
             + now.strftime("%z")
         )
-        request_id = f"{timestamp}_request_{secrets.token_hex(4)}"
-        self.directory = Path(root) / session_id / request_id
-        self.directory.mkdir(parents=True, exist_ok=False)
-        _write_json(
-            self.directory / "inputs.json",
-            {
-                "trace_session_id": session_id,
-                "request_id": request_id,
-                "received_at": now.isoformat(),
-                **inputs,
-            },
-        )
+        self.request_id = f"{timestamp}_request_{secrets.token_hex(4)}"
+        with connect(settings) as conn:
+            create_foundry_request_trace(
+                conn,
+                request_id=self.request_id,
+                session_id=session_id,
+                received_at=now,
+                inputs={
+                    "trace_session_id": session_id,
+                    "request_id": self.request_id,
+                    "received_at": now.isoformat(),
+                    **inputs,
+                },
+            )
 
     def provider_request(self, payload: dict) -> None:
-        if self.directory is None:
-            return
-        _write_json(self.directory / "provider-request.json", payload)
-        (self.directory / "prompt.txt").write_text(
-            _flatten_provider_request(payload), encoding="utf-8"
-        )
+        with connect(self.settings) as conn:
+            update_foundry_request_trace(
+                conn,
+                self.request_id,
+                provider_request=payload,
+                prompt=_flatten_provider_request(payload),
+            )
 
     def response(self, data: dict) -> None:
-        if self.directory is not None:
-            _write_json(self.directory / "response.json", data)
+        with connect(self.settings) as conn:
+            update_foundry_request_trace(conn, self.request_id, response=data)
 
     def error(self, exc: Exception) -> None:
-        if self.directory is None:
-            return
         error = {
             "error_type": type(exc).__name__,
             "message": str(exc),
             "recorded_at": datetime.now().astimezone().isoformat(),
         }
         response = getattr(exc, "response", None)
+        fields: dict = {"error": error}
         if response is not None:
             error["http_status"] = response.status_code
             error["http_reason"] = response.reason
             error["response_body"] = response.text
-            _write_json(
-                self.directory / "response.json",
-                {
-                    "status_code": response.status_code,
-                    "reason": response.reason,
-                    "body": response.text,
-                },
-            )
-        _write_json(self.directory / "error.json", error)
+            fields["response"] = {
+                "status_code": response.status_code,
+                "reason": response.reason,
+                "body": response.text,
+            }
+        with connect(self.settings) as conn:
+            update_foundry_request_trace(conn, self.request_id, **fields)
 
 
 def chat(
     *,
     settings: Settings,
-    question: str,
     history: list[dict],
+    question: str | None = None,
+    message: str | None = None,
+    instructions: str = "",
+    prompt_key: str = "ask.navigator",
+    prompt_version: int = 0,
     preferences: dict | None = None,
+    prompt_augmentations: list[dict] | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
+    user_id: str | None = None,
     trace_session_id: str | None = None,
 ) -> dict:
     """One turn against the hosted Foundry agent, with the running conversation replayed
@@ -331,30 +361,47 @@ def chat(
     this module as distinct values. They are serialized only when constructing the final
     provider message below.
     """
+    resolved_question = question if question is not None else message
+    if resolved_question is None:
+        raise ValueError("question is required")
     trace = _RequestTrace(
-        root=settings.foundry_trace_path,
+        settings=settings,
         session_id=trace_session_id,
         inputs={
-            "question": question,
+            "prompt_key": prompt_key,
+            "prompt_version": prompt_version,
+            "question": resolved_question,
             "history": history,
             "preferences": preferences or {},
+            "prompt_augmentations": [
+                {"key": item.get("key"), "version": item.get("version")}
+                for item in (prompt_augmentations or [])
+            ],
             "about_me": about_me,
             "memories": memories or [],
+            "user_id": user_id,
         },
     )
     try:
         client = FoundryAgentClient(settings)
-        conversation: list[dict] = []
+        # Agent-scoped Foundry endpoints reject the top-level Responses
+        # ``instructions`` field ("Not allowed when agent is specified"). Put the
+        # application-managed prompt in the input as a system message instead.
+        conversation: list[dict] = [
+            {"type": "message", "role": "system", "content": instructions}
+        ]
         for turn in history:
             role = turn.get("role")
             text = str(turn.get("text", "")).strip()
             if role in {"user", "assistant"} and text:
-                conversation.append({"role": role, "content": text})
+                conversation.append({"type": "message", "role": role, "content": text})
         conversation.append({
+            "type": "message",
             "role": "user",
             "content": _current_user_content(
-                question=question,
+                question=resolved_question,
                 preferences=preferences,
+                prompt_augmentations=prompt_augmentations,
                 about_me=about_me,
                 memories=memories,
             ),
@@ -371,14 +418,16 @@ def chat(
 
     # M03 — cap the agent's already-deduped, already-numbered citation list. Order and the
     # existing [n] numbering are preserved; this is a simple length cap.
-    if settings.max_sources and len(citations) > settings.max_sources:
-        citations = citations[: settings.max_sources]
+    max_sources = getattr(settings, "max_sources", 0)
+    if max_sources and len(citations) > max_sources:
+        citations = citations[:max_sources]
 
     meta = {
         "agent": client.agent,
         "model": data.get("model"),
         "response_id": data.get("id"),
         "status": data.get("status"),
+        "trace_request_id": getattr(trace, "request_id", None),
     }
 
     # M03 abstention — the practical low-confidence signal on this track is the agent

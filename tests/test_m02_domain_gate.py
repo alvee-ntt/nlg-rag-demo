@@ -122,11 +122,33 @@ def test_chat_foundry_forwards_message_and_history(monkeypatch):
     monkeypatch.setattr(service.foundry, "chat", capture)
 
     history = [{"role": "user", "text": "Tell me about FlexLife."}]
-    service.chat_foundry(settings=_SETTINGS, client=None, message="and the cap?", history=history)
+    augmentations = [{"key": "ask.about_me", "version": 2, "instructions": "About {{about_me}}"}]
+    service.chat_foundry(
+        settings=_SETTINGS,
+        client=None,
+        message="and the cap?",
+        history=history,
+        instructions="Versioned instructions",
+        prompt_key="ask.navigator",
+        prompt_version=3,
+        prompt_augmentations=augmentations,
+        about_me="New agent",
+        memories=["California market"],
+        user_id="demo-user",
+        trace_session_id="session-1",
+    )
 
     assert seen["message"] == "and the cap?"
     assert seen["history"] == history
     assert seen["settings"] is _SETTINGS
+    assert seen["instructions"] == "Versioned instructions"
+    assert seen["prompt_key"] == "ask.navigator"
+    assert seen["prompt_version"] == 3
+    assert seen["prompt_augmentations"] == augmentations
+    assert seen["about_me"] == "New agent"
+    assert seen["memories"] == ["California market"]
+    assert seen["user_id"] == "demo-user"
+    assert seen["trace_session_id"] == "session-1"
 
 
 def _boom(**kwargs):
@@ -184,6 +206,25 @@ def client(monkeypatch):
         foundry_project_endpoint="https://foundry.example/project",
         foundry_api_key="key",
     )
+    app.state.auth = SimpleNamespace(
+        gate=lambda request: None,
+        trace_session_id=lambda request: "session-1",
+    )
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    monkeypatch.setattr(server, "connect", lambda settings: Connection())
+    monkeypatch.setattr(server, "get_ask_user_context", lambda conn, user_id: {
+        "about_me": "", "memories": [],
+    })
+    monkeypatch.setattr(server, "get_selected_prompt", lambda conn, key: {
+        "key": key, "version": 1, "instructions": f"Instructions for {key}",
+    })
     # Not entering the context manager means lifespan (init_db / model warm) never runs.
     return TestClient(app)
 
