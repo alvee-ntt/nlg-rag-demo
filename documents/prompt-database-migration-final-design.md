@@ -209,7 +209,7 @@ Embedding calls, Azure Speech, and the roleplay keep-warm input are excluded.
 ## Constrained prompt templates
 
 Prompt versions contain complete component templates with literal named placeholders such as
-`<<topic>>` and `<<source_context>>`.
+`{{topic}}` and `{{source_context}}`.
 
 The template mechanism supports only literal replacement:
 

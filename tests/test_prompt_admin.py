@@ -7,14 +7,13 @@ from src.rag_layer.prompt_admin import (
     create_test_run,
     create_test_run_from_configuration,
     create_prompt_version,
-    get_request_trace,
+    get_prompt_invocation,
     get_prompt_definition,
-    get_trace_session,
-    list_feature_trace_requests,
+    list_feature_invocations,
     list_prompt_definitions,
     list_test_configurations,
     list_test_features,
-    list_trace_sessions,
+    list_prompt_invocations,
     select_prompt_version,
 )
 
@@ -35,7 +34,7 @@ def test_prompt_studio_routes_are_deliberately_open_for_the_demo():
     assert Auth.is_open("/prompts")
     assert Auth.is_open("/traces")
     assert Auth.is_open("/v1/prompt-admin/prompts")
-    assert Auth.is_open("/v1/prompt-admin/trace-sessions")
+    assert Auth.is_open("/v1/prompt-admin/invocations")
     assert Auth.is_open("/tests")
     assert Auth.is_open("/v1/prompt-admin/test-runs")
 
@@ -153,7 +152,7 @@ def test_select_prompt_version_updates_definition_and_commits():
         def execute(self, query, params):
             self.calls += 1
             if self.calls == 1:
-                return Result(one={"exists": 1})
+                return Result(one={"instructions": "Current instructions"})
             return Result(one={
                 "key": "ask.navigator",
                 "purpose": "Answer questions",
@@ -173,30 +172,27 @@ def test_select_prompt_version_updates_definition_and_commits():
     assert conn.committed is True
 
 
-def test_list_trace_sessions_serializes_summary_dates():
+def test_list_prompt_invocations_serializes_summary_dates():
     now = datetime(2026, 10, 2, 15, 45, tzinfo=timezone.utc)
 
     class Connection:
         def execute(self, query, params):
-            assert "foundry_trace_sessions" in query
-            assert params == (100,)
+            assert "prompt_invocation_traces" in query
+            assert params == (None, None, 100)
             return Result(all_rows=[{
-                "session_id": "session-1",
-                "username": "demo.user",
-                "created_at": now,
-                "request_count": 3,
-                "error_count": 1,
-                "last_request_at": now,
+                "invocation_id": "invocation-1", "feature_key": "ask", "origin": "live",
+                "started_at": now, "completed_at": now, "status": "completed",
+                "runtime_inputs": {"question": "How do caps work?", "history": []},
+                "prompt_recipe": {"ask.navigator": 1},
             }])
 
-    sessions = list_trace_sessions(Connection())
+    invocations = list_prompt_invocations(Connection())
 
-    assert sessions[0]["request_count"] == 3
-    assert sessions[0]["error_count"] == 1
-    assert sessions[0]["last_request_at"] == "2026-10-02T15:45:00+00:00"
+    assert invocations[0]["question"] == "How do caps work?"
+    assert invocations[0]["started_at"] == "2026-10-02T15:45:00+00:00"
 
 
-def test_trace_session_lists_request_summaries():
+def test_prompt_invocation_returns_attempts_and_saved_content():
     now = datetime(2026, 10, 2, 15, 45, tzinfo=timezone.utc)
 
     class Connection:
@@ -204,46 +200,28 @@ def test_trace_session_lists_request_summaries():
 
         def execute(self, query, params):
             self.calls += 1
-            assert params == ("session-1",)
+            assert params == ("invocation-1",)
             if self.calls == 1:
                 return Result(one={
-                    "session_id": "session-1", "username": "demo.user", "created_at": now,
+                    "invocation_id": "invocation-1", "feature_key": "ask", "origin": "live",
+                    "started_at": now, "completed_at": now, "updated_at": now,
+                    "status": "completed", "prompt_recipe": {"ask.navigator": 2},
+                    "runtime_inputs": {"question": "How do caps work?"},
+                    "rendered_prompt": "Rendered prompt", "model_output": "Answer",
                 })
             return Result(all_rows=[{
-                "request_id": "request-1", "received_at": now, "updated_at": now,
-                "prompt_key": "ask.navigator", "prompt_version": 2,
-                "question": "How do caps work?", "response_id": "response-1",
-                "has_provider_request": True, "has_response": True, "has_error": False,
+                "attempt_number": 1, "reason": "primary", "provider": "azure_ai_foundry",
+                "requested_model": "KnowledgeBase", "started_at": now, "completed_at": now,
+                "provider_request": {"input": []}, "provider_response": {"id": "response-1"},
+                "error": None,
             }])
 
-    session = get_trace_session(Connection(), "session-1")
+    invocation = get_prompt_invocation(Connection(), "invocation-1")
 
-    assert session["username"] == "demo.user"
-    assert session["requests"][0]["question"] == "How do caps work?"
-    assert session["requests"][0]["received_at"] == "2026-10-02T15:45:00+00:00"
-
-
-def test_request_trace_returns_all_saved_content():
-    now = datetime(2026, 10, 2, 15, 45, tzinfo=timezone.utc)
-
-    class Connection:
-        def execute(self, query, params):
-            assert params == ("request-1",)
-            return Result(one={
-                "request_id": "request-1", "session_id": "session-1",
-                "received_at": now, "updated_at": now,
-                "inputs": {"question": "Question"},
-                "provider_request": {"input": []}, "prompt": "Rendered prompt",
-                "response": {"id": "response-1"}, "error": None,
-            })
-
-    trace = get_request_trace(Connection(), "request-1")
-
-    assert trace["inputs"]["question"] == "Question"
-    assert trace["provider_request"] == {"input": []}
-    assert trace["prompt"] == "Rendered prompt"
-    assert trace["response"]["id"] == "response-1"
-    assert trace["received_at"] == "2026-10-02T15:45:00+00:00"
+    assert invocation["runtime_inputs"]["question"] == "How do caps work?"
+    assert invocation["rendered_prompt"] == "Rendered prompt"
+    assert invocation["model_output"] == "Answer"
+    assert invocation["attempts"][0]["provider_response"]["id"] == "response-1"
 
 
 def test_test_features_group_versions_into_friendly_executable_flows():
@@ -267,27 +245,26 @@ def test_test_features_group_versions_into_friendly_executable_flows():
     assert features[0]["prompts"][0]["versions"][0]["version"] == 2
 
 
-def test_feature_traces_include_the_original_prompt_recipe():
+def test_feature_invocations_include_the_original_prompt_recipe():
     now = datetime(2026, 10, 2, tzinfo=timezone.utc)
 
     class Connection:
         def execute(self, query, params):
-            assert params == ("ask.navigator", 100)
+            assert params == ("ask", 100)
             assert "prompt_test_cases" in query
             return Result(all_rows=[{
-                "request_id": "request-1", "session_id": "session-1", "received_at": now,
-                "inputs": {
-                    "prompt_key": "ask.navigator", "prompt_version": 3,
-                    "prompt_augmentations": [
-                        {"key": "ask.about_me", "version": 1},
-                        {"key": "ask.memories", "version": 2},
-                    ],
+                "invocation_id": "invocation-1", "trace_session_id": "session-1",
+                "started_at": now,
+                "runtime_inputs": {
                     "question": "What should I do?", "history": [{"role": "user"}],
                 },
-                "response": {"id": "response-1"}, "error": None,
+                "prompt_recipe": {
+                    "ask.navigator": 3, "ask.about_me": 1, "ask.memories": 2,
+                },
+                "model_output": "Answer", "status": "completed", "error": None,
             }])
 
-    traces = list_feature_trace_requests(Connection(), "ask")
+    traces = list_feature_invocations(Connection(), "ask")
 
     assert traces[0]["prompt_versions"] == {
         "ask.navigator": 3, "ask.about_me": 1, "ask.memories": 2,
@@ -301,8 +278,10 @@ def test_create_test_run_persists_each_complete_unique_combination():
         inserts = []
 
         def execute(self, query, params):
-            if "SELECT inputs FROM foundry_request_traces" in query:
-                return Result(one={"inputs": {"prompt_key": "ask.navigator"}})
+            if "SELECT feature_key, prompt_recipe" in query:
+                return Result(one={"feature_key": "ask", "prompt_recipe": {
+                    "ask.navigator": 1, "ask.about_me": 1, "ask.memories": 1,
+                }})
             if "SELECT 1 FROM prompt_versions" in query:
                 return Result(one={"exists": 1})
             self.inserts.append((query, params))
@@ -315,7 +294,7 @@ def test_create_test_run_persists_each_complete_unique_combination():
     created = create_test_run(
         conn,
         feature="ask",
-        source_trace_request_id="request-1",
+        source_invocation_id="invocation-1",
         combinations=[
             {"ask.navigator": 1, "ask.about_me": 2, "ask.memories": 3},
             {"ask.navigator": 3, "ask.about_me": 1, "ask.memories": 2},
@@ -331,13 +310,15 @@ def test_create_test_run_persists_each_complete_unique_combination():
 def test_create_test_run_rejects_incomplete_or_duplicate_recipes():
     class Connection:
         def execute(self, query, params):
-            if "SELECT inputs FROM foundry_request_traces" in query:
-                return Result(one={"inputs": {"prompt_key": "ask.navigator"}})
+            if "SELECT feature_key, prompt_recipe" in query:
+                return Result(one={"feature_key": "ask", "prompt_recipe": {
+                    "ask.navigator": 1, "ask.about_me": 1, "ask.memories": 1,
+                }})
             return Result(one={"exists": 1})
 
     try:
         create_test_run(
-            Connection(), feature="ask", source_trace_request_id="request-1",
+            Connection(), feature="ask", source_invocation_id="invocation-1",
             combinations=[{"ask.navigator": 1}],
         )
     except ValueError as exc:
@@ -346,14 +327,43 @@ def test_create_test_run_rejects_incomplete_or_duplicate_recipes():
         raise AssertionError("Incomplete combination should be rejected")
 
 
+def test_create_test_run_requires_only_components_used_by_source_invocation():
+    class Connection:
+        committed = False
+
+        def execute(self, query, params):
+            if "SELECT feature_key, prompt_recipe" in query:
+                return Result(one={
+                    "feature_key": "ask",
+                    "prompt_recipe": {"ask.navigator": 1},
+                })
+            if "SELECT 1 FROM prompt_versions" in query:
+                return Result(one={"exists": 1})
+            return Result()
+
+        def commit(self):
+            self.committed = True
+
+    created = create_test_run(
+        Connection(),
+        feature="ask",
+        source_invocation_id="invocation-1",
+        combinations=[{"ask.navigator": 2}],
+    )
+
+    assert created["case_count"] == 1
+
+
 def test_save_test_configuration_keeps_trace_and_prompt_recipe():
     class Connection:
         committed = False
         insert_params = None
 
         def execute(self, query, params):
-            if "SELECT inputs FROM foundry_request_traces" in query:
-                return Result(one={"inputs": {"prompt_key": "ask.navigator"}})
+            if "SELECT feature_key, prompt_recipe" in query:
+                return Result(one={"feature_key": "ask", "prompt_recipe": {
+                    "ask.navigator": 1, "ask.about_me": 1, "ask.memories": 1,
+                }})
             if "SELECT 1 FROM prompt_versions" in query:
                 return Result(one={"exists": 1})
             if "INSERT INTO prompt_test_configurations" in query:
@@ -368,14 +378,14 @@ def test_save_test_configuration_keeps_trace_and_prompt_recipe():
         conn,
         name="  Ask profile comparison  ",
         feature="ask",
-        source_trace_request_id="request-1",
+        source_invocation_id="invocation-1",
         combinations=[
             {"ask.navigator": 1, "ask.about_me": 2, "ask.memories": 3},
         ],
     )
 
     assert saved["name"] == "Ask profile comparison"
-    assert saved["source_trace_request_id"] == "request-1"
+    assert saved["source_invocation_id"] == "invocation-1"
     assert saved["combinations"][0]["ask.memories"] == 3
     assert conn.insert_params[1] == "Ask profile comparison"
     assert conn.committed is True
@@ -389,7 +399,7 @@ def test_list_saved_test_configurations_adds_case_count_and_serializes_dates():
             assert params == (100,)
             return Result(all_rows=[{
                 "configuration_id": "setup-1", "name": "Regression", "feature": "ask",
-                "source_trace_request_id": "request-1", "combinations": [{}, {}],
+                "source_invocation_id": "invocation-1", "combinations": [{}, {}],
                 "created_at": now, "updated_at": now, "last_run_at": None,
                 "question": "How do caps work?",
             }])
@@ -408,13 +418,15 @@ def test_replay_saved_configuration_creates_a_fresh_run_and_marks_last_used():
             if "FROM prompt_test_configurations" in query:
                 return Result(one={
                     "configuration_id": "setup-1", "feature": "ask",
-                    "source_trace_request_id": "request-1",
+                    "source_invocation_id": "invocation-1",
                     "combinations": [{
                         "ask.navigator": 1, "ask.about_me": 2, "ask.memories": 3,
                     }],
                 })
-            if "SELECT inputs FROM foundry_request_traces" in query:
-                return Result(one={"inputs": {"prompt_key": "ask.navigator"}})
+            if "SELECT feature_key, prompt_recipe" in query:
+                return Result(one={"feature_key": "ask", "prompt_recipe": {
+                    "ask.navigator": 1, "ask.about_me": 1, "ask.memories": 1,
+                }})
             if "SELECT 1 FROM prompt_versions" in query:
                 return Result(one={"exists": 1})
             if "UPDATE prompt_test_configurations" in query:
@@ -447,11 +459,10 @@ def test_trace_explorer_page_drills_from_sessions_into_saved_request_content():
     page = (Path(__file__).resolve().parents[1] / "ui" / "traces.html").read_text(encoding="utf-8")
 
     assert "Trace Explorer" in page
-    assert "/v1/prompt-admin/trace-sessions" in page
-    assert "/v1/prompt-admin/trace-requests/" in page
+    assert "/v1/prompt-admin/invocations" in page
     assert "Flattened prompt" in page
-    assert "Provider request" in page
-    assert "Provider response" in page
+    assert "Model output" in page
+    assert "provider attempts" in page
     assert 'href="/tests"' in page
 
 

@@ -15,7 +15,7 @@ from src.rag_layer.prompt_runtime import (
 def test_template_validation_requires_declared_placeholders():
     with pytest.raises(PromptTemplateError, match="missing required"):
         validate_prompt_template(
-            "Write an article about <<topic>>",
+            "Write an article about {{topic}}",
             required={"topic", "source_context"},
             allowed={"topic", "source_context"},
         )
@@ -24,20 +24,20 @@ def test_template_validation_requires_declared_placeholders():
 def test_template_validation_rejects_unknown_and_malformed_placeholders():
     with pytest.raises(PromptTemplateError, match="unknown"):
         validate_prompt_template(
-            "Hello <<unexpected>>", required=set(), allowed={"name"}
+            "Hello {{unexpected}}", required=set(), allowed={"name"}
         )
     with pytest.raises(PromptTemplateError, match="malformed"):
-        validate_prompt_template("Hello <<name>", required=set(), allowed={"name"})
+        validate_prompt_template("Hello {{name}", required=set(), allowed={"name"})
 
 
 def test_template_rendering_is_literal_and_non_recursive():
     rendered = render_prompt_template(
-        "Topic: <<topic>>\nSources:\n<<source_context>>",
-        {"topic": "Caps <<not_a_template>>", "source_context": "Excerpt"},
+        "Topic: {{topic}}\nSources:\n{{source_context}}",
+        {"topic": "Caps {{not_a_template}}", "source_context": "Excerpt"},
         required={"topic", "source_context"},
         allowed={"topic", "source_context"},
     )
-    assert rendered == "Topic: Caps <<not_a_template>>\nSources:\nExcerpt"
+    assert rendered == "Topic: Caps {{not_a_template}}\nSources:\nExcerpt"
 
 
 def test_strict_trace_mode_surfaces_persistence_failure():

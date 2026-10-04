@@ -116,10 +116,10 @@
     </header>
     <div class="layout">
       <aside class="sidebar">
-        <div class="side-head"><div class="eyebrow">Diagnostics</div><h1>Sessions</h1><p>Follow a login session into each saved Foundry request.</p></div>
-        <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" placeholder="Find a session…" autocomplete="off"></div>
+        <div class="side-head"><div class="eyebrow">Diagnostics</div><h1>Invocations</h1><p>Inspect each independently recorded prompt execution and its provider attempts.</p></div>
+        <div class="search"><input id="featureFilter" aria-label="Feature filter" placeholder="Feature filter (for example, ask)"><input id="search" type="search" placeholder="Find an invocation…" autocomplete="off"></div>
         <div class="session-list" id="sessionList"></div>
-        <div class="side-foot"><span id="sessionCount">Loading sessions…</span><button class="refresh" id="refresh">Refresh</button></div>
+        <div class="side-foot"><span id="sessionCount">Loading invocations…</span><button class="refresh" id="refresh">Refresh</button></div>
       </aside>
       <main class="workspace" id="workspace"><div class="loading"><div><div class="loader"></div>Loading traces…</div></div></main>
     </div>
@@ -129,7 +129,7 @@
     (() => {
       "use strict";
       const $ = (query, root = document) => root.querySelector(query);
-      const state = { sessions:[], session:null, request:null, query:"", loading:false };
+      const state = { invocations:[], invocation:null, query:"", feature:"", loading:false };
 
       async function api(path) {
         const response = await fetch(path);
@@ -138,7 +138,7 @@
         return body;
       }
       function formatDate(value, long = false) {
-        if (!value) return "No requests yet";
+        if (!value) return "Not completed";
         const options = long
           ? { dateStyle:"medium", timeStyle:"medium" }
           : { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" };
@@ -146,12 +146,11 @@
       }
       function parseHash() {
         const values = new URLSearchParams(location.hash.slice(1));
-        return { session:values.get("session"), request:values.get("request") };
+        return { invocation:values.get("invocation") };
       }
       function syncHash() {
-        if (!state.session) return;
-        const values = new URLSearchParams({ session:state.session.session_id });
-        if (state.request) values.set("request", state.request.request_id);
+        if (!state.invocation) return;
+        const values = new URLSearchParams({ invocation:state.invocation.invocation_id });
         history.replaceState(null, "", `#${values}`);
       }
       function toast(message) {
@@ -159,80 +158,48 @@
         const item = document.createElement("div"); item.className = "toast"; item.textContent = message; root.appendChild(item);
         setTimeout(() => item.remove(), 2200);
       }
-      function filteredSessions() {
+      function filteredInvocations() {
         const query = state.query.trim().toLowerCase();
-        if (!query) return state.sessions;
-        return state.sessions.filter((item) => `${item.username || ""} ${item.session_id}`.toLowerCase().includes(query));
+        if (!query) return state.invocations;
+        return state.invocations.filter((item) => `${item.feature_key} ${item.invocation_id} ${item.question || ""}`.toLowerCase().includes(query));
       }
       function renderSessions() {
         const root = $("#sessionList"); root.innerHTML = "";
-        const sessions = filteredSessions();
-        sessions.forEach((item) => {
+        const invocations = filteredInvocations();
+        invocations.forEach((item) => {
           const button = document.createElement("button");
-          button.className = `session-card${state.session?.session_id === item.session_id ? " on" : ""}`;
-          const user = document.createElement("span"); user.className = "session-user"; user.textContent = item.username || "Unknown user";
-          const id = document.createElement("span"); id.className = "session-id"; id.textContent = item.session_id;
+          button.className = `session-card${state.invocation?.invocation_id === item.invocation_id ? " on" : ""}`;
+          const user = document.createElement("span"); user.className = "session-user"; user.textContent = `${item.feature_key} · ${item.origin}`;
+          const id = document.createElement("span"); id.className = "session-id"; id.textContent = item.invocation_id;
           const meta = document.createElement("span"); meta.className = "session-meta";
-          const requests = document.createElement("span"); requests.className = "badge"; requests.textContent = `${item.request_count} request${item.request_count === 1 ? "" : "s"}`;
-          meta.append(requests);
-          if (item.error_count) { const errors = document.createElement("span"); errors.className = "badge error"; errors.textContent = `${item.error_count} error${item.error_count === 1 ? "" : "s"}`; meta.append(errors); }
-          const time = document.createElement("span"); time.textContent = formatDate(item.last_request_at || item.created_at); meta.append(time);
-          button.append(user,id,meta); button.onclick = () => selectSession(item.session_id); root.appendChild(button);
+          const status = document.createElement("span"); status.className = `badge${item.status === "failed" ? " error" : ""}`; status.textContent = item.status; meta.append(status);
+          const time = document.createElement("span"); time.textContent = formatDate(item.started_at); meta.append(time);
+          const question = document.createElement("span"); question.className = "request-question"; question.textContent = item.question || "No primary input label";
+          button.append(user,id,question,meta); button.onclick = () => selectInvocation(item.invocation_id); root.appendChild(button);
         });
-        if (!sessions.length) { const empty = document.createElement("div"); empty.className = "empty-value"; empty.textContent = "No sessions match your search."; root.appendChild(empty); }
-        $("#sessionCount").textContent = `${state.sessions.length} recent session${state.sessions.length === 1 ? "" : "s"}`;
+        if (!invocations.length) { const empty = document.createElement("div"); empty.className = "empty-value"; empty.textContent = "No invocations match your filters."; root.appendChild(empty); }
+        $("#sessionCount").textContent = `${state.invocations.length} recent invocation${state.invocations.length === 1 ? "" : "s"}`;
       }
       async function loadSessions(preserve = false) {
         if (state.loading) return;
         state.loading = true;
         try {
-          const data = await api("/v1/prompt-admin/trace-sessions");
-          state.sessions = data.sessions || []; renderSessions();
-          if (!state.sessions.length) return renderEmpty("No trace sessions have been recorded yet.");
+          const suffix = state.feature.trim() ? `?feature=${encodeURIComponent(state.feature.trim())}` : "";
+          const data = await api(`/v1/prompt-admin/invocations${suffix}`);
+          state.invocations = data.invocations || []; renderSessions();
+          if (!state.invocations.length) return renderEmpty("No prompt invocations have been recorded yet.");
           const hash = parseHash();
-          const preferred = preserve ? state.session?.session_id : hash.session;
-          const selected = state.sessions.find((item) => item.session_id === preferred) || state.sessions[0];
-          await selectSession(selected.session_id, preserve ? state.request?.request_id : hash.request);
+          const preferred = preserve ? state.invocation?.invocation_id : hash.invocation;
+          const selected = state.invocations.find((item) => item.invocation_id === preferred) || state.invocations[0];
+          await selectInvocation(selected.invocation_id);
         } catch (error) { renderError(error.message); }
         finally { state.loading = false; }
       }
-      async function selectSession(sessionId, preferredRequest = null) {
-        $("#workspace").innerHTML = '<div class="loading"><div><div class="loader"></div>Loading session…</div></div>';
+      async function selectInvocation(invocationId) {
+        $("#workspace").innerHTML = '<div class="loading"><div><div class="loader"></div>Loading invocation…</div></div>';
         try {
-          state.session = await api(`/v1/prompt-admin/trace-sessions/${encodeURIComponent(sessionId)}`);
-          renderSessions(); renderSession();
-          const selected = state.session.requests.find((item) => item.request_id === preferredRequest) || state.session.requests[0];
-          if (selected) await selectRequest(selected.request_id); else { state.request = null; syncHash(); }
-        } catch (error) { renderError(error.message); }
-      }
-      function renderSession() {
-        const session = state.session;
-        $("#workspace").innerHTML = `
-          <section class="session-head"><div class="head-main"><div class="eyebrow">Trace session</div><h2 id="sessionUser"></h2><p id="sessionSummary"></p><code class="head-id" id="sessionId"></code></div></section>
-          <section class="content-grid"><aside class="request-panel"><div class="panel-title" id="requestCount"></div><div class="request-list" id="requestList"></div></aside><article class="detail-panel" id="detailPanel"><div class="empty-state"><div><h3>Select a request</h3><p>Choose a request to inspect everything that was saved.</p></div></div></article></section>`;
-        $("#sessionUser").textContent = session.username || "Unknown user";
-        $("#sessionSummary").textContent = `Started ${formatDate(session.created_at,true)}`;
-        $("#sessionId").textContent = session.session_id;
-        $("#requestCount").textContent = `${session.requests.length} request${session.requests.length === 1 ? "" : "s"}`;
-        renderRequests();
-      }
-      function renderRequests() {
-        const root = $("#requestList"); if (!root) return; root.innerHTML = "";
-        state.session.requests.forEach((item) => {
-          const button = document.createElement("button"); button.className = `request-card${state.request?.request_id === item.request_id ? " on" : ""}`;
-          const title = document.createElement("span"); title.className = "request-title";
-          const dot = document.createElement("i"); dot.className = `status-dot${item.has_error ? " error" : ""}`;
-          const name = document.createElement("span"); name.textContent = `${item.prompt_key || "Request"}${item.prompt_version ? ` · v${item.prompt_version}` : ""}`;
-          const question = document.createElement("span"); question.className = "request-question"; question.textContent = item.question || "No question saved";
-          const time = document.createElement("span"); time.className = "request-time"; time.textContent = formatDate(item.received_at,true);
-          title.append(dot,name); button.append(title,question,time); button.onclick = () => selectRequest(item.request_id); root.appendChild(button);
-        });
-        if (!state.session.requests.length) { root.innerHTML = '<div class="empty-value">This session has no requests.</div>'; }
-      }
-      async function selectRequest(requestId) {
-        try {
-          state.request = await api(`/v1/prompt-admin/trace-requests/${encodeURIComponent(requestId)}`);
-          renderRequests(); renderRequestDetail(); syncHash();
+          state.invocation = await api(`/v1/prompt-admin/invocations/${encodeURIComponent(invocationId)}`);
+          renderSessions(); renderRequestDetail(); syncHash();
         } catch (error) { renderError(error.message); }
       }
       function jsonText(value) { return value == null ? "" : JSON.stringify(value,null,2); }
@@ -255,27 +222,36 @@
         root.appendChild(section);
       }
       function renderRequestDetail() {
-        const item = state.request, panel = $("#detailPanel");
-        panel.innerHTML = '<div class="detail-head"><strong>Request details</strong><span class="detail-id" id="requestId"></span></div><div class="detail-body"><div class="summary-grid" id="summaryGrid"></div><div id="traceSections"></div></div>';
-        $("#requestId").textContent = item.request_id;
-        const inputs = item.inputs || {};
+        const item = state.invocation;
+        $("#workspace").innerHTML = '<section class="session-head"><div class="head-main"><div class="eyebrow">Prompt invocation</div><h2 id="featureName"></h2><p id="invocationStatus"></p><code class="head-id" id="requestId"></code></div></section><article class="detail-panel"><div class="detail-body"><div class="summary-grid" id="summaryGrid"></div><div id="traceSections"></div></div></article>';
+        $("#featureName").textContent = item.feature_key;
+        $("#invocationStatus").textContent = `${item.origin} · ${item.status}`;
+        $("#requestId").textContent = item.invocation_id;
+        const inputs = item.runtime_inputs || {};
         const values = [
-          ["Received",formatDate(item.received_at,true)],
-          ["Prompt",`${inputs.prompt_key || "Unknown"}${inputs.prompt_version ? ` · v${inputs.prompt_version}` : ""}`],
-          ["User",inputs.user_id || state.session.username || "Unknown"],
+          ["Started",formatDate(item.started_at,true)],
+          ["Origin",item.origin],
+          ["Model",item.provider_metadata?.model || item.provider_metadata?.agent || "Not reported"],
         ];
         const summary = $("#summaryGrid");
         values.forEach(([label,value]) => { const box = document.createElement("div"); box.className = "summary-item"; const l = document.createElement("label"); l.textContent = label; const v = document.createElement("span"); v.textContent = value; box.append(l,v); summary.appendChild(box); });
         const sections = $("#traceSections");
         if (item.error) addSection(sections,"Error",item.error,{ error:true });
-        addSection(sections,"Inputs",item.inputs);
-        addSection(sections,"Flattened prompt",item.prompt,{ text:true });
-        addSection(sections,"Provider request",item.provider_request);
-        addSection(sections,"Provider response",item.response);
+        addSection(sections,"Prompt recipe",item.prompt_recipe);
+        addSection(sections,"Inputs",item.runtime_inputs);
+        addSection(sections,"Flattened prompt",item.rendered_prompt,{ text:true });
+        addSection(sections,"Model output",item.model_output,{ text:true });
+        addSection(sections,"Model metadata",item.provider_metadata);
+        (item.attempts || []).forEach(attempt => {
+          addSection(sections,`Attempt ${attempt.attempt_number} · ${attempt.reason} · request`,attempt.provider_request);
+          if (attempt.provider_response) addSection(sections,`Attempt ${attempt.attempt_number} · response`,attempt.provider_response);
+          if (attempt.error) addSection(sections,`Attempt ${attempt.attempt_number} · error`,attempt.error,{error:true});
+        });
       }
       function renderEmpty(message) { $("#workspace").innerHTML = '<div class="empty-state"><div><h2>Nothing to show</h2><p></p></div></div>'; $(".empty-state p").textContent = message; }
       function renderError(message) { $("#workspace").innerHTML = '<div class="error-state"><div><h2>Trace Explorer couldn’t load</h2><p></p><button class="btn">Try again</button></div></div>'; $(".error-state p").textContent = message; $(".error-state button").onclick = () => loadSessions(true); }
       $("#search").oninput = (event) => { state.query = event.target.value; renderSessions(); };
+      $("#featureFilter").onchange = (event) => { state.feature = event.target.value; loadSessions(); };
       $("#refresh").onclick = () => loadSessions(true);
       loadSessions();
     })();

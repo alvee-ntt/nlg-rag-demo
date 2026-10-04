@@ -19,8 +19,14 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from psycopg.types.json import Jsonb
 
-from .db import connect, create_foundry_trace_session
-from .foundry import chat as foundry_chat, foundry_configured
+from .db import connect
+from .foundry import foundry_configured, replay_ask_prompt
+from .prompt_features import (
+    features_using_component,
+    get_prompt_component,
+    get_prompt_feature,
+    validate_component_template,
+)
 
 router = APIRouter(prefix="/v1/prompt-admin", tags=["prompt-admin"])
 
@@ -36,7 +42,7 @@ class PromptVersionSelect(BaseModel):
 
 class PromptTestRunCreate(BaseModel):
     feature: str = Field(..., min_length=1, max_length=80, pattern=r"^[a-z][a-z0-9_-]*$")
-    source_trace_request_id: str = Field(..., min_length=1, max_length=240)
+    source_invocation_id: str = Field(..., min_length=1, max_length=240)
     combinations: list[dict[str, int]] = Field(..., min_length=1, max_length=25)
 
 
@@ -119,6 +125,16 @@ def get_prompt_definition(conn, key: str) -> dict[str, Any] | None:
         (key,),
     ).fetchall()
     item["versions"] = [_version_dict(row, selected_version) for row in versions]
+    component = get_prompt_component(key)
+    item["placeholder_contract"] = {
+        "required": sorted(component.required_placeholders),
+        "allowed": sorted(component.allowed_placeholders),
+    } if component else None
+    item["registered_features"] = [
+        {"key": feature_key, "name": feature.name}
+        for feature_key in features_using_component(key)
+        if (feature := get_prompt_feature(feature_key)) is not None
+    ]
     return item
 
 
@@ -131,6 +147,7 @@ def create_prompt_version(
     created_by: str,
 ) -> dict[str, Any] | None:
     """Create the next immutable version while locking its definition."""
+    validate_component_template(key, instructions)
     definition = conn.execute(
         "SELECT key FROM prompt_definitions WHERE key = %s FOR UPDATE",
         (key,),
@@ -160,12 +177,13 @@ def create_prompt_version(
 
 def select_prompt_version(conn, *, key: str, version: int) -> dict[str, Any] | None:
     """Select an existing version; the composite FK is an additional safety net."""
-    exists = conn.execute(
-        "SELECT 1 FROM prompt_versions WHERE prompt_key = %s AND version = %s",
+    selected_version = conn.execute(
+        "SELECT instructions FROM prompt_versions WHERE prompt_key = %s AND version = %s",
         (key, version),
     ).fetchone()
-    if not exists:
+    if not selected_version:
         return None
+    validate_component_template(key, str(selected_version["instructions"]))
     row = conn.execute(
         """
         UPDATE prompt_definitions
@@ -182,98 +200,70 @@ def select_prompt_version(conn, *, key: str, version: int) -> dict[str, Any] | N
     return item
 
 
-def list_trace_sessions(conn, *, limit: int = 100) -> list[dict[str, Any]]:
+def list_prompt_invocations(
+    conn,
+    *,
+    feature: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
     rows = conn.execute(
         """
         SELECT
-            s.session_id,
-            s.username,
-            s.created_at,
-            count(r.request_id)::int AS request_count,
-            (count(r.request_id) FILTER (WHERE r.error IS NOT NULL))::int AS error_count,
-            max(r.received_at) AS last_request_at
-        FROM foundry_trace_sessions AS s
-        LEFT JOIN foundry_request_traces AS r ON r.session_id = s.session_id
-        GROUP BY s.session_id
-        ORDER BY coalesce(max(r.received_at), s.created_at) DESC, s.session_id DESC
+            invocation_id, feature_key, origin, trace_session_id, correlation_id,
+            started_at, completed_at, status, prompt_recipe, runtime_inputs,
+            provider_metadata, model_output, error
+        FROM prompt_invocation_traces
+        WHERE (%s IS NULL OR feature_key = %s)
+        ORDER BY started_at DESC, invocation_id DESC
         LIMIT %s
         """,
-        (limit,),
+        (feature, feature, limit),
     ).fetchall()
-    sessions = []
+    invocations = []
     for row in rows:
         item = dict(row)
-        item["created_at"] = _iso(item.get("created_at"))
-        item["last_request_at"] = _iso(item.get("last_request_at"))
-        sessions.append(item)
-    return sessions
+        item["started_at"] = _iso(item.get("started_at"))
+        item["completed_at"] = _iso(item.get("completed_at"))
+        inputs = item.get("runtime_inputs") or {}
+        item["question"] = inputs.get("question") or inputs.get("topic") or ""
+        item["history_turns"] = len(inputs.get("history") or [])
+        invocations.append(item)
+    return invocations
 
 
-def get_trace_session(conn, session_id: str) -> dict[str, Any] | None:
-    session = conn.execute(
-        """
-        SELECT session_id, username, created_at
-        FROM foundry_trace_sessions
-        WHERE session_id = %s
-        """,
-        (session_id,),
-    ).fetchone()
-    if not session:
-        return None
-    item = dict(session)
-    item["created_at"] = _iso(item.get("created_at"))
-    rows = conn.execute(
-        """
-        SELECT
-            request_id,
-            received_at,
-            updated_at,
-            inputs->>'prompt_key' AS prompt_key,
-            nullif(inputs->>'prompt_version', '')::int AS prompt_version,
-            inputs->>'question' AS question,
-            response->>'id' AS response_id,
-            (provider_request IS NOT NULL) AS has_provider_request,
-            (response IS NOT NULL) AS has_response,
-            (error IS NOT NULL) AS has_error
-        FROM foundry_request_traces
-        WHERE session_id = %s
-        ORDER BY received_at DESC, request_id DESC
-        """,
-        (session_id,),
-    ).fetchall()
-    requests = []
-    for row in rows:
-        request_item = dict(row)
-        request_item["received_at"] = _iso(request_item.get("received_at"))
-        request_item["updated_at"] = _iso(request_item.get("updated_at"))
-        requests.append(request_item)
-    item["requests"] = requests
-    return item
-
-
-def get_request_trace(conn, request_id: str) -> dict[str, Any] | None:
+def get_prompt_invocation(conn, invocation_id: str) -> dict[str, Any] | None:
     row = conn.execute(
         """
-        SELECT
-            request_id,
-            session_id,
-            received_at,
-            updated_at,
-            inputs,
-            provider_request,
-            prompt,
-            response,
-            error
-        FROM foundry_request_traces
-        WHERE request_id = %s
+        SELECT invocation_id, feature_key, origin, trace_session_id, correlation_id,
+               started_at, completed_at, status, prompt_recipe, runtime_inputs,
+               rendered_prompt, provider_metadata, model_output, error, updated_at
+        FROM prompt_invocation_traces
+        WHERE invocation_id = %s
         """,
-        (request_id,),
+        (invocation_id,),
     ).fetchone()
     if not row:
         return None
     item = dict(row)
-    item["received_at"] = _iso(item.get("received_at"))
-    item["updated_at"] = _iso(item.get("updated_at"))
+    for key in ("started_at", "completed_at", "updated_at"):
+        item[key] = _iso(item.get(key))
+    attempts = conn.execute(
+        """
+        SELECT attempt_number, reason, provider, requested_model,
+               actual_model_metadata, started_at, completed_at,
+               provider_request, provider_response, error
+        FROM prompt_provider_attempts
+        WHERE invocation_id = %s
+        ORDER BY attempt_number
+        """,
+        (invocation_id,),
+    ).fetchall()
+    item["attempts"] = []
+    for attempt in attempts:
+        attempt_item = dict(attempt)
+        attempt_item["started_at"] = _iso(attempt_item.get("started_at"))
+        attempt_item["completed_at"] = _iso(attempt_item.get("completed_at"))
+        item["attempts"].append(attempt_item)
     return item
 
 
@@ -317,41 +307,37 @@ def list_test_features(conn) -> list[dict[str, Any]]:
     return features
 
 
-def list_feature_trace_requests(conn, feature: str, *, limit: int = 100) -> list[dict[str, Any]]:
+def list_feature_invocations(conn, feature: str, *, limit: int = 100) -> list[dict[str, Any]]:
     config = TEST_FEATURES.get(feature)
     if not config:
         return []
     rows = conn.execute(
         """
-        SELECT request_id, session_id, received_at, inputs, response, error
-        FROM foundry_request_traces AS r
-        WHERE inputs->>'prompt_key' = %s
+        SELECT invocation_id, trace_session_id, started_at, runtime_inputs,
+               prompt_recipe, status, model_output, error
+        FROM prompt_invocation_traces AS i
+        WHERE feature_key = %s AND origin = 'live'
           AND NOT EXISTS (
-              SELECT 1 FROM prompt_test_cases AS c WHERE c.trace_request_id = r.request_id
+              SELECT 1 FROM prompt_test_cases AS c
+              WHERE c.replay_invocation_id = i.invocation_id
           )
-        ORDER BY received_at DESC, request_id DESC
+        ORDER BY started_at DESC, invocation_id DESC
         LIMIT %s
         """,
-        (config["primary"], limit),
+        (feature, limit),
     ).fetchall()
     traces = []
     for row in rows:
         item = dict(row)
-        inputs = item.get("inputs") or {}
-        versions = {inputs.get("prompt_key"): inputs.get("prompt_version")}
-        for augmentation in inputs.get("prompt_augmentations") or []:
-            if augmentation.get("key"):
-                versions[augmentation["key"]] = augmentation.get("version")
+        inputs = item.get("runtime_inputs") or {}
         traces.append({
-            "request_id": item["request_id"],
-            "session_id": item["session_id"],
-            "received_at": _iso(item.get("received_at")),
+            "invocation_id": item["invocation_id"],
+            "trace_session_id": item.get("trace_session_id"),
+            "started_at": _iso(item.get("started_at")),
             "question": inputs.get("question") or "",
             "history_turns": len(inputs.get("history") or []),
-            "prompt_versions": versions,
-            "status": "failed" if item.get("error") else (
-                "completed" if item.get("response") else "incomplete"
-            ),
+            "prompt_versions": item.get("prompt_recipe") or {},
+            "status": item.get("status"),
         })
     return traces
 
@@ -366,15 +352,15 @@ def _test_run_dict(row: Any) -> dict[str, Any]:
 def list_test_runs(conn, *, limit: int = 50) -> list[dict[str, Any]]:
     rows = conn.execute(
         """
-        SELECT r.run_id, r.feature, r.source_trace_request_id, r.status, r.case_count,
+        SELECT r.run_id, r.feature, r.source_invocation_id, r.status, r.case_count,
                r.created_at, r.started_at, r.completed_at, r.error,
                count(c.case_id) FILTER (WHERE c.status = 'completed')::int AS completed_count,
                count(c.case_id) FILTER (WHERE c.status = 'failed')::int AS failed_count,
-               t.inputs->>'question' AS question
+               t.runtime_inputs->>'question' AS question
         FROM prompt_test_runs AS r
-        JOIN foundry_request_traces AS t ON t.request_id = r.source_trace_request_id
+        JOIN prompt_invocation_traces AS t ON t.invocation_id = r.source_invocation_id
         LEFT JOIN prompt_test_cases AS c ON c.run_id = r.run_id
-        GROUP BY r.run_id, t.request_id
+        GROUP BY r.run_id, t.invocation_id
         ORDER BY r.created_at DESC
         LIMIT %s
         """,
@@ -386,11 +372,11 @@ def list_test_runs(conn, *, limit: int = 50) -> list[dict[str, Any]]:
 def get_test_run(conn, run_id: str) -> dict[str, Any] | None:
     row = conn.execute(
         """
-        SELECT r.run_id, r.feature, r.source_trace_request_id, r.status, r.case_count,
+        SELECT r.run_id, r.feature, r.source_invocation_id, r.status, r.case_count,
                r.created_at, r.started_at, r.completed_at, r.error,
-               t.inputs->>'question' AS question
+               t.runtime_inputs->>'question' AS question
         FROM prompt_test_runs AS r
-        JOIN foundry_request_traces AS t ON t.request_id = r.source_trace_request_id
+        JOIN prompt_invocation_traces AS t ON t.invocation_id = r.source_invocation_id
         WHERE r.run_id = %s
         """,
         (run_id,),
@@ -400,15 +386,25 @@ def get_test_run(conn, run_id: str) -> dict[str, Any] | None:
     run = _test_run_dict(row)
     cases = conn.execute(
         """
-        SELECT case_id, position, prompt_versions, status, result, error,
-               trace_request_id, started_at, completed_at
+        SELECT c.case_id, c.position, c.prompt_versions, c.status, c.result, c.error,
+               c.replay_invocation_id, c.started_at, c.completed_at,
+               i.model_output, i.provider_metadata
         FROM prompt_test_cases
+        AS c LEFT JOIN prompt_invocation_traces AS i
+          ON i.invocation_id = c.replay_invocation_id
         WHERE run_id = %s
         ORDER BY position
         """,
         (run_id,),
     ).fetchall()
-    run["cases"] = [_test_run_dict(case) for case in cases]
+    run["cases"] = []
+    for case in cases:
+        case_item = _test_run_dict(case)
+        replay_invocation_id = case_item.get("replay_invocation_id")
+        if replay_invocation_id:
+            replay = get_prompt_invocation(conn, replay_invocation_id)
+            case_item["attempts"] = (replay or {}).get("attempts", [])
+        run["cases"].append(case_item)
     return run
 
 
@@ -416,20 +412,23 @@ def _normalize_test_configuration(
     conn,
     *,
     feature: str,
-    source_trace_request_id: str,
+    source_invocation_id: str,
     combinations: list[dict[str, int]],
 ) -> list[dict[str, int]]:
     config = TEST_FEATURES.get(feature)
     if not config:
         raise ValueError(f"Unknown test feature: {feature}")
     source = conn.execute(
-        "SELECT inputs FROM foundry_request_traces WHERE request_id = %s",
-        (source_trace_request_id,),
+        "SELECT feature_key, prompt_recipe FROM prompt_invocation_traces WHERE invocation_id = %s",
+        (source_invocation_id,),
     ).fetchone()
-    if not source or (source.get("inputs") or {}).get("prompt_key") != config["primary"]:
+    if not source or source.get("feature_key") != feature:
         raise ValueError("The selected trace does not belong to this feature")
 
-    expected = {config["primary"], *config["augmentations"]}
+    expected = set(source.get("prompt_recipe") or {})
+    allowed = {config["primary"], *config["augmentations"]}
+    if not expected or config["primary"] not in expected or not expected <= allowed:
+        raise ValueError("The source invocation has an invalid prompt recipe")
     normalized: list[dict[str, int]] = []
     seen: set[tuple[tuple[str, int], ...]] = set()
     for index, combination in enumerate(combinations, start=1):
@@ -460,11 +459,11 @@ def _normalize_test_configuration(
 def list_test_configurations(conn, *, limit: int = 100) -> list[dict[str, Any]]:
     rows = conn.execute(
         """
-        SELECT c.configuration_id, c.name, c.feature, c.source_trace_request_id,
+        SELECT c.configuration_id, c.name, c.feature, c.source_invocation_id,
                c.combinations, c.created_at, c.updated_at, c.last_run_at,
-               t.inputs->>'question' AS question
+               t.runtime_inputs->>'question' AS question
         FROM prompt_test_configurations AS c
-        JOIN foundry_request_traces AS t ON t.request_id = c.source_trace_request_id
+        JOIN prompt_invocation_traces AS t ON t.invocation_id = c.source_invocation_id
         ORDER BY c.updated_at DESC, c.configuration_id DESC
         LIMIT %s
         """,
@@ -485,7 +484,7 @@ def create_test_configuration(
     *,
     name: str,
     feature: str,
-    source_trace_request_id: str,
+    source_invocation_id: str,
     combinations: list[dict[str, int]],
 ) -> dict[str, Any]:
     clean_name = name.strip()
@@ -494,7 +493,7 @@ def create_test_configuration(
     normalized = _normalize_test_configuration(
         conn,
         feature=feature,
-        source_trace_request_id=source_trace_request_id,
+        source_invocation_id=source_invocation_id,
         combinations=combinations,
     )
     now = datetime.now().astimezone()
@@ -502,12 +501,12 @@ def create_test_configuration(
     conn.execute(
         """
         INSERT INTO prompt_test_configurations
-            (configuration_id, name, feature, source_trace_request_id, combinations,
+            (configuration_id, name, feature, source_invocation_id, combinations,
              created_at, updated_at)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
         """,
         (
-            configuration_id, clean_name, feature, source_trace_request_id,
+            configuration_id, clean_name, feature, source_invocation_id,
             Jsonb(normalized), now, now,
         ),
     )
@@ -516,7 +515,7 @@ def create_test_configuration(
         "configuration_id": configuration_id,
         "name": clean_name,
         "feature": feature,
-        "source_trace_request_id": source_trace_request_id,
+        "source_invocation_id": source_invocation_id,
         "combinations": normalized,
         "case_count": len(normalized),
         "created_at": now.isoformat(),
@@ -529,13 +528,13 @@ def create_test_run(
     conn,
     *,
     feature: str,
-    source_trace_request_id: str,
+    source_invocation_id: str,
     combinations: list[dict[str, int]],
 ) -> dict[str, Any]:
     normalized = _normalize_test_configuration(
         conn,
         feature=feature,
-        source_trace_request_id=source_trace_request_id,
+        source_invocation_id=source_invocation_id,
         combinations=combinations,
     )
 
@@ -544,10 +543,10 @@ def create_test_run(
     conn.execute(
         """
         INSERT INTO prompt_test_runs
-            (run_id, feature, source_trace_request_id, status, case_count, created_at)
+            (run_id, feature, source_invocation_id, status, case_count, created_at)
         VALUES (%s, %s, %s, 'queued', %s, %s)
         """,
-        (run_id, feature, source_trace_request_id, len(normalized), now),
+        (run_id, feature, source_invocation_id, len(normalized), now),
     )
     for position, combination in enumerate(normalized, start=1):
         conn.execute(
@@ -565,7 +564,7 @@ def create_test_run(
 def create_test_run_from_configuration(conn, configuration_id: str) -> dict[str, Any] | None:
     configuration = conn.execute(
         """
-        SELECT configuration_id, feature, source_trace_request_id, combinations
+        SELECT configuration_id, feature, source_invocation_id, combinations
         FROM prompt_test_configurations
         WHERE configuration_id = %s
         """,
@@ -576,7 +575,7 @@ def create_test_run_from_configuration(conn, configuration_id: str) -> dict[str,
     run = create_test_run(
         conn,
         feature=configuration["feature"],
-        source_trace_request_id=configuration["source_trace_request_id"],
+        source_invocation_id=configuration["source_invocation_id"],
         combinations=configuration["combinations"],
     )
     conn.execute(
@@ -599,20 +598,14 @@ def execute_test_run(settings: Any, run_id: str) -> None:
             run = get_test_run(conn, run_id)
             if not run:
                 return
-            source = get_request_trace(conn, run["source_trace_request_id"])
+            source = get_prompt_invocation(conn, run["source_invocation_id"])
             conn.execute(
                 "UPDATE prompt_test_runs SET status = 'running', started_at = now() WHERE run_id = %s",
                 (run_id,),
             )
-            create_foundry_trace_session(
-                conn,
-                session_id=run_id,
-                username="prompt-test-runner",
-                created_at=datetime.now().astimezone(),
-            )
             conn.commit()
         assert source is not None
-        inputs = source.get("inputs") or {}
+        inputs = source.get("runtime_inputs") or {}
         config = TEST_FEATURES[run["feature"]]
 
         for case in run["cases"]:
@@ -637,7 +630,7 @@ def execute_test_run(settings: Any, run_id: str) -> None:
                     prompts[key] = dict(row)
                 conn.commit()
             try:
-                result = foundry_chat(
+                result = replay_ask_prompt(
                     settings=settings,
                     instructions=prompts[config["primary"]]["instructions"],
                     prompt_key=config["primary"],
@@ -645,34 +638,39 @@ def execute_test_run(settings: Any, run_id: str) -> None:
                     question=str(inputs.get("question") or ""),
                     history=inputs.get("history") or [],
                     preferences=inputs.get("preferences") or {},
-                    prompt_augmentations=[prompts[key] for key in config["augmentations"]],
+                    prompt_augmentations=[
+                        prompts[key] for key in config["augmentations"] if key in versions
+                    ],
                     about_me=str(inputs.get("about_me") or ""),
                     memories=inputs.get("memories") or [],
                     user_id=inputs.get("user_id"),
                     trace_session_id=run_id,
+                    correlation_id=case_id,
                 )
-                trace_request_id = result.pop("trace_request_id", None)
+                replay_invocation_id = result.pop("invocation_id")
                 with connect(settings) as conn:
                     conn.execute(
                         """
                         UPDATE prompt_test_cases
-                        SET status = 'completed', result = %s, trace_request_id = %s,
+                        SET status = 'completed', result = %s, replay_invocation_id = %s,
                             completed_at = now()
                         WHERE case_id = %s
                         """,
-                        (Jsonb(result), trace_request_id, case_id),
+                        (Jsonb(result), replay_invocation_id, case_id),
                     )
                     conn.commit()
             except Exception as exc:  # noqa: BLE001 - one failed variant must not stop siblings
                 error = {"error_type": type(exc).__name__, "message": str(exc)}
+                replay_invocation_id = getattr(exc, "prompt_invocation_id", None)
                 with connect(settings) as conn:
                     conn.execute(
                         """
                         UPDATE prompt_test_cases
-                        SET status = 'failed', error = %s, completed_at = now()
+                        SET status = 'failed', error = %s, replay_invocation_id = %s,
+                            completed_at = now()
                         WHERE case_id = %s
                         """,
-                        (Jsonb(error), case_id),
+                        (Jsonb(error), replay_invocation_id, case_id),
                     )
                     conn.commit()
 
@@ -748,28 +746,19 @@ def prompt_version_select(
     return prompt
 
 
-@router.get("/trace-sessions")
-def trace_sessions_list(request: Request) -> dict[str, Any]:
+@router.get("/invocations")
+def prompt_invocations_list(request: Request, feature: str | None = None) -> dict[str, Any]:
     with connect(request.app.state.settings) as conn:
-        return {"sessions": list_trace_sessions(conn)}
+        return {"invocations": list_prompt_invocations(conn, feature=feature)}
 
 
-@router.get("/trace-sessions/{session_id}")
-def trace_session_detail(session_id: str, request: Request) -> dict[str, Any]:
+@router.get("/invocations/{invocation_id}")
+def prompt_invocation_detail(invocation_id: str, request: Request) -> dict[str, Any]:
     with connect(request.app.state.settings) as conn:
-        session = get_trace_session(conn, session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"Unknown trace session: {session_id}")
-    return session
-
-
-@router.get("/trace-requests/{request_id}")
-def trace_request_detail(request_id: str, request: Request) -> dict[str, Any]:
-    with connect(request.app.state.settings) as conn:
-        trace = get_request_trace(conn, request_id)
-    if trace is None:
-        raise HTTPException(status_code=404, detail=f"Unknown request trace: {request_id}")
-    return trace
+        invocation = get_prompt_invocation(conn, invocation_id)
+    if invocation is None:
+        raise HTTPException(status_code=404, detail=f"Unknown invocation: {invocation_id}")
+    return invocation
 
 
 @router.get("/test-features")
@@ -783,7 +772,7 @@ def test_feature_traces(feature: str, request: Request) -> dict[str, Any]:
     if feature not in TEST_FEATURES:
         raise HTTPException(status_code=404, detail=f"Unknown test feature: {feature}")
     with connect(request.app.state.settings) as conn:
-        return {"traces": list_feature_trace_requests(conn, feature)}
+        return {"traces": list_feature_invocations(conn, feature)}
 
 
 @router.get("/test-runs")
@@ -809,7 +798,7 @@ def test_configuration_create(
                 conn,
                 name=payload.name,
                 feature=payload.feature,
-                source_trace_request_id=payload.source_trace_request_id,
+                source_invocation_id=payload.source_invocation_id,
                 combinations=payload.combinations,
             )
     except ValueError as exc:
@@ -857,7 +846,7 @@ def test_run_create(
             run = create_test_run(
                 conn,
                 feature=payload.feature,
-                source_trace_request_id=payload.source_trace_request_id,
+                source_invocation_id=payload.source_invocation_id,
                 combinations=payload.combinations,
             )
     except ValueError as exc:

@@ -29,7 +29,7 @@ class _FakeClient:
     def __init__(self, settings):
         pass
 
-    def respond(self, payload):
+    def respond(self, payload, trace=None):
         return {"model": "gpt-5", "id": "resp_1", "status": "completed"}
 
 
@@ -39,7 +39,7 @@ def _foundry_env(monkeypatch, *, answer, citations):
     monkeypatch.setattr(foundry, "_RequestTrace", lambda **kwargs: SimpleNamespace(
         request_id="request-1",
         provider_request=lambda payload: None,
-        response=lambda data: None,
+        response=lambda data, **kwargs: None,
         error=lambda exc: None,
     ))
 

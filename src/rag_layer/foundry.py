@@ -17,16 +17,15 @@ Wire protocol (confirmed against the live endpoint):
 from __future__ import annotations
 
 import json
-import secrets
 import time
-from datetime import datetime
 from urllib.parse import unquote, urlparse
 
 import requests
 import urllib3
 
-from .db import connect, create_foundry_request_trace, update_foundry_request_trace
 from .config import NLG_SUPPORT_MESSAGE, Settings
+from .prompt_features import prompt_recipe
+from .prompt_runtime import PromptInvocationRecorder
 
 # Same transient-failure handling as embeddings.py: Foundry / the model behind it can
 # throttle (429) or blip (5xx), so back off and retry rather than failing the chat turn.
@@ -65,22 +64,48 @@ class FoundryAgentClient:
         if not self.verify_ssl:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    def respond(self, payload: dict, timeout: tuple[int, int] = (10, 180)) -> dict:
+    def respond(
+        self,
+        payload: dict,
+        timeout: tuple[int, int] = (10, 180),
+        trace: "_RequestTrace | None" = None,
+    ) -> dict:
         last_error: Exception | None = None
         for attempt in range(_MAX_RETRIES + 1):
-            response = self.session.post(
-                self.url,
-                headers=self.headers,
-                json=payload,
-                timeout=timeout,
-                verify=self.verify_ssl,
-            )
+            attempt_number = trace.begin_attempt(
+                reason="primary" if attempt == 0 else "transport_retry",
+                provider="azure_ai_foundry",
+                requested_model=self.agent,
+                provider_request=payload,
+            ) if trace else None
+            try:
+                response = self.session.post(
+                    self.url,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=timeout,
+                    verify=self.verify_ssl,
+                )
+            except Exception as exc:
+                if trace and attempt_number is not None:
+                    trace.attempt_error(attempt_number, exc)
+                raise
             if response.status_code not in _RETRY_STATUS:
-                response.raise_for_status()
-                return response.json()
+                try:
+                    response.raise_for_status()
+                    data = response.json()
+                except Exception as exc:
+                    if trace and attempt_number is not None:
+                        trace.attempt_error(attempt_number, exc)
+                    raise
+                if trace and attempt_number is not None:
+                    trace.attempt_response(attempt_number, data)
+                return data
             last_error = requests.HTTPError(
                 f"{response.status_code} {response.reason} for url: {self.url}", response=response
             )
+            if trace and attempt_number is not None:
+                trace.attempt_error(attempt_number, last_error)
             if attempt == _MAX_RETRIES:
                 break
             time.sleep(self._retry_delay(response, attempt))
@@ -168,6 +193,18 @@ def _extract_answer(data: dict) -> tuple[str, list[dict]]:
         text = text[:s] + f" [{n}]" + text[e:]
 
     return text.strip(), citations
+
+
+def _extract_model_output(data: dict) -> str:
+    """Extract model-authored text without applying application citation processing."""
+    message = _final_message(data)
+    if message is None:
+        return str(data.get("output_text") or "").strip()
+    parts: list[str] = []
+    for content in message.get("content", []) or []:
+        if content.get("type") in {"output_text", "text"} and content.get("text"):
+            parts.append(str(content["text"]))
+    return "\n".join(parts).strip()
 
 
 def _current_user_content(
@@ -276,69 +313,57 @@ class _RequestTrace:
         *,
         settings: Settings,
         session_id: str | None,
+        recipe: dict[str, int],
         inputs: dict,
+        origin: str = "live",
+        correlation_id: str | None = None,
     ) -> None:
-        self.settings = settings
-        if not session_id:
-            # Normally created at login. This fallback covers API clients carrying an
-            # older auth cookie while still keeping their requests grouped together.
-            session_id = "missing-login-session"
-        now = datetime.now().astimezone()
-        timestamp = (
-            now.strftime("%Y-%m-%d_%H-%M-%S-")
-            + f"{now.microsecond // 1000:03d}_"
-            + now.strftime("%z")
+        self._recorder = PromptInvocationRecorder(
+            settings=settings,
+            feature_key="ask",
+            origin=origin,
+            prompt_recipe=recipe,
+            runtime_inputs=inputs,
+            trace_session_id=session_id,
+            correlation_id=correlation_id,
         )
-        self.request_id = f"{timestamp}_request_{secrets.token_hex(4)}"
-        with connect(settings) as conn:
-            create_foundry_request_trace(
-                conn,
-                request_id=self.request_id,
-                session_id=session_id,
-                received_at=now,
-                inputs={
-                    "trace_session_id": session_id,
-                    "request_id": self.request_id,
-                    "received_at": now.isoformat(),
-                    **inputs,
-                },
-            )
+        self.request_id = self._recorder.invocation_id
 
     def provider_request(self, payload: dict) -> None:
-        with connect(self.settings) as conn:
-            update_foundry_request_trace(
-                conn,
-                self.request_id,
-                provider_request=payload,
-                prompt=_flatten_provider_request(payload),
-            )
+        self._recorder.rendered(_flatten_provider_request(payload))
 
-    def response(self, data: dict) -> None:
-        with connect(self.settings) as conn:
-            update_foundry_request_trace(conn, self.request_id, response=data)
+    def begin_attempt(self, **values) -> int:
+        return self._recorder.begin_attempt(**values)
+
+    def attempt_response(self, attempt_number: int, data: dict) -> None:
+        self._recorder.complete_attempt(
+            attempt_number,
+            provider_response=data,
+            actual_model_metadata={
+                key: data.get(key) for key in ("model", "id", "status") if data.get(key) is not None
+            },
+        )
+
+    def attempt_error(self, attempt_number: int, exc: Exception) -> None:
+        self._recorder.complete_attempt(attempt_number, error=exc)
+
+    def response(self, data: dict, *, agent: str) -> None:
+        self._recorder.complete(
+            model_output=_extract_model_output(data),
+            provider_metadata={
+                "provider": "azure_ai_foundry",
+                "agent": agent,
+                "model": data.get("model"),
+                "response_id": data.get("id"),
+                "status": data.get("status"),
+            },
+        )
 
     def error(self, exc: Exception) -> None:
-        error = {
-            "error_type": type(exc).__name__,
-            "message": str(exc),
-            "recorded_at": datetime.now().astimezone().isoformat(),
-        }
-        response = getattr(exc, "response", None)
-        fields: dict = {"error": error}
-        if response is not None:
-            error["http_status"] = response.status_code
-            error["http_reason"] = response.reason
-            error["response_body"] = response.text
-            fields["response"] = {
-                "status_code": response.status_code,
-                "reason": response.reason,
-                "body": response.text,
-            }
-        with connect(self.settings) as conn:
-            update_foundry_request_trace(conn, self.request_id, **fields)
+        self._recorder.fail(exc)
 
 
-def chat(
+def _invoke_ask_prompt(
     *,
     settings: Settings,
     history: list[dict],
@@ -346,37 +371,38 @@ def chat(
     message: str | None = None,
     instructions: str = "",
     prompt_key: str = "ask.navigator",
-    prompt_version: int = 0,
+    prompt_version: int = 1,
     preferences: dict | None = None,
     prompt_augmentations: list[dict] | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
     user_id: str | None = None,
     trace_session_id: str | None = None,
-) -> dict:
-    """One turn against the hosted Foundry agent, with the running conversation replayed
-    as context (the endpoint is stateless per call unless you thread response ids).
-
-    The question, answer preferences, user description, memories, and history cross into
-    this module as distinct values. They are serialized only when constructing the final
-    provider message below.
-    """
+    trace_origin: str = "live",
+    correlation_id: str | None = None,
+) -> tuple[dict, FoundryAgentClient, _RequestTrace]:
+    """Render and invoke Ask without applying application response handling."""
     resolved_question = question if question is not None else message
     if resolved_question is None:
         raise ValueError("question is required")
+    resolved_prompts = [
+        {"key": prompt_key, "version": prompt_version},
+        *[
+            {"key": item.get("key"), "version": item.get("version")}
+            for item in (prompt_augmentations or [])
+        ],
+    ]
+    recipe = prompt_recipe("ask", resolved_prompts)
     trace = _RequestTrace(
         settings=settings,
         session_id=trace_session_id,
+        recipe=recipe,
+        origin=trace_origin,
+        correlation_id=correlation_id,
         inputs={
-            "prompt_key": prompt_key,
-            "prompt_version": prompt_version,
             "question": resolved_question,
             "history": history,
             "preferences": preferences or {},
-            "prompt_augmentations": [
-                {"key": item.get("key"), "version": item.get("version")}
-                for item in (prompt_augmentations or [])
-            ],
             "about_me": about_me,
             "memories": memories or [],
             "user_id": user_id,
@@ -409,11 +435,69 @@ def chat(
 
         provider_payload = {"input": conversation}
         trace.provider_request(provider_payload)
-        data = client.respond(provider_payload)
-        trace.response(data)
+        data = client.respond(provider_payload, trace=trace)
+        trace.response(data, agent=client.agent)
     except Exception as exc:
+        # Replay runners use this to link a failed test case to the failed invocation
+        # and its provider attempts without changing the exception's visible behavior.
+        setattr(exc, "prompt_invocation_id", trace.request_id)
         trace.error(exc)
         raise
+    return data, client, trace
+
+
+def replay_ask_prompt(**values) -> dict:
+    """Run one Ask prompt-unit replay and return only provider-boundary output."""
+    data, client, trace = _invoke_ask_prompt(trace_origin="replay", **values)
+    return {
+        "invocation_id": trace.request_id,
+        "model_output": _extract_model_output(data),
+        "provider_metadata": {
+            "provider": "azure_ai_foundry",
+            "agent": client.agent,
+            "model": data.get("model"),
+            "response_id": data.get("id"),
+            "status": data.get("status"),
+        },
+    }
+
+
+def chat(
+    *,
+    settings: Settings,
+    history: list[dict],
+    question: str | None = None,
+    message: str | None = None,
+    instructions: str = "",
+    prompt_key: str = "ask.navigator",
+    prompt_version: int = 1,
+    preferences: dict | None = None,
+    prompt_augmentations: list[dict] | None = None,
+    about_me: str = "",
+    memories: list[str] | None = None,
+    user_id: str | None = None,
+    trace_session_id: str | None = None,
+    trace_origin: str = "live",
+    correlation_id: str | None = None,
+) -> dict:
+    """One live Ask turn, including application citation and abstention handling."""
+    data, client, trace = _invoke_ask_prompt(
+        settings=settings,
+        history=history,
+        question=question,
+        message=message,
+        instructions=instructions,
+        prompt_key=prompt_key,
+        prompt_version=prompt_version,
+        preferences=preferences,
+        prompt_augmentations=prompt_augmentations,
+        about_me=about_me,
+        memories=memories,
+        user_id=user_id,
+        trace_session_id=trace_session_id,
+        trace_origin=trace_origin,
+        correlation_id=correlation_id,
+    )
     answer, citations = _extract_answer(data)
 
     # M03 — cap the agent's already-deduped, already-numbered citation list. Order and the

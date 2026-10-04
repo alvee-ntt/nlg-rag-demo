@@ -182,7 +182,7 @@ normal Python test suite.
    output shapes, and the placement of runtime data versioned and testable.
 
 2. Use a deliberately small template mechanism based on literal named placeholders, for
-   example `<<topic>>`, `<<card_count>>`, and `<<source_context>>`.
+   example `{{topic}}`, `{{card_count}}`, and `{{source_context}}`.
 
 3. Do not support loops, conditions, expressions, includes, executable code, or other
    general template-language behavior. Conditional behavior remains in the explicit

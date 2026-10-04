@@ -15,7 +15,7 @@ from .db import (
 )
 
 
-_PLACEHOLDER = re.compile(r"<<([a-z][a-z0-9_]*)>>")
+_PLACEHOLDER = re.compile(r"{{([a-z][a-z0-9_]*)}}")
 _logger = logging.getLogger(__name__)
 
 
@@ -31,7 +31,7 @@ def template_placeholders(template: str) -> set[str]:
     """Return placeholders after rejecting unmatched template delimiters."""
     placeholders = set(_PLACEHOLDER.findall(template))
     without_valid = _PLACEHOLDER.sub("", template)
-    if "<<" in without_valid or ">>" in without_valid:
+    if "{{" in without_valid or "}}" in without_valid:
         raise PromptTemplateError("Prompt template contains a malformed placeholder")
     return placeholders
 
@@ -75,12 +75,18 @@ def render_prompt_template(
     return _PLACEHOLDER.sub(lambda match: str(values[match.group(1)]), template)
 
 
-def _error_payload(exc: Exception) -> dict[str, str]:
-    return {
+def _error_payload(exc: Exception) -> dict[str, Any]:
+    error: dict[str, Any] = {
         "error_type": type(exc).__name__,
         "message": str(exc),
         "recorded_at": datetime.now(timezone.utc).isoformat(),
     }
+    response = getattr(exc, "response", None)
+    if response is not None:
+        error["http_status"] = getattr(response, "status_code", None)
+        error["http_reason"] = getattr(response, "reason", None)
+        error["response_body"] = getattr(response, "text", None)
+    return error
 
 
 class PromptInvocationRecorder:

@@ -77,40 +77,43 @@ def test_login_creates_a_unique_human_readable_trace_session(monkeypatch):
 
 
 def test_request_trace_writes_inputs_prompt_payload_and_response(monkeypatch):
-    created = []
-    updates = []
+    events = []
 
-    class Connection:
-        def __enter__(self):
-            return self
+    class Recorder:
+        invocation_id = "invocation-1"
 
-        def __exit__(self, *args):
-            return None
+        def __init__(self, **values):
+            events.append(("create", values))
 
-    monkeypatch.setattr(foundry, "connect", lambda settings: Connection())
-    monkeypatch.setattr(
-        foundry,
-        "create_foundry_request_trace",
-        lambda conn, **values: created.append(values),
-    )
-    monkeypatch.setattr(
-        foundry,
-        "update_foundry_request_trace",
-        lambda conn, request_id, **values: updates.append((request_id, values)),
-    )
+        def rendered(self, prompt):
+            events.append(("rendered", prompt))
+
+        def begin_attempt(self, **values):
+            events.append(("begin_attempt", values))
+            return 1
+
+        def complete_attempt(self, attempt_number, **values):
+            events.append(("complete_attempt", attempt_number, values))
+
+        def complete(self, **values):
+            events.append(("complete", values))
+
+        def fail(self, exc):
+            events.append(("fail", exc))
+
+    monkeypatch.setattr(foundry, "PromptInvocationRecorder", Recorder)
     trace = _RequestTrace(
         settings=object(),
         session_id="session-1",
+        recipe={
+            "ask.navigator": 1,
+            "ask.about_me": 1,
+            "ask.memories": 1,
+        },
         inputs={
-            "prompt_key": "ask.navigator",
-            "prompt_version": 1,
             "question": "How do caps work?",
             "history": [],
             "preferences": {"tone": "warm"},
-            "prompt_augmentations": [
-                {"key": "ask.about_me", "version": 1},
-                {"key": "ask.memories", "version": 1},
-            ],
             "about_me": "New agent",
             "memories": ["California market"],
         },
@@ -121,24 +124,38 @@ def test_request_trace_writes_inputs_prompt_payload_and_response(monkeypatch):
             {"type": "message", "role": "user", "content": "Final prompt"},
         ],
     }
-    response = {"id": "response-1", "output": [{"type": "message"}]}
+    response = {
+        "id": "response-1",
+        "model": "gpt-5",
+        "status": "completed",
+        "output": [{"type": "message", "content": [{"type": "output_text", "text": "Answer"}]}],
+    }
 
     trace.provider_request(payload)
-    trace.response(response)
+    attempt_number = trace.begin_attempt(
+        reason="primary",
+        provider="azure_ai_foundry",
+        requested_model="KnowledgeBase",
+        provider_request=payload,
+    )
+    trace.attempt_response(attempt_number, response)
+    trace.response(response, agent="KnowledgeBase")
 
-    assert created[0]["session_id"] == "session-1"
-    inputs = created[0]["inputs"]
-    assert inputs["question"] == "How do caps work?"
-    assert inputs["prompt_key"] == "ask.navigator"
-    assert inputs["prompt_version"] == 1
-    assert inputs["prompt_augmentations"][1]["key"] == "ask.memories"
-    assert updates[0][0] == created[0]["request_id"]
-    assert updates[0][1]["provider_request"] == payload
-    assert updates[0][1]["prompt"] == (
+    creation = events[0][1]
+    assert trace.request_id == "invocation-1"
+    assert creation["feature_key"] == "ask"
+    assert creation["trace_session_id"] == "session-1"
+    assert creation["prompt_recipe"]["ask.memories"] == 1
+    assert creation["runtime_inputs"]["question"] == "How do caps work?"
+    assert events[1][1] == (
         "===== MESSAGE 1: SYSTEM =====\nSystem instructions\n\n"
         "===== MESSAGE 2: USER =====\nFinal prompt\n"
     )
-    assert updates[1] == (created[0]["request_id"], {"response": response})
+    assert events[2][1]["provider_request"] == payload
+    assert events[3][1] == 1
+    assert events[3][2]["provider_response"] == response
+    assert events[4][1]["model_output"] == "Answer"
+    assert events[4][1]["provider_metadata"]["agent"] == "KnowledgeBase"
 
 
 def test_flatten_provider_request_includes_all_prompt_bearing_fields():
@@ -157,6 +174,47 @@ def test_flatten_provider_request_includes_all_prompt_bearing_fields():
     assert '"text": "Be concise"' in rendered
     assert "===== MESSAGE 2: USER =====\nQuestion" in rendered
     assert '===== STRUCTURED_INPUTS =====\n{\n  "audience": "new agent"\n}' in rendered
+
+
+def test_foundry_transport_retry_is_recorded_as_a_second_attempt(monkeypatch):
+    class Response:
+        def __init__(self, status_code, data=None):
+            self.status_code = status_code
+            self.reason = "throttled" if status_code == 429 else "ok"
+            self.headers = {}
+            self.text = "retry later" if status_code == 429 else ""
+            self._data = data
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._data
+
+    responses = iter([
+        Response(429),
+        Response(200, {"id": "response-1", "model": "gpt-5", "status": "completed"}),
+    ])
+    client = foundry.FoundryAgentClient.__new__(foundry.FoundryAgentClient)
+    client.agent = "KnowledgeBase"
+    client.url = "https://example.invalid/responses"
+    client.headers = {}
+    client.verify_ssl = True
+    client.session = SimpleNamespace(post=lambda *args, **kwargs: next(responses))
+    events = []
+    trace = SimpleNamespace(
+        begin_attempt=lambda **values: events.append(("begin", values)) or len(events),
+        attempt_error=lambda number, error: events.append(("error", number, error)),
+        attempt_response=lambda number, data: events.append(("response", number, data)),
+    )
+    monkeypatch.setattr(foundry.time, "sleep", lambda delay: None)
+
+    result = client.respond({"input": "hello"}, trace=trace)
+
+    begins = [event for event in events if event[0] == "begin"]
+    assert [event[1]["reason"] for event in begins] == ["primary", "transport_retry"]
+    assert any(event[0] == "error" for event in events)
+    assert result["id"] == "response-1"
 
 
 def test_get_selected_prompt_resolves_definition_and_version():
@@ -206,7 +264,7 @@ def test_chat_sends_resolved_instructions_as_system_input_message(monkeypatch):
         def __init__(self, settings):
             pass
 
-        def respond(self, payload):
+        def respond(self, payload, trace=None):
             sent.update(payload)
             return {"id": "response-1", "status": "completed", "output_text": "Answer"}
 
@@ -217,7 +275,7 @@ def test_chat_sends_resolved_instructions_as_system_input_message(monkeypatch):
     ))
     monkeypatch.setattr(foundry, "_RequestTrace", lambda **kwargs: SimpleNamespace(
         provider_request=lambda payload: None,
-        response=lambda data: None,
+        response=lambda data, **kwargs: None,
         error=lambda exc: None,
     ))
     settings = SimpleNamespace()

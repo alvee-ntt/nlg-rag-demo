@@ -240,15 +240,32 @@ CREATE TABLE IF NOT EXISTS prompt_provider_attempts (
 CREATE INDEX IF NOT EXISTS prompt_provider_attempts_started_idx
     ON prompt_provider_attempts(started_at DESC);
 
+-- Prompt replay history starts fresh on the provider-neutral invocation model. This
+-- one-time demo migration deliberately discards the earlier Foundry-specific test data;
+-- legacy request traces themselves remain untouched.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'prompt_test_runs'
+          AND column_name = 'source_trace_request_id'
+    ) THEN
+        DROP TABLE IF EXISTS prompt_test_cases;
+        DROP TABLE IF EXISTS prompt_test_runs;
+        DROP TABLE IF EXISTS prompt_test_configurations;
+    END IF;
+END $$;
+
 -- Prompt replay tests are immutable experiment records. A run identifies the saved
--- request being replayed; each case records one complete prompt-version combination
--- and its independent result. Test execution never changes selected prompt versions.
+-- invocation being replayed; each case records one complete prompt-version combination
+-- and its independent model output. Test execution never changes selected versions.
 CREATE TABLE IF NOT EXISTS prompt_test_configurations (
     configuration_id TEXT PRIMARY KEY,
     name TEXT NOT NULL CHECK (length(trim(name)) > 0),
     feature TEXT NOT NULL,
-    source_trace_request_id TEXT NOT NULL
-        REFERENCES foundry_request_traces(request_id) ON DELETE RESTRICT,
+    source_invocation_id TEXT NOT NULL
+        REFERENCES prompt_invocation_traces(invocation_id) ON DELETE RESTRICT,
     combinations JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -260,8 +277,8 @@ CREATE INDEX IF NOT EXISTS prompt_test_configurations_updated_idx
 CREATE TABLE IF NOT EXISTS prompt_test_runs (
     run_id TEXT PRIMARY KEY,
     feature TEXT NOT NULL,
-    source_trace_request_id TEXT NOT NULL
-        REFERENCES foundry_request_traces(request_id) ON DELETE RESTRICT,
+    source_invocation_id TEXT NOT NULL
+        REFERENCES prompt_invocation_traces(invocation_id) ON DELETE RESTRICT,
     status TEXT NOT NULL DEFAULT 'queued'
         CHECK (status IN ('queued', 'running', 'completed', 'failed')),
     case_count INTEGER NOT NULL CHECK (case_count > 0),
@@ -282,7 +299,8 @@ CREATE TABLE IF NOT EXISTS prompt_test_cases (
         CHECK (status IN ('queued', 'running', 'completed', 'failed')),
     result JSONB,
     error JSONB,
-    trace_request_id TEXT REFERENCES foundry_request_traces(request_id) ON DELETE SET NULL,
+    replay_invocation_id TEXT
+        REFERENCES prompt_invocation_traces(invocation_id) ON DELETE SET NULL,
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     UNIQUE (run_id, position)

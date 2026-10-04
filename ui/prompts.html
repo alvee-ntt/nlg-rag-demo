@@ -331,7 +331,7 @@
                 <div class="version-title" id="versionTitle"></div><span class="selected-badge" id="selectedBadge">In use</span>
                 <span class="toolbar-spacer"></span><button class="btn" id="selectVersion">Use this version</button><button class="icon-btn" id="copyPrompt" title="Copy prompt">${icons.copy}</button>
               </div>
-              <div class="prompt-body"><pre class="prompt-text" id="promptText"></pre><div class="placeholders" id="placeholders"></div><div class="detail-strip" id="detailStrip"></div><div class="notes" id="notes"><label>Change notes</label><p></p></div></div>
+              <div class="prompt-body"><pre class="prompt-text" id="promptText"></pre><div class="placeholders" id="placeholders"></div><div class="detail-strip" id="detailStrip"></div><div class="notes" id="contract"><label>Template contract</label><p></p></div><div class="notes" id="features"><label>Registered feature impact</label><p></p></div><div class="notes" id="notes"><label>Change notes</label><p></p></div></div>
             </article>
           </section>`;
         $("#promptKey").textContent = p.key;
@@ -369,13 +369,21 @@
         const notes = $("#notes"); notes.hidden = !v.change_notes; $("p", notes).textContent = v.change_notes || "";
         const holder = $("#placeholders"); holder.innerHTML = "";
         [...new Set(v.instructions.match(/{{\s*[A-Za-z0-9_.-]+\s*}}/g) || [])].forEach((token) => { const el = document.createElement("span"); el.className = "placeholder"; el.textContent = token; holder.appendChild(el); });
+        const contract = p.placeholder_contract;
+        $("#contract p").textContent = contract
+          ? `Required: ${contract.required.length ? contract.required.map(x => `{{${x}}}`).join(", ") : "none"}. Allowed: ${contract.allowed.length ? contract.allowed.map(x => `{{${x}}}`).join(", ") : "none"}.`
+          : "This component has not yet been added to the prompt feature registry.";
+        $("#features p").textContent = p.registered_features.length
+          ? p.registered_features.map(feature => `${feature.name} (${feature.key})`).join(", ")
+          : "No registered replay feature currently uses this component.";
         renderLibrary();
       }
 
       async function selectCurrentVersion() {
         const p = state.current, v = state.version;
         if (!p || !v || v.selected) return;
-        if (!confirm(`Use ${p.key} version ${v.version} for new application requests?`)) return;
+        const impact = p.registered_features.length ? `\n\nAffects: ${p.registered_features.map(f => f.name).join(", ")}` : "";
+        if (!confirm(`Use ${p.key} version ${v.version} for new application requests?${impact}`)) return;
         try {
           await api(`/v1/prompt-admin/prompts/${encodeURIComponent(p.key)}/selected-version`, { method: "POST", body: JSON.stringify({ version: v.version }) });
           toast(`Version ${v.version} is now in use`);
