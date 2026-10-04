@@ -6,6 +6,12 @@ import urllib3
 import requests
 
 from .config import Settings
+from .prompt_features import get_prompt_component
+from .prompt_runtime import (
+    PromptInvocationRecorder,
+    PromptTracePersistenceError,
+    render_prompt_template,
+)
 
 # Azure OpenAI throttles with HTTP 429 (and occasionally 5xx) when the embedding
 # deployment's per-minute token/request quota is exceeded. Retry those with backoff
@@ -35,25 +41,50 @@ class AzureOpenAIClient:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         self.verify_ssl = settings.azure_storage_verify_ssl
 
-    def post(self, path: str, payload: dict, timeout: tuple[int, int] = (10, 120)) -> dict:
+    def post(
+        self,
+        path: str,
+        payload: dict,
+        timeout: tuple[int, int] = (10, 120),
+        trace: "_AzureAttemptTrace | None" = None,
+    ) -> dict:
         url = f"{self.base_url}{path}"
         last_error: Exception | None = None
         for attempt in range(_MAX_RETRIES + 1):
-            response = self.session.post(
-                url,
-                headers=self.headers,
-                json=payload,
-                timeout=timeout,
-                verify=self.verify_ssl,
-            )
+            attempt_number = trace.begin_attempt(
+                reason="primary" if attempt == 0 else "transport_retry",
+                provider_request=payload,
+            ) if trace else None
+            try:
+                response = self.session.post(
+                    url,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=timeout,
+                    verify=self.verify_ssl,
+                )
+            except Exception as exc:
+                if trace and attempt_number is not None:
+                    trace.attempt_error(attempt_number, exc)
+                raise
             if response.status_code not in _RETRY_STATUS:
-                response.raise_for_status()
-                return response.json()
+                try:
+                    response.raise_for_status()
+                    data = response.json()
+                except Exception as exc:
+                    if trace and attempt_number is not None:
+                        trace.attempt_error(attempt_number, exc)
+                    raise
+                if trace and attempt_number is not None:
+                    trace.attempt_response(attempt_number, data)
+                return data
 
             # Throttled or transient server error: back off and retry.
             last_error = requests.HTTPError(
                 f"{response.status_code} {response.reason} for url: {url}", response=response
             )
+            if trace and attempt_number is not None:
+                trace.attempt_error(attempt_number, last_error)
             if attempt == _MAX_RETRIES:
                 break
             time.sleep(self._retry_delay(response, attempt))
@@ -105,8 +136,12 @@ def _generate(client: AzureOpenAIClient, settings: Settings, prompt: str) -> str
             "input": prompt,
         },
     )
+    return _response_text(data)
+
+
+def _response_text(data: dict) -> str:
     if "output_text" in data:
-        return data["output_text"]
+        return str(data["output_text"])
     output = data.get("output", [])
     parts: list[str] = []
     for item in output:
@@ -114,6 +149,91 @@ def _generate(client: AzureOpenAIClient, settings: Settings, prompt: str) -> str
             if content.get("type") in {"output_text", "text"} and content.get("text"):
                 parts.append(content["text"])
     return "\n".join(parts).strip()
+
+
+class _AzureAttemptTrace:
+    def __init__(self, recorder: PromptInvocationRecorder, requested_model: str) -> None:
+        self.recorder = recorder
+        self.requested_model = requested_model
+
+    def begin_attempt(self, *, reason: str, provider_request: dict) -> int:
+        return self.recorder.begin_attempt(
+            reason=reason,
+            provider="azure_openai",
+            requested_model=self.requested_model,
+            provider_request=provider_request,
+        )
+
+    def attempt_response(self, attempt_number: int, data: dict) -> None:
+        self.recorder.complete_attempt(
+            attempt_number,
+            provider_response=data,
+            actual_model_metadata={
+                key: data.get(key) for key in ("model", "id", "status") if data.get(key) is not None
+            },
+        )
+
+    def attempt_error(self, attempt_number: int, exc: Exception) -> None:
+        self.recorder.complete_attempt(attempt_number, error=exc)
+
+
+def _invoke_versioned_prompt(
+    client: AzureOpenAIClient,
+    settings: Settings,
+    *,
+    feature_key: str,
+    component_key: str,
+    prompt_version: int,
+    instructions: str,
+    inputs: dict,
+    trace_session_id: str | None = None,
+    origin: str = "live",
+    correlation_id: str | None = None,
+) -> dict:
+    recorder = PromptInvocationRecorder(
+        settings=settings,
+        feature_key=feature_key,
+        origin=origin,
+        prompt_recipe={component_key: prompt_version},
+        runtime_inputs=inputs,
+        trace_session_id=trace_session_id,
+        correlation_id=correlation_id,
+    )
+    try:
+        component = get_prompt_component(component_key)
+        if component is None:
+            raise ValueError(f"Unknown prompt component: {component_key}")
+        prompt = render_prompt_template(
+            instructions,
+            inputs,
+            required=component.required_placeholders,
+            allowed=component.allowed_placeholders,
+        )
+        recorder.rendered(prompt)
+        requested_model = settings.azure_openai_chat_deployment
+        payload = {"model": requested_model, "input": prompt}
+        data = client.post(
+            "/responses",
+            payload,
+            trace=_AzureAttemptTrace(recorder, requested_model),
+        )
+        model_output = _response_text(data)
+        provider_metadata = {
+            "provider": "azure_openai",
+            "model": data.get("model"),
+            "response_id": data.get("id"),
+            "status": data.get("status"),
+        }
+        recorder.complete(model_output=model_output, provider_metadata=provider_metadata)
+        return {
+            "invocation_id": recorder.invocation_id,
+            "model_output": model_output,
+            "provider_metadata": provider_metadata,
+        }
+    except Exception as exc:
+        setattr(exc, "prompt_invocation_id", recorder.invocation_id)
+        recorder.fail(exc)
+        raise
 
 
 def answer_with_context(client: AzureOpenAIClient, settings: Settings, question: str, contexts: list[dict]) -> str:
@@ -157,6 +277,10 @@ def classify_domain(
     settings: Settings,
     message: str,
     history: list[dict],
+    *,
+    instructions: str,
+    prompt_version: int,
+    trace_session_id: str | None = None,
 ) -> str:
     """Route a chat turn to IN_DOMAIN / OUT_OF_DOMAIN before it reaches the hosted
     Foundry agent, so the app declines clearly non-FlexLife requests instead of
@@ -165,20 +289,20 @@ def classify_domain(
     Fails open to IN_DOMAIN on any error or unparseable reply, so a classifier
     hiccup never blocks a legitimate FlexLife question.
     """
-    prompt = f"""You are a router for a FlexLife life-insurance sales-support assistant.
-Decide if the user's latest message is about FlexLife, its products/riders/
-pricing/eligibility/benefits/process, life insurance, or selling/servicing it.
-Greetings and conversational follow-ups that continue a FlexLife thread count as
-IN_DOMAIN. General knowledge, coding, other companies, creative writing, or
-anything unrelated is OUT_OF_DOMAIN.
-Reply with exactly one token: IN_DOMAIN or OUT_OF_DOMAIN.
-
-Conversation so far:
-{_history_text(history)}
-Latest message: {message}
-"""
     try:
-        raw = _generate(client, settings, prompt)
+        invocation = _invoke_versioned_prompt(
+            client,
+            settings,
+            feature_key="ask-relevance",
+            component_key="ask.relevance",
+            prompt_version=prompt_version,
+            instructions=instructions,
+            inputs={"history": _history_text(history), "message": message},
+            trace_session_id=trace_session_id,
+        )
+        raw = invocation["model_output"]
+    except PromptTracePersistenceError:
+        raise
     except Exception:  # noqa: BLE001 - a classifier hiccup must never block a real question
         return "IN_DOMAIN"
     return "OUT_OF_DOMAIN" if "OUT_OF_DOMAIN" in raw.upper() else "IN_DOMAIN"
@@ -241,6 +365,10 @@ def generate_support_email(
     history: list[dict],
     contexts: list[dict],
     reason: str,
+    *,
+    instructions: str,
+    prompt_version: int,
+    trace_session_id: str | None = None,
 ) -> dict:
     """Draft an NLG Support email from the conversation (M09). First person, as the agent.
 
@@ -252,29 +380,23 @@ def generate_support_email(
         "case_specific": "This needs an authoritative, case-specific decision from NLG.",
         "manual": "The agent chose to escalate this question to NLG Support.",
     }.get(reason, "The agent chose to escalate this question to NLG Support.")
-    prompt = f"""You are drafting a support email ON BEHALF OF a FlexLife sales agent, addressed to NLG Support.
-Write the body in the FIRST PERSON as the agent ("I ..."). Never describe the agent in the third person and never say you are an AI.
-
-Why they are escalating: {reason_note}
-
-Write a professional, concise email whose body has three clear parts:
-1. The specific question that needs answering.
-2. The relevant context the agent already established in the conversation (product, client details, what was and was not confirmed). Do not invent facts.
-3. A clear statement of exactly what clarification or assistance is being requested from NLG Support.
-Close with a sign-off line ending in "[Your name]". Do not promise guarantees or returns.
-
-Return ONLY a JSON object: {{"subject": "<concise topic line>", "body": "<the full email body>"}}
-
-Conversation so far:
-{_history_text(history)}
-
-The question that triggered this handoff:
-{question}
-
-What the app was able to find in the sources (reference only, to describe what could not be confirmed):
-{_context_text(contexts) or "(nothing relevant retrieved)"}
-"""
-    raw = _generate(client, settings, prompt)
+    invocation = _invoke_versioned_prompt(
+        client,
+        settings,
+        feature_key="ask-support-email",
+        component_key="ask.support_email",
+        prompt_version=prompt_version,
+        instructions=instructions,
+        inputs={
+            "history": _history_text(history),
+            "question": question,
+            "reason": reason,
+            "reason_note": reason_note,
+            "source_context": _context_text(contexts) or "(nothing relevant retrieved)",
+        },
+        trace_session_id=trace_session_id,
+    )
+    raw = invocation["model_output"]
     try:
         data = _parse_json_object(raw)
         subject = str(data.get("subject", "")).strip() or "FlexLife question for NLG Support"
@@ -282,6 +404,24 @@ What the app was able to find in the sources (reference only, to describe what c
     except Exception:  # noqa: BLE001 - a malformed JSON reply still has a usable body in it
         subject, body = "FlexLife question for NLG Support", raw.strip()
     return {"subject": subject, "body": body or "Please see my question above."}
+
+
+def replay_relevance_prompt(**values) -> dict:
+    values["origin"] = "replay"
+    return _invoke_versioned_prompt(
+        feature_key="ask-relevance",
+        component_key="ask.relevance",
+        **values,
+    )
+
+
+def replay_support_email_prompt(**values) -> dict:
+    values["origin"] = "replay"
+    return _invoke_versioned_prompt(
+        feature_key="ask-support-email",
+        component_key="ask.support_email",
+        **values,
+    )
 
 
 def factcheck_claim(client: AzureOpenAIClient, settings: Settings, claim: str, contexts: list[dict]) -> str:

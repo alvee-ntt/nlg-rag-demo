@@ -192,6 +192,8 @@ class FoundryStatusResponse(BaseModel):
 # the demo grows real user accounts.
 DEMO_ASK_USER_ID = "demo-user"
 ASK_NAVIGATOR_PROMPT_KEY = "ask.navigator"
+ASK_RELEVANCE_PROMPT_KEY = "ask.relevance"
+ASK_SUPPORT_EMAIL_PROMPT_KEY = "ask.support_email"
 
 
 class FactCheckRequest(BaseModel):
@@ -528,6 +530,8 @@ def chat_endpoint(payload: ChatRequest, request: Request) -> dict[str, Any]:
 def handoff_draft_endpoint(payload: HandoffDraftRequest, request: Request) -> dict[str, Any]:
     """Prepare (not send) a draft NLG Support email from the current conversation (M09)."""
     try:
+        with connect(request.app.state.settings) as conn:
+            prompt = get_selected_prompt(conn, ASK_SUPPORT_EMAIL_PROMPT_KEY)
         return draft_support_email(
             settings=request.app.state.settings,
             client=request.app.state.openai_client,
@@ -535,7 +539,15 @@ def handoff_draft_endpoint(payload: HandoffDraftRequest, request: Request) -> di
             history=[t.model_dump() for t in payload.history],
             reason=payload.reason,
             limit=payload.limit,
+            instructions=prompt["instructions"],
+            prompt_version=prompt["version"],
+            trace_session_id=(
+                request.app.state.auth.trace_session_id(request)
+                if request.app.state.auth else None
+            ),
         )
+    except PromptConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
 
@@ -590,6 +602,7 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
         with connect(settings) as conn:
             user_context = get_ask_user_context(conn, DEMO_ASK_USER_ID)
             prompt = get_selected_prompt(conn, ASK_NAVIGATOR_PROMPT_KEY)
+            relevance_prompt = get_selected_prompt(conn, ASK_RELEVANCE_PROMPT_KEY)
             prompt_augmentations = [
                 get_selected_prompt(conn, key)
                 for key in dict.fromkeys(payload.prompt_augmentation_keys)
@@ -608,6 +621,8 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
             memories=[memory["text"] for memory in user_context["memories"]],
             user_id=DEMO_ASK_USER_ID,
             trace_session_id=request.app.state.auth.trace_session_id(request),
+            relevance_instructions=relevance_prompt["instructions"],
+            relevance_prompt_version=relevance_prompt["version"],
         )
     except PromptConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

@@ -21,6 +21,11 @@ from psycopg.types.json import Jsonb
 
 from .db import connect
 from .foundry import foundry_configured, replay_ask_prompt
+from .embeddings import (
+    get_openai_client,
+    replay_relevance_prompt,
+    replay_support_email_prompt,
+)
 from .prompt_features import (
     features_using_component,
     get_prompt_component,
@@ -59,6 +64,18 @@ TEST_FEATURES: dict[str, dict[str, Any]] = {
         "description": "Replay an Ask request with different navigator and context prompt versions.",
         "primary": "ask.navigator",
         "augmentations": ["ask.about_me", "ask.memories"],
+    },
+    "ask-relevance": {
+        "name": "Ask relevance",
+        "description": "Replay only the domain-classification prompt for one Ask turn.",
+        "primary": "ask.relevance",
+        "augmentations": [],
+    },
+    "ask-support-email": {
+        "name": "Ask support email",
+        "description": "Replay only the support-email draft prompt with captured source context.",
+        "primary": "ask.support_email",
+        "augmentations": [],
     },
 }
 
@@ -607,6 +624,7 @@ def execute_test_run(settings: Any, run_id: str) -> None:
         assert source is not None
         inputs = source.get("runtime_inputs") or {}
         config = TEST_FEATURES[run["feature"]]
+        azure_client = get_openai_client(settings) if run["feature"] != "ask" else None
 
         for case in run["cases"]:
             case_id = case["case_id"]
@@ -630,23 +648,39 @@ def execute_test_run(settings: Any, run_id: str) -> None:
                     prompts[key] = dict(row)
                 conn.commit()
             try:
-                result = replay_ask_prompt(
-                    settings=settings,
-                    instructions=prompts[config["primary"]]["instructions"],
-                    prompt_key=config["primary"],
-                    prompt_version=versions[config["primary"]],
-                    question=str(inputs.get("question") or ""),
-                    history=inputs.get("history") or [],
-                    preferences=inputs.get("preferences") or {},
-                    prompt_augmentations=[
-                        prompts[key] for key in config["augmentations"] if key in versions
-                    ],
-                    about_me=str(inputs.get("about_me") or ""),
-                    memories=inputs.get("memories") or [],
-                    user_id=inputs.get("user_id"),
-                    trace_session_id=run_id,
-                    correlation_id=case_id,
-                )
+                if run["feature"] == "ask":
+                    result = replay_ask_prompt(
+                        settings=settings,
+                        instructions=prompts[config["primary"]]["instructions"],
+                        prompt_key=config["primary"],
+                        prompt_version=versions[config["primary"]],
+                        question=str(inputs.get("question") or ""),
+                        history=inputs.get("history") or [],
+                        preferences=inputs.get("preferences") or {},
+                        prompt_augmentations=[
+                            prompts[key] for key in config["augmentations"] if key in versions
+                        ],
+                        about_me=str(inputs.get("about_me") or ""),
+                        memories=inputs.get("memories") or [],
+                        user_id=inputs.get("user_id"),
+                        trace_session_id=run_id,
+                        correlation_id=case_id,
+                    )
+                else:
+                    replay = (
+                        replay_relevance_prompt
+                        if run["feature"] == "ask-relevance"
+                        else replay_support_email_prompt
+                    )
+                    result = replay(
+                        client=azure_client,
+                        settings=settings,
+                        prompt_version=versions[config["primary"]],
+                        instructions=prompts[config["primary"]]["instructions"],
+                        inputs=inputs,
+                        trace_session_id=run_id,
+                        correlation_id=case_id,
+                    )
                 replay_invocation_id = result.pop("invocation_id")
                 with connect(settings) as conn:
                     conn.execute(
@@ -811,8 +845,6 @@ def test_configuration_run(
     request: Request,
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
-    if not foundry_configured(request.app.state.settings):
-        raise HTTPException(status_code=503, detail="Foundry is not configured")
     try:
         with connect(request.app.state.settings) as conn:
             run = create_test_run_from_configuration(conn, configuration_id)
@@ -839,7 +871,7 @@ def test_run_create(
     request: Request,
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
-    if not foundry_configured(request.app.state.settings):
+    if payload.feature == "ask" and not foundry_configured(request.app.state.settings):
         raise HTTPException(status_code=503, detail="Foundry is not configured")
     try:
         with connect(request.app.state.settings) as conn:

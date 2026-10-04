@@ -29,33 +29,33 @@ from src.rag_layer import embeddings, service  # noqa: E402
 # --- classify_domain -------------------------------------------------------------
 
 def test_classify_domain_out_of_domain(monkeypatch):
-    monkeypatch.setattr(embeddings, "_generate", lambda *a, **k: "OUT_OF_DOMAIN")
-    assert embeddings.classify_domain(None, None, "write me a poem", []) == "OUT_OF_DOMAIN"
+    monkeypatch.setattr(embeddings, "_invoke_versioned_prompt", lambda *a, **k: {"model_output": "OUT_OF_DOMAIN"})
+    assert embeddings.classify_domain(None, None, "write me a poem", [], instructions="x", prompt_version=1) == "OUT_OF_DOMAIN"
 
 
 def test_classify_domain_in_domain(monkeypatch):
-    monkeypatch.setattr(embeddings, "_generate", lambda *a, **k: "IN_DOMAIN")
-    assert embeddings.classify_domain(None, None, "what is the FlexLife floor?", []) == "IN_DOMAIN"
+    monkeypatch.setattr(embeddings, "_invoke_versioned_prompt", lambda *a, **k: {"model_output": "IN_DOMAIN"})
+    assert embeddings.classify_domain(None, None, "what is the FlexLife floor?", [], instructions="x", prompt_version=1) == "IN_DOMAIN"
 
 
 def test_classify_domain_tolerates_extra_text(monkeypatch):
     # The token may arrive wrapped in prose or lower-cased; substring + upper() handles it.
-    monkeypatch.setattr(embeddings, "_generate", lambda *a, **k: "Verdict: out_of_domain.")
-    assert embeddings.classify_domain(None, None, "capital of France?", []) == "OUT_OF_DOMAIN"
+    monkeypatch.setattr(embeddings, "_invoke_versioned_prompt", lambda *a, **k: {"model_output": "Verdict: out_of_domain."})
+    assert embeddings.classify_domain(None, None, "capital of France?", [], instructions="x", prompt_version=1) == "OUT_OF_DOMAIN"
 
 
 def test_classify_domain_fails_open_on_exception(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("azure hiccup")
 
-    monkeypatch.setattr(embeddings, "_generate", boom)
+    monkeypatch.setattr(embeddings, "_invoke_versioned_prompt", boom)
     # A classifier error must never block a legitimate question -> default IN_DOMAIN.
-    assert embeddings.classify_domain(None, None, "FlexLife caps?", []) == "IN_DOMAIN"
+    assert embeddings.classify_domain(None, None, "FlexLife caps?", [], instructions="x", prompt_version=1) == "IN_DOMAIN"
 
 
 def test_classify_domain_fails_open_on_garbage(monkeypatch):
-    monkeypatch.setattr(embeddings, "_generate", lambda *a, **k: "¯\\_(ツ)_/¯")
-    assert embeddings.classify_domain(None, None, "FlexLife caps?", []) == "IN_DOMAIN"
+    monkeypatch.setattr(embeddings, "_invoke_versioned_prompt", lambda *a, **k: {"model_output": "¯\\_(ツ)_/¯"})
+    assert embeddings.classify_domain(None, None, "FlexLife caps?", [], instructions="x", prompt_version=1) == "IN_DOMAIN"
 
 
 # --- service.chat_foundry --------------------------------------------------------

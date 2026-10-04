@@ -23,41 +23,41 @@ from src.rag_layer import embeddings, service  # noqa: E402
 # --- generate_support_email ------------------------------------------------------
 
 def test_generate_support_email_parses_json(monkeypatch):
-    monkeypatch.setattr(embeddings, "_generate",
-                        lambda *a, **k: '{"subject": "Reinstatement", "body": "Hello NLG, I need..."}')
-    out = embeddings.generate_support_email(None, None, "q?", [], [], "manual")
+    monkeypatch.setattr(embeddings, "_invoke_versioned_prompt",
+                        lambda *a, **k: {"model_output": '{"subject": "Reinstatement", "body": "Hello NLG, I need..."}'})
+    out = embeddings.generate_support_email(None, None, "q?", [], [], "manual", instructions="x", prompt_version=1)
     assert out["subject"] == "Reinstatement"
     assert out["body"].startswith("Hello NLG")
 
 
 def test_generate_support_email_falls_back_on_bad_json(monkeypatch):
-    monkeypatch.setattr(embeddings, "_generate", lambda *a, **k: "not json, just prose")
-    out = embeddings.generate_support_email(None, None, "q?", [], [], "manual")
+    monkeypatch.setattr(embeddings, "_invoke_versioned_prompt", lambda *a, **k: {"model_output": "not json, just prose"})
+    out = embeddings.generate_support_email(None, None, "q?", [], [], "manual", instructions="x", prompt_version=1)
     assert out["body"] == "not json, just prose"
     assert out["subject"]  # a non-empty fallback subject
 
 
 def test_generate_support_email_reason_shapes_prompt(monkeypatch):
     seen = {}
-    monkeypatch.setattr(embeddings, "_generate",
-                        lambda client, settings, prompt: seen.update(prompt=prompt) or '{"subject":"s","body":"b"}')
+    monkeypatch.setattr(embeddings, "_invoke_versioned_prompt",
+                        lambda *args, **kwargs: seen.update(inputs=kwargs["inputs"]) or {"model_output": '{"subject":"s","body":"b"}'})
 
-    embeddings.generate_support_email(None, None, "q?", [], [], "case_specific")
-    assert "authoritative, case-specific decision" in seen["prompt"]
+    embeddings.generate_support_email(None, None, "q?", [], [], "case_specific", instructions="x", prompt_version=1)
+    assert "authoritative, case-specific decision" in seen["inputs"]["reason_note"]
 
-    embeddings.generate_support_email(None, None, "q?", [], [], "insufficient")
-    assert "could not find this in the Knowledge Foundation" in seen["prompt"]
+    embeddings.generate_support_email(None, None, "q?", [], [], "insufficient", instructions="x", prompt_version=1)
+    assert "could not find this in the Knowledge Foundation" in seen["inputs"]["reason_note"]
 
 
 def test_generate_support_email_prompt_includes_history(monkeypatch):
     seen = {}
-    monkeypatch.setattr(embeddings, "_generate",
-                        lambda client, settings, prompt: seen.update(prompt=prompt) or '{"subject":"s","body":"b"}')
+    monkeypatch.setattr(embeddings, "_invoke_versioned_prompt",
+                        lambda *args, **kwargs: seen.update(inputs=kwargs["inputs"]) or {"model_output": '{"subject":"s","body":"b"}'})
     history = [{"role": "user", "text": "Does FlexLife allow reinstatement?"}]
-    embeddings.generate_support_email(None, None, "back-dating?", history, [], "manual")
+    embeddings.generate_support_email(None, None, "back-dating?", history, [], "manual", instructions="x", prompt_version=1)
     # _history_text renders user turns as "Agent:" lines
-    assert "Agent: Does FlexLife allow reinstatement?" in seen["prompt"]
-    assert "back-dating?" in seen["prompt"]
+    assert "Agent: Does FlexLife allow reinstatement?" in seen["inputs"]["history"]
+    assert seen["inputs"]["question"] == "back-dating?"
 
 
 # --- draft_support_email ---------------------------------------------------------
@@ -77,7 +77,7 @@ def test_draft_support_email_shape_and_recipient(monkeypatch):
 # --- endpoint (offline; app.state set by hand, lifespan not run) ------------------
 
 @pytest.fixture()
-def client():
+def client(monkeypatch):
     from starlette.testclient import TestClient
     from src.rag_layer import server
 
@@ -85,6 +85,18 @@ def client():
     app.state.auth = None
     app.state.openai_client = object()
     app.state.settings = SimpleNamespace(nlg_support_email="flexlife-support@example.com")
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    monkeypatch.setattr(server, "connect", lambda settings: Connection())
+    monkeypatch.setattr(server, "get_selected_prompt", lambda conn, key: {
+        "key": key, "version": 1, "instructions": "Support template",
+    })
     return TestClient(app)
 
 

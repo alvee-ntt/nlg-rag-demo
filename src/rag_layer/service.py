@@ -180,6 +180,8 @@ def chat_foundry(
     memories: list[str] | None = None,
     user_id: str | None = None,
     trace_session_id: str | None = None,
+    relevance_instructions: str = "",
+    relevance_prompt_version: int = 1,
 ) -> dict[str, Any]:
     """Foundry chat with an in-repo out-of-domain guard (M02).
 
@@ -189,7 +191,15 @@ def chat_foundry(
     way the reply carries a ``domain`` flag so the UI and tests can tell an
     answered turn from a decline.
     """
-    if classify_domain(client, settings, message, history) == "OUT_OF_DOMAIN":
+    if classify_domain(
+        client,
+        settings,
+        message,
+        history,
+        instructions=relevance_instructions,
+        prompt_version=relevance_prompt_version,
+        trace_session_id=trace_session_id,
+    ) == "OUT_OF_DOMAIN":
         return {
             "answer": DOMAIN_DECLINE,
             "citations": [],
@@ -242,6 +252,9 @@ def draft_support_email(
     history: list[dict[str, Any]],
     reason: str,
     limit: int,
+    instructions: str = "",
+    prompt_version: int = 1,
+    trace_session_id: str | None = None,
 ) -> dict[str, Any]:
     """Prepare (not send) a draft NLG Support email from the conversation (M09).
 
@@ -249,7 +262,17 @@ def draft_support_email(
     not confirm; the email itself is a one-shot local completion. Nothing is sent.
     """
     contexts = retrieve_contexts(settings=settings, client=client, text=question, limit=limit)
-    draft = generate_support_email(client, settings, question, history, contexts, reason)
+    draft = generate_support_email(
+        client,
+        settings,
+        question,
+        history,
+        contexts,
+        reason,
+        instructions=instructions,
+        prompt_version=prompt_version,
+        trace_session_id=trace_session_id,
+    )
     return {
         "to": settings.nlg_support_email,
         "subject": draft["subject"],

@@ -75,6 +75,16 @@ _COMPONENTS: dict[str, PromptComponentDefinition] = {
         required_placeholders=frozenset({"memories"}),
         allowed_placeholders=frozenset({"memories"}),
     ),
+    "ask.relevance": PromptComponentDefinition(
+        key="ask.relevance",
+        required_placeholders=frozenset({"history", "message"}),
+        allowed_placeholders=frozenset({"history", "message"}),
+    ),
+    "ask.support_email": PromptComponentDefinition(
+        key="ask.support_email",
+        required_placeholders=frozenset({"history", "question", "reason_note", "source_context"}),
+        allowed_placeholders=frozenset({"history", "question", "reason_note", "source_context"}),
+    ),
 }
 
 _FEATURES: dict[str, PromptFeatureDefinition] = {
@@ -84,6 +94,18 @@ _FEATURES: dict[str, PromptFeatureDefinition] = {
         purpose="Answer a learner question through the hosted Foundry knowledge agent",
         required_components=("ask.navigator",),
         optional_components=("ask.about_me", "ask.memories"),
+    ),
+    "ask-relevance": PromptFeatureDefinition(
+        key="ask-relevance",
+        name="Ask relevance",
+        purpose="Classify one Ask turn without invoking the Ask agent",
+        required_components=("ask.relevance",),
+    ),
+    "ask-support-email": PromptFeatureDefinition(
+        key="ask-support-email",
+        name="Ask support email",
+        purpose="Draft model output for an NLG Support handoff without sending it",
+        required_components=("ask.support_email",),
     ),
 }
 

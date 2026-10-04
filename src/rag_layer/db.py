@@ -334,6 +334,16 @@ def init_db(settings: Settings) -> None:
                 "Add the user's saved memories to an Ask request",
                 "ask.memories.prompt.md",
             ),
+            (
+                "ask.relevance",
+                "Classify whether a user turn belongs in the FlexLife Ask experience",
+                "ask.relevance.prompt.md",
+            ),
+            (
+                "ask.support_email",
+                "Draft an email to NLG Support from a captured Ask conversation",
+                "ask.support_email.prompt.md",
+            ),
         ):
             _seed_prompt(
                 conn,
