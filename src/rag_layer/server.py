@@ -17,7 +17,7 @@ if _VENDOR_WAS_ON_PATH:
     sys.path.remove(_VENDOR_PATH)
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -63,6 +63,7 @@ from .learn import (
 )
 from . import profile
 from .prompt_admin import router as prompt_admin_router
+from .question_tracker import mark_support_safely, router as question_insights_router, track_question
 from .roleplay import OUTCOME_LABELS, Roleplay
 from .service import (
     answer,
@@ -163,6 +164,8 @@ class FoundryChatResponse(BaseModel):
     escalate_reason: str | None = None
     # Which engine produced this turn: "foundry", "local" (fallback), or "gate" (declined).
     source_engine: str | None = None
+    # Question-tracker row for this turn; the UI echoes it back on a support handoff.
+    question_id: int | None = None
 
 
 class HandoffDraftRequest(BaseModel):
@@ -173,6 +176,8 @@ class HandoffDraftRequest(BaseModel):
     # escalate. The UI maps M03's `escalate_reason: "insufficient_support"` -> "insufficient".
     reason: Literal["insufficient", "case_specific", "manual"] = "manual"
     limit: int = Field(default=6, ge=1, le=20)
+    # The tracked question this handoff is for, so Question Insights can count it.
+    question_id: int | None = None
 
 
 class HandoffDraftResponse(BaseModel):
@@ -180,6 +185,10 @@ class HandoffDraftResponse(BaseModel):
     subject: str
     body: str
     reason: str
+
+
+class HandoffSentRequest(BaseModel):
+    question_id: int
 
 
 class FoundryStatusResponse(BaseModel):
@@ -412,6 +421,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(prompt_admin_router)
+app.include_router(question_insights_router)
 
 
 def _cors_origins() -> list[str]:
@@ -528,7 +538,7 @@ def chat_endpoint(payload: ChatRequest, request: Request) -> dict[str, Any]:
 def handoff_draft_endpoint(payload: HandoffDraftRequest, request: Request) -> dict[str, Any]:
     """Prepare (not send) a draft NLG Support email from the current conversation (M09)."""
     try:
-        return draft_support_email(
+        draft = draft_support_email(
             settings=request.app.state.settings,
             client=request.app.state.openai_client,
             question=payload.question.strip(),
@@ -538,6 +548,15 @@ def handoff_draft_endpoint(payload: HandoffDraftRequest, request: Request) -> di
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+    mark_support_safely(request.app.state.settings, payload.question_id, "drafted")
+    return draft
+
+
+@app.post("/v1/handoff/sent", status_code=204)
+def handoff_sent_endpoint(payload: HandoffSentRequest, request: Request) -> Response:
+    """Record that the user pressed the (simulated) send on a support draft."""
+    mark_support_safely(request.app.state.settings, payload.question_id, "sent")
+    return Response(status_code=204)
 
 
 @app.get("/v1/foundry/status", response_model=FoundryStatusResponse)
@@ -577,7 +596,11 @@ def foundry_user_context_put(
 
 
 @app.post("/v1/foundry/chat", response_model=FoundryChatResponse)
-def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict[str, Any]:
+def foundry_chat_endpoint(
+    payload: FoundryChatRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
     """Proxy one chat turn to the hosted Azure AI Foundry agent (its own knowledge base
     does the grounding server-side). Lets the console test that agent next to local RAG."""
     settings = request.app.state.settings
@@ -594,14 +617,15 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
                 get_selected_prompt(conn, key)
                 for key in dict.fromkeys(payload.prompt_augmentation_keys)
             ]
-        return chat_foundry(
+        history = [t.model_dump() for t in payload.history]
+        result = chat_foundry(
             settings=settings,
             client=request.app.state.openai_client,
             message=payload.message.strip(),
             instructions=prompt["instructions"],
             prompt_key=prompt["key"],
             prompt_version=prompt["version"],
-            history=[t.model_dump() for t in payload.history],
+            history=history,
             preferences=payload.preferences.model_dump(),
             prompt_augmentations=prompt_augmentations,
             about_me=user_context["about_me"],
@@ -613,6 +637,16 @@ def foundry_chat_endpoint(payload: FoundryChatRequest, request: Request) -> dict
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
+    result["question_id"] = track_question(
+        settings=settings,
+        client=request.app.state.openai_client,
+        background_tasks=background_tasks,
+        user_id=DEMO_ASK_USER_ID,
+        question=payload.message.strip(),
+        history=history,
+        result=result,
+    )
+    return result
 
 
 @app.post("/v1/fact-check", response_model=FactCheckResponse)
@@ -732,6 +766,12 @@ def prompts_redirect() -> RedirectResponse:
 def traces_redirect() -> RedirectResponse:
     """Request-trace explorer within the Prompt Studio demo workspace."""
     return RedirectResponse(url="/app/traces.html")
+
+
+@app.get("/insights", include_in_schema=False)
+def insights_redirect() -> RedirectResponse:
+    """Question Insights: what agents ask Ask Navigator and whether it was answered."""
+    return RedirectResponse(url="/app/insights.html")
 
 
 @app.get("/tests", include_in_schema=False)

@@ -168,6 +168,23 @@ CREATE TABLE IF NOT EXISTS ask_user_memories (
 CREATE INDEX IF NOT EXISTS ask_user_memories_user_idx
     ON ask_user_memories(user_id, created_at, id);
 
+-- Question tracker: one row per Ask Navigator question, for the Question Insights
+-- admin page. category is NULL until the background classifier labels the row;
+-- support_status is NULL unless the question was routed to NLG Support (M09).
+CREATE TABLE IF NOT EXISTS ask_question_log (
+    id BIGSERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    category TEXT,
+    outcome TEXT NOT NULL CHECK (outcome IN ('answered', 'unanswered', 'out_of_domain')),
+    support_status TEXT CHECK (support_status IN ('drafted', 'sent')),
+    sources JSONB NOT NULL DEFAULT '[]'::jsonb,
+    trace_request_id TEXT,
+    asked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ask_question_log_asked_idx
+    ON ask_question_log(asked_at DESC);
+
 -- Foundry request diagnostics used to be emitted as a directory tree containing
 -- session.json, inputs.json, provider-request.json, prompt.txt, and response/error
 -- JSON files. Keep the same information as structured, durable rows instead.

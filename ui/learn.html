@@ -1085,7 +1085,7 @@
         always_sources: chatPrefs.alwaysSources,
       },
     }) });
-    return { text: d.answer || "The sources don't cover that.", citations: d.citations || [], sources: d.sources || [], domain: d.domain || "in_domain", escalate: !!d.escalate, escalate_reason: d.escalate_reason || null };
+    return { text: d.answer || "The sources don't cover that.", citations: d.citations || [], sources: d.sources || [], domain: d.domain || "in_domain", escalate: !!d.escalate, escalate_reason: d.escalate_reason || null, question_id: d.question_id || null };
   };
 
   function srcHtml(s, i) {
@@ -1257,7 +1257,7 @@
         const hasQ = log[i - 1] && log[i - 1].who === "user";
         const q = m.question || (hasQ ? log[i - 1].text : "");
         const reason = m.escalate ? (m.escalate_reason === "case_specific" ? "case_specific" : "insufficient") : "manual";
-        openHandoff({ question: q, log, reason });
+        openHandoff({ question: q, log, reason, questionId: m.question_id || null });
       }
     };
     const submit = () => { const q = input.value; input.value = ""; send(q); };
@@ -1283,19 +1283,19 @@
 
   // M09 — Handoff to NLG Support. Builds a draft support email from the chat log and
   // shows it in an editable sheet. The "send" is simulated: nothing leaves the browser.
-  async function openHandoff({ question, log, reason = "manual" }) {
+  async function openHandoff({ question, log, reason = "manual", questionId = null }) {
     const turns = (log || []).filter((m) => !m.pending && !m.failed);
     const history = turns.slice(-8).map((m) => ({ role: m.who === "user" ? "user" : "assistant", text: m.text }));
     if (!question) { const u = [...turns].reverse().find((m) => m.who === "user"); question = u ? u.text : ""; }
     if (!question) { toast("Ask a question first, then I can prepare the request."); return; }
     let draft;
     try {
-      draft = await api("/v1/handoff/draft", { method: "POST", body: JSON.stringify({ question, history, reason }) });
+      draft = await api("/v1/handoff/draft", { method: "POST", body: JSON.stringify({ question, history, reason, question_id: questionId }) });
     } catch (err) { toast(err.message || "Couldn't prepare the request"); return; }
-    showDraftSheet(draft);
+    showDraftSheet(draft, questionId);
   }
 
-  function showDraftSheet(draft) {
+  function showDraftSheet(draft, questionId = null) {
     const w = document.createElement("div"); w.className = "sheet-wrap center";
     w.innerHTML = `<div class="modal handoff-modal"><h3>Request to NLG Support</h3>
       <p class="handoff-note">Review and edit this draft before sending. This is a simulated handoff for the demo — nothing is actually sent.</p>
@@ -1311,6 +1311,8 @@
       // Simulated send: nothing leaves the browser. We read the (possibly edited) values
       // only to prove the edits are what a real send would carry.
       void w.querySelector("#hoTo").value; void w.querySelector("#hoSubj").value; void w.querySelector("#hoBody").value;
+      // The one thing that is recorded: Question Insights counts this question as routed to support.
+      if (questionId) api("/v1/handoff/sent", { method: "POST", body: JSON.stringify({ question_id: questionId }) }).catch(() => {});
       close();
       toast("Draft ready to send to NLG Support — simulated, nothing was sent.");
     };
