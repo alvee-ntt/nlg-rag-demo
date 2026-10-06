@@ -304,11 +304,11 @@ About 10 developer-days.
 
 ## 10. Open decisions
 
-1. **Build-table band.** The answer card shows everything the guide establishes for the
-   known facts: requirements, knockouts, APS triggers, the condition's qualifiers and
-   its "potential best offer" tier quoted with the guide's own caveat. The one item held
-   back is the height and weight band (p.32), because naming a class for an individual
-   reads like the rate-class prediction M07 forbids. Confirm whether to show it.
+1. **Height and weight (resolved).** Captured like any other fact, because the guide
+   uses it (p.32). The app explains that build is one of the things underwriting looks
+   at and what the guide's table is for; it does not name a rate class for the
+   individual. The same framing applies throughout: the app is collecting and explaining
+   the information underwriting needs, not saying whether someone will be approved.
 2. **Facts from outside the guide.** The `nlg_supplied` slot stays empty unless NLG
    provides more (for example XRAE's question set).
 3. **Privacy copy.** The sheet stays in the browser, but chat text is still written to
