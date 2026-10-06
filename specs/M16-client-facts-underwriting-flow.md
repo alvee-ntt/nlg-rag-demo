@@ -29,6 +29,10 @@ The model does not generate UI and does not decide what is material. One extract
 call per turn turns free text into rulebook keys; everything else (what is missing,
 which questions to ask, what the requirements grid says) is deterministic lookup.
 
+The Figma screens are inspiration, not a specification. The underwriting guide is the
+source of truth: the facts shown, the questions asked and their answer options all come
+from what the guide actually branches on, even where that differs from the screens.
+
 There is no "case mode". A case sheet only comes into existence once the agent mentions
 a client fact; until then the chat behaves exactly as it does today.
 
@@ -58,11 +62,12 @@ The checkmark tables on p.23 and pp.35–37 are dropped by text extraction (see
 `tests/underwriting_guide_questions.md`), so the indexed chunks do not carry them. The
 rulebook is built by reading the pages directly, which recovers them.
 
-What the guide does **not** contain:
+What the guide does **not** contain, and the app therefore does not ask or assert:
 
-- **A1C thresholds.** The only mention is "normal A1c" for gestational diabetes. The
-  mock's "Under 7 / 7 to 8 / 8 to 9" buckets and "A1C of 7 to 8 is usually reviewed
-  with a few extra questions" cannot be grounded in this document.
+- **A1C thresholds.** The only mention is "normal A1c" for gestational diabetes, so the
+  A1C question drawn on the F2.2 screen is not used. For diabetes the app asks what the
+  guide does branch on: type, diagnosis date, stability, complications, insulin,
+  tobacco.
 - **Condition depth in general.** One line per condition. For more, the guide sends
   agents to XRAE, NLG's quote tool, which it describes as having "impairment-based
   reflexive questions" (p.39).
@@ -299,12 +304,13 @@ About 10 developer-days.
 
 ## 10. Open decisions
 
-1. **Questions beyond the guide.** Ship guide-only questions (for diabetes: diagnosis
-   date, insulin, complications) and leave A1C empty until NLG supplies thresholds or
-   XRAE's question set. Consequence: F2.2 will not match the mock for diabetes.
-2. **How much the answer card says.** Recommended: show requirements and knockouts;
-   quote the "potential best offer" line verbatim with the disclaimer; hold back the
-   build-table band until NLG agrees, because it reads like a rate-class prediction.
+1. **Build-table band.** The answer card shows everything the guide establishes for the
+   known facts: requirements, knockouts, APS triggers, the condition's qualifiers and
+   its "potential best offer" tier quoted with the guide's own caveat. The one item held
+   back is the height and weight band (p.32), because naming a class for an individual
+   reads like the rate-class prediction M07 forbids. Confirm whether to show it.
+2. **Facts from outside the guide.** The `nlg_supplied` slot stays empty unless NLG
+   provides more (for example XRAE's question set).
 3. **Privacy copy.** The sheet stays in the browser, but chat text is still written to
    the Foundry request traces and `ask_question_log`. Either the "I don't save names,
    SSNs or banking details" copy changes or those two need redaction for client turns.
