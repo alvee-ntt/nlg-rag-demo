@@ -64,7 +64,7 @@ _SETTINGS = SimpleNamespace(foundry_agent_name="KnowledgeBase")
 
 
 def test_chat_foundry_declines_out_of_domain_without_calling_agent(monkeypatch):
-    monkeypatch.setattr(service, "classify_domain", lambda *a, **k: "OUT_OF_DOMAIN")
+    monkeypatch.setattr(service, "classify_turn", lambda *a, **k: {"domain": "OUT_OF_DOMAIN", "client": False, "replacement": False})
 
     called = {"foundry": False}
 
@@ -87,7 +87,7 @@ def test_chat_foundry_declines_out_of_domain_without_calling_agent(monkeypatch):
 
 
 def test_chat_foundry_proxies_in_domain_and_tags_domain(monkeypatch):
-    monkeypatch.setattr(service, "classify_domain", lambda *a, **k: "IN_DOMAIN")
+    monkeypatch.setattr(service, "classify_turn", lambda *a, **k: {"domain": "IN_DOMAIN", "client": False, "replacement": False})
 
     agent_reply = {
         "answer": "FlexLife has a 0% floor [1].",
@@ -110,7 +110,7 @@ def test_chat_foundry_proxies_in_domain_and_tags_domain(monkeypatch):
 
 
 def test_chat_foundry_forwards_message_and_history(monkeypatch):
-    monkeypatch.setattr(service, "classify_domain", lambda *a, **k: "IN_DOMAIN")
+    monkeypatch.setattr(service, "classify_turn", lambda *a, **k: {"domain": "IN_DOMAIN", "client": False, "replacement": False})
 
     seen = {}
 
@@ -156,7 +156,7 @@ def _boom(**kwargs):
 
 
 def test_chat_foundry_falls_back_to_local_when_foundry_errors(monkeypatch):
-    monkeypatch.setattr(service, "classify_domain", lambda *a, **k: "IN_DOMAIN")
+    monkeypatch.setattr(service, "classify_turn", lambda *a, **k: {"domain": "IN_DOMAIN", "client": False, "replacement": False})
     monkeypatch.setattr(service.foundry, "chat", _boom)
     monkeypatch.setattr(service, "chat", lambda **k: {
         "answer": "local grounded answer",
@@ -176,7 +176,7 @@ def test_chat_foundry_falls_back_to_local_when_foundry_errors(monkeypatch):
 
 
 def test_chat_foundry_fallback_maps_insufficient_support_to_escalate(monkeypatch):
-    monkeypatch.setattr(service, "classify_domain", lambda *a, **k: "IN_DOMAIN")
+    monkeypatch.setattr(service, "classify_turn", lambda *a, **k: {"domain": "IN_DOMAIN", "client": False, "replacement": False})
     monkeypatch.setattr(service.foundry, "chat", _boom)
     monkeypatch.setattr(service, "chat", lambda **k: {
         "answer": service.NLG_SUPPORT_MESSAGE, "follow_ups": [], "sources": [],

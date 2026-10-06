@@ -147,6 +147,13 @@ class FoundryChatRequest(BaseModel):
         default_factory=lambda: ["ask.about_me", "ask.memories"],
         max_length=2,
     )
+    # M16 - the client facts gathered so far in this thread. The browser holds the sheet
+    # and sends it back each turn; the server re-validates it against the rulebook.
+    case: dict[str, Any] | None = None
+    # Set by the UI: "answers" = the sheet was just filled in by hand (stepper or edit),
+    # "answer_now" = answer with what is known instead of asking for more, "show" = bring
+    # the facts card back without asking the agent anything.
+    case_action: Literal["answers", "answer_now", "show"] | None = None
 
 
 class FoundryCitation(BaseModel):
@@ -173,6 +180,15 @@ class FoundryChatResponse(BaseModel):
     source_engine: str | None = None
     # Question-tracker row for this turn; the UI echoes it back on a support handoff.
     question_id: int | None = None
+    # M16 - client-facts flow. All absent on ordinary turns.
+    underwriting: Literal["rule", "case"] | None = None
+    case: dict[str, Any] | None = None
+    case_card: dict[str, Any] | None = None
+    findings: list[dict[str, Any]] = []
+    fit_signals: list[dict[str, Any]] = []
+    actions: list[dict[str, str]] = []
+    disclaimer: str | None = None
+    banner: str | None = None
 
 
 class HandoffDraftRequest(BaseModel):
@@ -673,11 +689,16 @@ def foundry_chat_endpoint(
             memories=[memory["text"] for memory in user_context["memories"]],
             user_id=DEMO_ASK_USER_ID,
             trace_session_id=request.app.state.auth.trace_session_id(request),
+            case=payload.case,
+            case_action=payload.case_action,
         )
     except PromptConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"{type(exc).__name__}: {exc}") from exc
+    if result.get("status") == "guiding":
+        # A facts card is a request for information, not an answered question.
+        return result
     result["question_id"] = track_question(
         settings=settings,
         client=request.app.state.openai_client,

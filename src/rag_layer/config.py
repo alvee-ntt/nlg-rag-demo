@@ -17,6 +17,10 @@ NLG_SUPPORT_MESSAGE = (
     "Please reach out to NLG support so they can help."
 )
 
+# Shown under every answer about a specific client (M16/M07), so it reads as a reference
+# aid and never as an underwriting decision.
+UNDERWRITING_DISCLAIMER = "Guidance only. NLG underwriting decides."
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -79,6 +83,7 @@ class Settings:
     # NLG Support handoff (M09). Where a drafted support email is addressed. A
     # placeholder is fine for the POC — nothing is actually sent.
     nlg_support_email: str = "flexlife-support@nlgic.example.com"
+    underwriting_disclaimer: str = UNDERWRITING_DISCLAIMER
 
     @property
     def postgres_dsn(self) -> str:
@@ -154,5 +159,6 @@ def load_settings() -> Settings:
         login_password=os.getenv("LOGIN_PASSWORD", "flexlife"),
         cookie_secure=_bool("COOKIE_SECURE", False),
         nlg_support_email=os.getenv("NLG_SUPPORT_EMAIL", "flexlife-support@nlgic.example.com"),
+        underwriting_disclaimer=os.getenv("UNDERWRITING_DISCLAIMER", UNDERWRITING_DISCLAIMER),
     )
 

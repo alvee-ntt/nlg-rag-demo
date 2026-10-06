@@ -316,3 +316,37 @@ About 10 developer-days.
    SSNs or banking details" copy changes or those two need redaction for client turns.
 4. **Replacement content.** The guide has no state replacement rules; confirm which
    approved document the F2.4 answer should cite.
+
+## 11. As built
+
+Where the implementation differs from the plan above:
+
+- **Detection is folded into the domain check.** `embeddings.classify_turn` replaces
+  `classify_domain` as the one per-turn call and returns `domain`, `client` and
+  `replacement`. `extract_case_facts` runs only on turns flagged `client`, so ordinary
+  questions make no extra model call.
+- **`case_card` is sent on every client turn**, with `show: true` only when the card
+  should be drawn. It also carries `questions` (what is still missing) and
+  `edit_questions` (every editable fact), which drive the stepper and the edit sheet.
+- **`case_action` has three values:** `answers` (sheet filled in by hand, skip
+  extraction), `answer_now` (skip the questions), `show` (return the facts card with no
+  model call at all; used by "Back to the client").
+- **The guide lookup is not repeated.** `findings` and `fit_signals` are returned when
+  the sheet changed or the agent asked for them, not under every follow-up about the
+  same client. The agent still receives the facts as context on those turns.
+- **Agent abstention with findings is not an escalation.** The turn returns the
+  findings, cited to the guide, with `escalate: false`. The always-present "Ask NLG
+  Support" action is still there.
+- **Per-condition questions use a shared vocabulary** (`condition_facts`: when
+  diagnosed, type or severity, treatment, stable, complications, insulin). Which of them
+  each of the 93 conditions gets was assigned by keyword from the guide's wording and
+  needs a review pass.
+- **`aps_condition_ids` and `elite_preferred_excluded_ids`** map the guide's condition
+  list onto its "APS regardless of amount" and Elite/Preferred exclusion categories.
+  That mapping is an editorial reading of the guide and also needs review.
+- **Height and weight** is captured and explained; the build table is in the rulebook
+  but no class is named for the individual (§10.1).
+
+Tests: `tests/test_m16_rulebook.py` (rulebook integrity, grid lookups against the
+answer key, case-sheet logic, findings) and `tests/test_m16_client_facts.py` (classifier,
+extractor, every `chat_foundry` branch).

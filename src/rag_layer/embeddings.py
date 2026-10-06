@@ -152,18 +152,22 @@ def _history_text(history: list[dict]) -> str:
     return "\n".join(lines) or "(this is the first message)"
 
 
-def classify_domain(
+def classify_turn(
     client: AzureOpenAIClient,
     settings: Settings,
     message: str,
     history: list[dict],
-) -> str:
-    """Route a chat turn to IN_DOMAIN / OUT_OF_DOMAIN before it reaches the hosted
-    Foundry agent, so the app declines clearly non-FlexLife requests instead of
-    answering them like a general chatbot (M02).
+) -> dict:
+    """Route a chat turn before it reaches the hosted Foundry agent.
 
-    Fails open to IN_DOMAIN on any error or unparseable reply, so a classifier
-    hiccup never blocks a legitimate FlexLife question.
+    One call answers three things: whether the turn is about FlexLife at all (M02, so the
+    app declines clearly unrelated requests instead of answering like a general chatbot),
+    whether the agent is describing or asking about a specific client (M16, which is what
+    brings the client-facts flow in), and whether it involves replacing existing coverage.
+
+    Returns {"domain": "IN_DOMAIN" | "OUT_OF_DOMAIN", "client": bool, "replacement": bool}.
+    Fails open to a plain in-domain turn on any error or unparseable reply, so a
+    classifier hiccup never blocks a legitimate FlexLife question.
     """
     prompt = f"""You are a router for a FlexLife life-insurance sales-support assistant.
 Decide if the user's latest message is about FlexLife, its products/riders/
@@ -171,17 +175,113 @@ pricing/eligibility/benefits/process, life insurance, or selling/servicing it.
 Greetings and conversational follow-ups that continue a FlexLife thread count as
 IN_DOMAIN. General knowledge, coding, other companies, creative writing, or
 anything unrelated is OUT_OF_DOMAIN.
-Reply with exactly one token: IN_DOMAIN or OUT_OF_DOMAIN.
+
+Then decide two more things about the latest message:
+- CLIENT if it describes or asks about one specific client or applicant (their age,
+  health, medications, habits, coverage amount, finances, or what applies to "him",
+  "her", "my client"), including follow-ups about a client described earlier.
+  NO_CLIENT for general questions about rules, products or wording.
+- REPLACEMENT if it involves replacing, surrendering, cashing out or borrowing from an
+  existing life insurance policy or annuity to fund new coverage. Otherwise NO_REPLACEMENT.
+
+Reply with exactly three tokens separated by spaces, for example:
+IN_DOMAIN NO_CLIENT NO_REPLACEMENT
 
 Conversation so far:
 {_history_text(history)}
 Latest message: {message}
 """
     try:
-        raw = _generate(client, settings, prompt)
+        raw = _generate(client, settings, prompt).upper()
     except Exception:  # noqa: BLE001 - a classifier hiccup must never block a real question
-        return "IN_DOMAIN"
-    return "OUT_OF_DOMAIN" if "OUT_OF_DOMAIN" in raw.upper() else "IN_DOMAIN"
+        return {"domain": "IN_DOMAIN", "client": False, "replacement": False}
+    return {
+        "domain": "OUT_OF_DOMAIN" if "OUT_OF_DOMAIN" in raw else "IN_DOMAIN",
+        "client": "CLIENT" in raw.replace("NO_CLIENT", ""),
+        "replacement": "REPLACEMENT" in raw.replace("NO_REPLACEMENT", ""),
+    }
+
+
+def classify_domain(
+    client: AzureOpenAIClient,
+    settings: Settings,
+    message: str,
+    history: list[dict],
+) -> str:
+    """The M02 half of ``classify_turn``: IN_DOMAIN or OUT_OF_DOMAIN."""
+    return classify_turn(client, settings, message, history)["domain"]
+
+
+def extract_case_facts(
+    client: AzureOpenAIClient,
+    settings: Settings,
+    message: str,
+    history: list[dict],
+    case: dict,
+    rulebook: dict,
+) -> dict:
+    """Pull client facts out of the conversation as rulebook keys (M16).
+
+    Returns {"conditions": [condition ids], "facts": {key: raw value}}. The caller
+    validates everything against the rulebook, so this only has to be roughly right.
+    Fails open to nothing extracted, which leaves the turn on the ordinary chat path.
+    """
+    import json
+
+    def describe(key: str, spec: dict) -> str:
+        kind = spec["type"]
+        if kind == "choice":
+            shape = "one of " + ", ".join(f'"{o["value"]}" ({o["label"]})' for o in spec["options"])
+        elif kind == "yes_no":
+            shape = "true or false"
+        elif kind == "height_weight":
+            shape = '{"height_in": total inches, "weight_lb": pounds}'
+        elif kind == "amount":
+            shape = "a number of US dollars"
+        elif kind == "number":
+            shape = "a number"
+        else:
+            shape = "a short phrase"
+        return f"- {key}: {spec['label']}. Value: {shape}."
+
+    fact_lines = "\n".join(describe(key, spec) for key, spec in rulebook["facts"].items())
+    condition_fact_lines = "\n".join(describe(key, spec) for key, spec in rulebook["condition_facts"].items())
+    condition_lines = "\n".join(f"- {key}: {c['label']}" for key, c in rulebook["conditions"].items())
+    prompt = f"""You extract facts about a life-insurance client from a sales agent's chat, as JSON.
+
+Only record what the agent actually stated about the client. Never guess, never infer a
+value that was not said, and never record names, addresses, ID numbers or bank details.
+A medication alone does not establish a condition unless the agent names the condition.
+
+Client facts you may record (use these exact keys):
+{fact_lines}
+
+Medical conditions you may record, by id (pick only clear matches from this list):
+{condition_lines}
+
+For each condition the client has, you may also record these, keyed as
+"<condition id>.<key>" (for example "diabetes_type_2.when"):
+{condition_fact_lines}
+
+Already on file (do not repeat unless the agent corrects it):
+{json.dumps({"conditions": case.get("conditions", []), "facts": {k: v.get("value") for k, v in case.get("facts", {}).items() if "value" in v}})}
+
+Return ONLY a JSON object: {{"conditions": ["<id>", ...], "facts": {{"<key>": <value>, ...}}}}
+Use empty lists/objects when there is nothing to record.
+
+Conversation so far:
+{_history_text(history)}
+
+Agent's latest message:
+{message}
+"""
+    try:
+        data = _parse_json_object(_generate(client, settings, prompt))
+        conditions = [str(c) for c in data.get("conditions") or [] if isinstance(c, str)]
+        facts = data.get("facts") if isinstance(data.get("facts"), dict) else {}
+        return {"conditions": conditions, "facts": facts}
+    except Exception:  # noqa: BLE001 - fail open: the turn simply proceeds without new facts
+        return {"conditions": [], "facts": {}}
 
 
 def chat_with_context(

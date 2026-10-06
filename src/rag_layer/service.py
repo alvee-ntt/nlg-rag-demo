@@ -3,12 +3,13 @@
 import re
 from typing import Any
 
-from . import foundry
+from . import foundry, underwriting
 from .blob_store import get_blob_store
-from .config import NLG_SUPPORT_MESSAGE, Settings
+from .config import NLG_SUPPORT_MESSAGE, UNDERWRITING_DISCLAIMER, Settings
 from .db import (
     citation,
     connect,
+    find_document_id,
     get_document_blob_name,
     get_document_chunks,
     list_documents,
@@ -18,8 +19,9 @@ from .embeddings import (
     AzureOpenAIClient,
     answer_with_context,
     chat_with_context,
-    classify_domain,
+    classify_turn,
     embed_texts,
+    extract_case_facts,
     factcheck_claim,
     generate_support_email,
     parse_verdict,
@@ -165,6 +167,71 @@ def chat(
     }
 
 
+# M16 - fixed wording for the client-facts flow. Kept here, next to DOMAIN_DECLINE, so the
+# copy is in one place and never left to the model.
+PRIVACY_NOTE = "I only keep the facts listed here, in this chat. No names, SSNs or banking details."
+REPLACEMENT_BANNER = "Replacement rules can vary by state."
+REPLACEMENT_FALLBACK = (
+    "Using an existing policy to pay for new coverage is a replacement, so I won't give a "
+    "talk track for it. NLG needs to look at what the current policy pays, any surrender "
+    "charges and what the client would give up."
+)
+RULEBOOK_ANSWER = "Here is what the underwriting guide lays out for the facts so far."
+REPLACEMENT_GUARDRAIL = (
+    "This turn involves replacing, surrendering or borrowing from an existing policy to fund "
+    "new coverage. Do NOT give a sales talk track or recommend the replacement. Say plainly "
+    "that it is a replacement, and explain only what the approved material says must be "
+    "reviewed or submitted for a replacement. Keep it to a few sentences and do not restate "
+    "the client's underwriting requirements. NLG decides."
+)
+
+_guide_url_cache: dict[str, str | None] = {}
+
+
+def _guide_document_url(settings: Settings, rulebook: dict[str, Any]) -> str | None:
+    """Same-origin link that opens the underwriting guide (M10), or None if it is not
+    indexed. Looked up once per process; findings add ``#page=N`` to it."""
+    filename = rulebook["source"]["blob"].rsplit("/", 1)[-1]
+    if filename not in _guide_url_cache:
+        try:
+            with connect(settings) as conn:
+                document_id = find_document_id(conn, filename)
+            _guide_url_cache[filename] = f"/v1/documents/{document_id}/open" if document_id else None
+        except Exception:  # noqa: BLE001 - a missing link must never fail the turn
+            return None
+    return _guide_url_cache[filename]
+
+
+def _local_fallback(
+    *, settings: Settings, client: AzureOpenAIClient, message: str, history: list[dict[str, Any]]
+) -> dict[str, Any]:
+    # Foundry is unavailable or misconfigured (e.g. the hosted agent's OBO-auth
+    # setting rejects API-key calls). Rather than fail the turn, serve the local
+    # grounded pipeline — same corpus-grounded, cited, abstaining behavior — and map
+    # it into the Foundry response shape so the UI renders it unchanged.
+    local = chat(
+        settings=settings,
+        client=client,
+        message=message,
+        history=history,
+        limit=settings.rag_search_limit,
+    )
+    insufficient = bool(local.get("insufficient_support"))
+    return {
+        "answer": local["answer"],
+        "citations": [],
+        "sources": local.get("sources", []),
+        "agent": settings.foundry_agent_name,
+        "model": None,
+        "response_id": None,
+        "status": "local_fallback",
+        "domain": "in_domain",
+        "escalate": insufficient,
+        "escalate_reason": "insufficient_support" if insufficient else None,
+        "source_engine": "local",
+    }
+
+
 def chat_foundry(
     *,
     settings: Settings,
@@ -180,16 +247,30 @@ def chat_foundry(
     memories: list[str] | None = None,
     user_id: str | None = None,
     trace_session_id: str | None = None,
+    case: dict[str, Any] | None = None,
+    case_action: str | None = None,
 ) -> dict[str, Any]:
-    """Foundry chat with an in-repo out-of-domain guard (M02).
+    """Foundry chat with an in-repo out-of-domain guard (M02) and the client-facts flow (M16).
 
     The turn is classified first; a clearly non-FlexLife request is declined here
     without ever calling the hosted agent, so the app does not behave as a
     general-purpose chatbot. In-domain turns proxy to the agent unchanged. Either
     way the reply carries a ``domain`` flag so the UI and tests can tell an
     answered turn from a decline.
+
+    When the agent is describing a specific client, the facts are kept on a case sheet
+    (``case``, held by the browser). The first time facts the underwriting guide treats
+    as material are missing, the turn returns a facts card instead of calling the agent;
+    after that it answers with what it has, alongside what the guide lays out for those
+    facts. ``case_action`` is set by the UI: "answers" when the sheet was just filled in
+    by hand, "answer_now" to skip the questions, "show" to bring the facts card back.
     """
-    if classify_domain(client, settings, message, history) == "OUT_OF_DOMAIN":
+    if case_action == "show":
+        # A button in the UI, not something the agent typed: nothing to classify.
+        turn = {"domain": "IN_DOMAIN", "client": True, "replacement": False}
+    else:
+        turn = classify_turn(client, settings, message, history)
+    if turn["domain"] == "OUT_OF_DOMAIN":
         return {
             "answer": DOMAIN_DECLINE,
             "citations": [],
@@ -203,48 +284,140 @@ def chat_foundry(
             "escalate_reason": None,
             "source_engine": "gate",
         }
-    try:
-        result = foundry.chat(
-            settings=settings,
-            instructions=instructions,
-            prompt_key=prompt_key,
-            prompt_version=prompt_version,
-            message=message,
-            history=history,
-            preferences=preferences,
-            prompt_augmentations=prompt_augmentations,
-            about_me=about_me,
-            memories=memories,
-            user_id=user_id,
-            trace_session_id=trace_session_id,
+
+    rulebook = underwriting.load_rulebook()
+    sheet = underwriting.clean_case(case, rulebook)
+    on_file = (sheet["conditions"], sheet["facts"])
+    if turn["client"] and not case_action:
+        found = extract_case_facts(client, settings, message, history, sheet, rulebook)
+        sheet = underwriting.merge_extracted(
+            sheet, conditions=found["conditions"], facts=found["facts"], rulebook=rulebook
         )
-        return {**result, "sources": [], "domain": "in_domain", "source_engine": "foundry"}
-    except Exception:  # noqa: BLE001
-        # Foundry is unavailable or misconfigured (e.g. the hosted agent's OBO-auth
-        # setting rejects API-key calls). Rather than fail the turn, serve the local
-        # grounded pipeline — same corpus-grounded, cited, abstaining behavior — and map
-        # it into the Foundry response shape so the UI renders it unchanged.
-        local = chat(
-            settings=settings,
-            client=client,
-            message=message,
-            history=history,
-            limit=settings.rag_search_limit,
-        )
-        insufficient = bool(local.get("insufficient_support"))
+    about_client = underwriting.has_content(sheet) and bool(turn["client"] or case_action)
+    replacement = bool(turn["replacement"]) and not case_action
+    # The guide lookup is shown when the sheet changed or the agent asked for it, not
+    # repeated under every follow-up question about the same client.
+    sheet_changed = bool(case_action) or (sheet["conditions"], sheet["facts"]) != on_file
+
+    def ask_agent(case_context: str = "") -> dict[str, Any]:
+        try:
+            result = foundry.chat(
+                settings=settings,
+                instructions=instructions,
+                prompt_key=prompt_key,
+                prompt_version=prompt_version,
+                message=message,
+                history=history,
+                preferences=preferences,
+                prompt_augmentations=prompt_augmentations,
+                about_me=about_me,
+                memories=memories,
+                user_id=user_id,
+                trace_session_id=trace_session_id,
+                **({"case_context": case_context} if case_context else {}),
+            )
+            return {**result, "sources": [], "domain": "in_domain", "source_engine": "foundry"}
+        except Exception:  # noqa: BLE001
+            return _local_fallback(settings=settings, client=client, message=message, history=history)
+
+    if not about_client and not replacement:
+        return ask_agent()
+
+    def card(show: bool) -> dict[str, Any]:
+        missing = underwriting.missing_keys(sheet, rulebook)
         return {
-            "answer": local["answer"],
+            "show": show,
+            "rows": underwriting.card_rows(sheet, rulebook),
+            "questions": underwriting.questions_for(sheet, missing, rulebook),
+            "edit_questions": underwriting.questions_for(
+                sheet, underwriting.editable_keys(sheet, rulebook), rulebook
+            ),
+            "note": PRIVACY_NOTE,
+        }
+
+    guide_url = _guide_document_url(settings, rulebook)
+
+    def cited(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {**f, "url": f"{guide_url}#page={f['page']}" if guide_url else None} for f in findings
+        ]
+
+    disclaimer = getattr(settings, "underwriting_disclaimer", UNDERWRITING_DISCLAIMER)
+
+    if replacement:
+        out = ask_agent(REPLACEMENT_GUARDRAIL)
+        if out["escalate"]:
+            out["answer"] = REPLACEMENT_FALLBACK
+        rule = next(r for r in rulebook["rules"] if r["id"] == "replacement_question")
+        out.update(
+            escalate=True,
+            escalate_reason="case_specific",
+            underwriting="case",
+            banner=REPLACEMENT_BANNER,
+            disclaimer=disclaimer,
+            findings=cited([{"kind": "replacement", "text": rule["text"], "page": rule["page"]}]),
+            actions=[{"id": "handoff", "label": "Ask NLG support"}]
+            + ([{"id": "back", "label": "Back to the client"}] if underwriting.has_content(sheet) else []),
+        )
+        if underwriting.has_content(sheet):
+            out.update(case=sheet, case_card=card(False))
+        return out
+
+    # Facts the guide treats as material are missing and have not been asked for yet:
+    # show the facts card and stop. Skipping the agent here also keeps M03's
+    # zero-citation abstention from replacing the card with the NLG-support message.
+    if case_action == "show" or (not case_action and underwriting.unasked_missing(sheet, rulebook)):
+        sheet = underwriting.mark_asked(sheet, underwriting.missing_keys(sheet, rulebook))
+        has_missing = bool(underwriting.missing_keys(sheet, rulebook))
+        return {
+            "answer": underwriting.summary_text(sheet, rulebook),
             "citations": [],
-            "sources": local.get("sources", []),
+            "sources": [],
             "agent": settings.foundry_agent_name,
             "model": None,
             "response_id": None,
-            "status": "local_fallback",
+            "status": "guiding",
             "domain": "in_domain",
-            "escalate": insufficient,
-            "escalate_reason": "insufficient_support" if insufficient else None,
-            "source_engine": "local",
+            "escalate": False,
+            "escalate_reason": None,
+            "source_engine": "rulebook",
+            "underwriting": "rule",
+            "case": sheet,
+            "case_card": card(True),
+            "actions": ([{"id": "walk", "label": "Walk through questions with client"}] if has_missing else [])
+            + [
+                {"id": "edit", "label": "Edit facts"},
+                {"id": "answer_now", "label": "Answer with what I have" if has_missing else "What does the guide say?"},
+            ],
         }
+
+    findings = underwriting.findings_for(sheet, rulebook)
+    out = ask_agent(underwriting.context_text(sheet, findings, rulebook))
+    if out["escalate"] and findings and sheet_changed:
+        # The agent had nothing grounded to add, but the guide lookup did: show that
+        # rather than a bare referral, cited to the guide itself.
+        out.update(
+            answer=RULEBOOK_ANSWER,
+            escalate=False,
+            escalate_reason=None,
+            status="rulebook",
+            source_engine="rulebook",
+            citations=[{"n": 1, "title": rulebook["source"]["blob"].rsplit("/", 1)[-1], "url": guide_url}]
+            if guide_url
+            else [],
+        )
+    still_missing = underwriting.missing_keys(sheet, rulebook)
+    out.update(
+        underwriting="rule",
+        case=sheet,
+        case_card=card(False),
+        findings=cited(findings) if sheet_changed else [],
+        fit_signals=underwriting.fit_signals_for(sheet) if sheet_changed else [],
+        disclaimer=disclaimer,
+        actions=([{"id": "walk", "label": "Add the missing facts"}] if still_missing else [])
+        + [{"id": "edit", "label": "Edit facts"}],
+    )
+    return out
 
 
 def open_document(*, settings: Settings, document_id: int) -> tuple[str, bytes] | None:

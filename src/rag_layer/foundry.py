@@ -177,6 +177,7 @@ def _current_user_content(
     prompt_augmentations: list[dict] | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
+    case_context: str = "",
 ) -> str:
     """Serialize the separately sourced Ask inputs only at the provider boundary."""
     prefs = preferences or {}
@@ -229,6 +230,9 @@ def _current_user_content(
                 f"Prompt augmentation {key!r} is missing required placeholder {placeholder}"
             )
         lines.append(template.replace(placeholder, value).strip())
+    # M16 - client facts gathered so far, plus the "explain rules, never decide" guardrail.
+    if case_context.strip():
+        lines.append(case_context.strip())
 
     preamble = (
         "[Context for how to answer — do not repeat this back to me:\n"
@@ -351,6 +355,7 @@ def chat(
     prompt_augmentations: list[dict] | None = None,
     about_me: str = "",
     memories: list[str] | None = None,
+    case_context: str = "",
     user_id: str | None = None,
     trace_session_id: str | None = None,
 ) -> dict:
@@ -379,6 +384,7 @@ def chat(
             ],
             "about_me": about_me,
             "memories": memories or [],
+            "case_context": case_context,
             "user_id": user_id,
         },
     )
@@ -404,6 +410,7 @@ def chat(
                 prompt_augmentations=prompt_augmentations,
                 about_me=about_me,
                 memories=memories,
+                case_context=case_context,
             ),
         })
 

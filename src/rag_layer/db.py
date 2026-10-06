@@ -623,6 +623,16 @@ def get_document_blob_name(conn, document_id: int) -> str | None:
     return row["blob_name"] if row else None
 
 
+def find_document_id(conn, filename: str) -> int | None:
+    """The id of the ingested document with this file name, in any folder (M16 uses it to
+    link findings to the underwriting guide). The lowest id wins if there are several."""
+    row = conn.execute(
+        "SELECT id FROM rag_documents WHERE blob_name = %s OR blob_name LIKE %s ORDER BY id LIMIT 1",
+        (filename, f"%/{filename}"),
+    ).fetchone()
+    return int(row["id"]) if row else None
+
+
 def citation(row: dict[str, Any]) -> str:
     """Human-readable source locator: page and heading when the chunk carries them."""
     metadata = row.get("metadata") or {}

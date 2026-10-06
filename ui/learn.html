@@ -786,6 +786,52 @@
   .handoff-ta { resize: vertical; line-height: 1.5; min-height: 170px; }
   .handoff-cta { display: inline-block; margin: 8px 0 2px; background: var(--g700); color: #fff; border: 0; border-radius: 8px; padding: 8px 12px; font: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
   .handoff-cta:hover { background: var(--g800); }
+  /* M16 - client facts: the facts card, what-the-guide-says block, and the question sheet */
+  .uw-rows { margin: 10px 0 2px; }
+  .uw-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .uw-row:first-child { border-top: 0; }
+  .uw-row .k { color: var(--ink-2); flex: none; max-width: 55%; }
+  .uw-row .v { font-weight: 700; color: var(--ink); text-align: right; word-break: break-word; }
+  .uw-row .v.soft { font-weight: 600; color: var(--amber); }
+  .uw-pill { display: inline-block; background: var(--amber-bg); color: var(--amber); border-radius: 999px; padding: 2px 10px; font-size: 11.5px; font-weight: 700; }
+  .uw-note { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.4; }
+  .uw-banner { display: inline-flex; align-items: center; gap: 6px; background: var(--amber-bg); color: var(--amber); border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .uw-banner svg, .uw-disc svg { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .uw-sec { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+  .bubble.ai .uw-sec h4 { font-family: var(--sans); font-size: 13.5px; font-weight: 800; color: var(--g900); margin: 0 0 6px; }
+  .bubble.ai ul.uw-find { margin: 0; padding: 0; list-style: none; }
+  .bubble.ai ul.uw-find li { font-size: 13px; line-height: 1.45; margin: 0; padding: 6px 0; border-top: 1px dashed var(--line); }
+  .bubble.ai ul.uw-find li:first-child { border-top: 0; padding-top: 0; }
+  .uw-pg { display: inline-block; margin-left: 4px; background: var(--g050); border: 1px solid var(--g100); border-radius: 999px; padding: 0 7px; font-size: 10.5px; font-weight: 700; color: var(--g800); text-decoration: none; white-space: nowrap; }
+  a.uw-pg:hover { border-color: var(--g700); }
+  .uw-disc { display: flex; gap: 8px; align-items: flex-start; background: var(--amber-bg); color: var(--amber); border-radius: 8px; padding: 9px 11px; font-size: 12.5px; font-weight: 600; margin-top: 12px; line-height: 1.4; }
+  .chat-foot .chips .chip.primary { background: var(--g050); border-color: var(--g700); }
+  .sheet-wrap.uwq .sheet { height: 100%; max-height: none; border-radius: 0; display: flex; flex-direction: column; padding: 14px 18px 18px; background: var(--cream); }
+  .uwq-top { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--ink-2); }
+  .uwq-top button { background: none; border: 0; padding: 4px; cursor: pointer; color: var(--ink); display: inline-flex; }
+  .uwq-top svg { width: 18px; height: 18px; }
+  .uwq-bar { height: 3px; background: var(--line); border-radius: 3px; margin: 10px 0 18px; overflow: hidden; }
+  .uwq-bar i { display: block; height: 100%; background: var(--g700); border-radius: 3px; transition: width .2s ease; }
+  .uwq-body { flex: 1; min-height: 0; overflow: auto; scrollbar-width: none; }
+  .uwq-body::-webkit-scrollbar { display: none; }
+  .uwq-q { font-family: var(--serif); font-size: 22px; font-weight: 700; color: var(--g900); line-height: 1.25; margin: 0 0 6px; }
+  .uwq-sub { font-size: 12.5px; color: var(--ink-2); margin: 0 0 14px; line-height: 1.45; }
+  .uwq-opt { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: #fff; border: 1.5px solid var(--line); border-radius: 10px; padding: 13px 14px; margin-bottom: 8px; font: inherit; font-size: 14px; color: var(--ink); cursor: pointer; }
+  .uwq-opt::before { content: ""; flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #9aa39b; box-sizing: border-box; }
+  .uwq-opt.on { border-color: var(--g700); }
+  .uwq-opt.on::before { border-color: var(--g700); background: radial-gradient(circle, var(--g700) 0 45%, #fff 50%); }
+  .uwq-in { width: 100%; box-sizing: border-box; border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 13px; font: inherit; font-size: 14px; background: #fff; color: var(--ink); }
+  .uwq-in:focus { outline: 0; border-color: var(--g700); }
+  .uwq-hw { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 8px; }
+  .uwq-hw label, .uwq-f label { display: block; font-size: 11px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
+  .uwq-why { background: var(--g100); color: var(--g900); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; margin-top: 10px; }
+  .uwq-why .uw-pg { margin-left: 0; margin-top: 6px; background: #fff; }
+  .uwq-foot { padding-top: 12px; }
+  .uwq-skip { display: block; width: 100%; background: none; border: 0; padding: 12px 0 2px; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--g800); cursor: pointer; }
+  .uwq-f { margin-bottom: 14px; }
+  .uwq-f .uwq-in { padding: 10px 12px; }
+  .uwq-group { font-family: var(--serif); font-size: 15px; font-weight: 700; color: var(--g800); margin: 18px 0 10px; }
+  .uwq-group:first-child { margin-top: 0; }
   /* Thumbs-down feedback sheet */
   .modal.fb-modal { max-width: 460px; }
   .fb-note { font-size: 12.5px; color: var(--ink-2); margin: 0 0 12px; line-height: 1.45; }
@@ -1123,12 +1169,17 @@
   ];
   const NAV_INTRO = "Ask me anything about the products, riders, or approved wording. I only answer from the source library, and you can open the sources under any answer.";
   // One turn against the hosted Foundry agent; shared by the Ask page and the pull-up sheet.
-  const navSend = async (message, history) => {
+  // extra: { thread?, caseAction? }. The thread carries the client facts gathered so far
+  // (M16); they ride along on every turn and the server's updated sheet is kept.
+  const navSend = async (message, history, extra = {}) => {
+    const thread = extra.thread || null;
     // Preserve each input as a separate field until foundry.py constructs the provider request;
     // history stays clean, and the user's own bubble shows just what they typed.
     const d = await api("/v1/foundry/chat", { method: "POST", body: JSON.stringify({
       message,
       history,
+      case: (thread && thread.case) || null,
+      case_action: extra.caseAction || null,
       prompt_augmentation_keys: ["ask.about_me", "ask.memories"],
       preferences: {
         length: chatPrefs.length,
@@ -1138,8 +1189,130 @@
         always_sources: chatPrefs.alwaysSources,
       },
     }) });
-    return { text: d.answer || "The sources don't cover that.", citations: d.citations || [], sources: d.sources || [], domain: d.domain || "in_domain", escalate: !!d.escalate, escalate_reason: d.escalate_reason || null, question_id: d.question_id || null };
+    if (thread && d.case) thread.case = d.case;
+    return { text: d.answer || "The sources don't cover that.", citations: d.citations || [], sources: d.sources || [], domain: d.domain || "in_domain", escalate: !!d.escalate, escalate_reason: d.escalate_reason || null, question_id: d.question_id || null,
+      case_card: d.case_card || null, findings: d.findings || [], fit_signals: d.fit_signals || [], actions: d.actions || [], disclaimer: d.disclaimer || null, banner: d.banner || null };
   };
+
+  // --- M16: client facts ------------------------------------------------------
+  // The server decides what is known, what is missing and which questions to ask (from
+  // the underwriting guide); these only draw it and collect answers.
+  const UW_SHIELD = `<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M12 8v5"/><path d="M12 16.5v.01"/></svg>`;
+  const uwPage = (f) => f.page == null ? "" : (f.url
+    ? `<a class="uw-pg" href="${esc(f.url)}" target="_blank" rel="noopener" title="Open the underwriting guide">p.${esc(f.page)}</a>`
+    : `<span class="uw-pg">p.${esc(f.page)}</span>`);
+  function caseCardHtml(card) {
+    const rows = card.rows || [];
+    const n = rows.filter((r) => r.status === "missing").length;
+    const lead = n ? `Here's what I picked up. The underwriting guide treats ${n === 1 ? "one more fact" : n + " more facts"} as relevant here.` : "Here's what I picked up.";
+    return `<div>${esc(lead)}</div><div class="uw-rows">${rows.map((r) => `<div class="uw-row"><span class="k">${esc(r.label)}</span>${
+      r.status === "missing" ? `<span class="uw-pill">Missing</span>` : `<span class="v${r.status === "skipped" ? " soft" : ""}">${esc(r.value)}</span>`}</div>`).join("")}</div>${
+      card.note ? `<div class="uw-note">${esc(card.note)}</div>` : ""}`;
+  }
+  function caseAnswerHtml(m) {
+    const find = (m.findings || []).length ? `<div class="uw-sec"><h4>What the underwriting guide says</h4><ul class="uw-find">${m.findings.map((f) => `<li>${esc(f.text)} ${uwPage(f)}</li>`).join("")}</ul></div>` : "";
+    const fit = (m.fit_signals || []).length ? `<div class="uw-sec"><h4>Fit signals</h4><div class="uw-rows">${m.fit_signals.map((s) => `<div class="uw-row"><span class="k">${esc(s.label)}</span><span class="v${s.status === "known" ? "" : " soft"}">${esc(s.value)}</span></div>`).join("")}</div></div>` : "";
+    const disc = m.disclaimer ? `<div class="uw-disc">${UW_SHIELD}<span>${esc(m.disclaimer)}</span></div>` : "";
+    return find + fit + disc;
+  }
+  // What the agent's answer looks like in the chat bubble and on the facts card.
+  function uwDisplay(q, value) {
+    if (value === "unknown") return "Not sure yet";
+    if (q.type === "height_weight") return `${Math.floor(value.height_in / 12)}'${value.height_in % 12}", ${value.weight_lb} lb`;
+    if (q.type === "yes_no") return value ? "Yes" : "No";
+    const opt = (q.options || []).find((o) => o.value === value);
+    if (opt) return opt.label;
+    if (q.type === "amount") return "$" + Number(value).toLocaleString("en-US");
+    return String(value);
+  }
+  const uwOptions = (q) => q.type === "yes_no" ? [{ label: "Yes", value: true }, { label: "No", value: false }] : (q.options || []);
+  // One input for a question, used by both the stepper (big radios) and the edit form
+  // (compact selects). Returns { html, read(root) -> value | undefined }.
+  function uwField(q, current, compact) {
+    const opts = uwOptions(q), id = "uwf-" + q.key.replace(/[^a-z0-9]/gi, "-");
+    if (opts.length) {
+      const all = opts.some((o) => o.value === "unknown") ? opts : [...opts, { label: "Not sure yet", value: "unknown" }];
+      if (compact) return {
+        html: `<select class="uwq-in" id="${id}"><option value="">Not set</option>${all.map((o, i) => `<option value="${i}"${o.value === current ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select>`,
+        read: (root) => { const v = root.querySelector("#" + id).value; return v === "" ? undefined : all[Number(v)].value; },
+      };
+      return {
+        html: `<div id="${id}">${all.map((o, i) => `<button type="button" class="uwq-opt${o.value === current ? " on" : ""}" data-i="${i}">${esc(o.label)}</button>`).join("")}</div>`,
+        bind: (root) => root.querySelectorAll("#" + id + " .uwq-opt").forEach((b) => (b.onclick = () => { root.querySelectorAll("#" + id + " .uwq-opt").forEach((x) => x.classList.toggle("on", x === b)); })),
+        read: (root) => { const on = root.querySelector("#" + id + " .uwq-opt.on"); return on ? all[Number(on.dataset.i)].value : undefined; },
+      };
+    }
+    if (q.type === "height_weight") {
+      const h = current && current.height_in, w = current && current.weight_lb;
+      return {
+        html: `<div class="uwq-hw" id="${id}"><div><label>Feet</label><input class="uwq-in" data-p="ft" inputmode="numeric" maxlength="1" value="${h ? Math.floor(h / 12) : ""}"></div><div><label>Inches</label><input class="uwq-in" data-p="in" inputmode="numeric" maxlength="2" value="${h ? h % 12 : ""}"></div><div><label>Weight (lb)</label><input class="uwq-in" data-p="lb" inputmode="numeric" maxlength="3" value="${w || ""}"></div></div>`,
+        read: (root) => {
+          const g = (p) => root.querySelector(`#${id} [data-p="${p}"]`).value.trim();
+          const ft = Number(g("ft")), inch = Number(g("in") || 0), lb = Number(g("lb"));
+          if (!g("ft") || !g("lb") || !(ft >= 3 && ft <= 8) || !(inch >= 0 && inch < 12) || !(lb >= 50 && lb <= 700)) return undefined;
+          return { height_in: ft * 12 + inch, weight_lb: lb };
+        },
+      };
+    }
+    const numeric = q.type === "number" || q.type === "amount";
+    return {
+      html: `<input class="uwq-in" id="${id}" ${numeric ? 'inputmode="numeric"' : ""} maxlength="${numeric ? 12 : 120}" placeholder="${q.type === "amount" ? "$" : ""}" value="${current == null || current === "unknown" ? "" : esc(current)}">`,
+      read: (root) => {
+        const raw = root.querySelector("#" + id).value.trim(); if (!raw) return undefined;
+        if (!numeric) return raw;
+        const n = Number(raw.replace(/[$,\s]/g, "")); return Number.isFinite(n) && n >= 0 ? n : undefined;
+      },
+    };
+  }
+  const uwWhy = (q) => `<div class="uwq-why">${esc(q.why || "")}${q.guide_text ? `<div>The guide's best case assumes: ${esc(q.guide_text)}.</div>` : ""}${q.page != null ? `<div><span class="uw-pg">Underwriting guide, p.${esc(q.page)}</span></div>` : ""}</div>`;
+  // Walk the agent through the missing facts one at a time. onDone(answers) gets
+  // { key: {value, display} | {status: "skipped"} } for every question that was reached.
+  function openCaseStepper(questions, onDone) {
+    if (!questions.length) return;
+    const answers = {}; let i = 0;
+    const w = document.createElement("div"); w.className = "sheet-wrap uwq";
+    $("#phone").appendChild(w);
+    const finish = () => { w.remove(); if (Object.keys(answers).length) onDone(answers); };
+    const show = () => {
+      const q = questions[i], f = uwField(q, answers[q.key] && answers[q.key].value, false);
+      w.innerHTML = `<div class="sheet"><div class="uwq-top"><span>Question ${i + 1} of ${questions.length}</span><button id="uwqClose" title="Close">${I.x}</button></div>
+        <div class="uwq-bar"><i style="width:${Math.round(((i + 1) / questions.length) * 100)}%"></i></div>
+        <div class="uwq-body"><h3 class="uwq-q">${esc(q.prompt)}</h3><p class="uwq-sub">${esc(q.label)}</p>${f.html}${uwWhy(q)}</div>
+        <div class="uwq-foot"><button class="btn green" id="uwqNext">${i === questions.length - 1 ? "Done" : "Next"}</button><button class="uwq-skip" id="uwqSkip">Skip for now</button></div></div>`;
+      if (f.bind) f.bind(w);
+      const step = () => { if (++i >= questions.length) finish(); else show(); };
+      w.querySelector("#uwqClose").onclick = finish;
+      w.querySelector("#uwqSkip").onclick = () => { answers[q.key] = { status: "skipped" }; step(); };
+      w.querySelector("#uwqNext").onclick = () => {
+        const v = f.read(w);
+        if (v === undefined) return toast("Pick an answer, or skip this one");
+        answers[q.key] = { value: v, display: uwDisplay(q, v) }; step();
+      };
+    };
+    show();
+  }
+  // Every fact on one screen, for corrections. onDone(changes) gets only what changed;
+  // a cleared field comes back as null.
+  function openCaseEditor(questions, caseSheet, onDone) {
+    const facts = (caseSheet && caseSheet.facts) || {};
+    const fields = questions.map((q) => ({ q, f: uwField(q, facts[q.key] && facts[q.key].value, true) }));
+    const w = document.createElement("div"); w.className = "sheet-wrap uwq";
+    w.innerHTML = `<div class="sheet"><div class="uwq-top"><span>Client facts</span><button id="uwqClose" title="Close">${I.x}</button></div>
+      <div class="uwq-bar"></div><div class="uwq-body">${fields.map(({ q, f }) => `<div class="uwq-f"><label>${esc(q.label)}</label>${f.html}</div>`).join("")}
+      <div class="uw-note">Only these facts are kept, in this chat. No names, SSNs or banking details.</div></div>
+      <div class="uwq-foot"><button class="btn green" id="uwqSave">Save facts</button></div></div>`;
+    $("#phone").appendChild(w);
+    w.querySelector("#uwqClose").onclick = () => w.remove();
+    w.querySelector("#uwqSave").onclick = () => {
+      const changes = {};
+      for (const { q, f } of fields) {
+        const before = facts[q.key] && facts[q.key].value, v = f.read(w);
+        if (JSON.stringify(v) === JSON.stringify(before)) continue;
+        changes[q.key] = v === undefined ? null : { value: v, display: uwDisplay(q, v), label: q.label };
+      }
+      w.remove(); if (Object.keys(changes).length) onDone(changes);
+    };
+  }
 
   function srcHtml(s, i) {
     const pct = Math.round((s.similarity || 0) * 100);
@@ -1246,10 +1419,12 @@
         const rich = !m.pending && !m.intro && !m.failed;
         const isLast = log.length > 0 && i === arr.length - 1;
         const n = (m.sources || []).length + (m.citations || []).length;
-        const tools = m.pending || m.intro ? "" : m.failed
+        const card = rich && m.case_card && m.case_card.show ? m.case_card : null;
+        const tools = m.pending || m.intro || card ? "" : m.failed
           ? `<div class="thumbs"><span class="act" data-act="retry" style="margin-left:0">Try again</span></div>`
           : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${n ? `<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="menu">Options</span><span class="act" data-act="handoff">Ask NLG Support</span></div>`;
-        const body = rich ? mdToHtml(m.text) : esc(m.text);
+        const banner = rich && m.banner ? `<div class="uw-banner">${UW_SHIELD}<span>${esc(m.banner)}</span></div>` : "";
+        const body = card ? caseCardHtml(card) : rich ? banner + mdToHtml(m.text) + caseAnswerHtml(m) : esc(m.text);
         const handoffCta = (rich && m.escalate) ? `<div><button class="handoff-cta" data-act="handoff">${m.escalate_reason === "case_specific" ? "Ask NLG for a decision" : "Prepare a request to NLG Support"}</button></div>` : "";
         return `<div class="ai-row${m.failed ? " failed" : ""}" data-i="${i}"><span class="orb sm"></span><div><div class="bubble ai${rich ? " md" : ""}${m.pending ? " pending" : ""}">${body}</div>${tools}${handoffCta}<div class="nsrc-list${m.open ? " open" : ""}">${(m.citations || []).map(citeHtml).join("")}${(m.sources || []).map(srcHtml).join("")}</div></div></div>`;
       }).join("");
@@ -1257,18 +1432,52 @@
     };
     const paintChips = () => {
       const last = [...log].reverse().find((m) => m.who === "ai" && !m.pending);
+      // M16 - a client turn offers its own next steps in place of the suggestion chips.
+      if (last && !last.failed && last.actions && last.actions.length && log[log.length - 1] === last) {
+        chipsEl.innerHTML = last.actions.map((a, i) => `<span class="chip${i === 0 ? " primary" : ""}" data-act="${esc(a.id)}">${esc(a.label)}</span>`).join("");
+        chipsEl.querySelectorAll(".chip").forEach((c) => (c.onclick = () => caseAct(c.dataset.act, last)));
+        return;
+      }
       const items = last && last.follow_ups && last.follow_ups.length ? last.follow_ups.map((q) => [q, q]) : (opts.chips || NAV_CHIPS);
       chipsEl.innerHTML = items.map(([l, q]) => `<span class="chip" data-q="${esc(q)}">${esc(l)}</span>`).join("");
       chipsEl.querySelectorAll(".chip").forEach((c) => (c.onclick = () => send(c.dataset.q)));
     };
-    const send = async (q) => {
+    // The thread's client facts. Hand-entered answers are written straight onto the sheet
+    // and sent with caseAction "answers", so the server uses them as given.
+    const sheet = () => { const t = opts.thread; if (!t) return null; if (!t.case) t.case = { v: 1, conditions: [], facts: {}, asked: [] }; return t.case; };
+    const caseAct = (id, m) => {
+      const card = m.case_card || {};
+      if (id === "walk") openCaseStepper(card.questions || [], (answers) => {
+        const s = sheet(); if (!s) return;
+        const said = [];
+        (card.questions || []).forEach((q) => {
+          const a = answers[q.key]; if (!a) return;
+          s.facts[q.key] = a.status ? { status: a.status } : { value: a.value, display: a.display };
+          if (!a.status) said.push(uwOptions(q).length && q.type !== "yes_no" || q.type === "height_weight" ? a.display : `${q.label}: ${a.display}`);
+        });
+        send(said.join(" · ") || "Skipped those for now.", "answers");
+      });
+      else if (id === "edit") openCaseEditor(card.edit_questions || [], opts.thread && opts.thread.case, (changes) => {
+        const s = sheet(); if (!s) return;
+        const said = [];
+        Object.entries(changes).forEach(([key, c]) => {
+          if (c) { s.facts[key] = { value: c.value, display: c.display }; said.push(`${c.label}: ${c.display}`); }
+          else { delete s.facts[key]; }
+        });
+        send(said.length ? "Updated: " + said.join(" · ") : "Updated the client facts.", "answers");
+      });
+      else if (id === "answer_now") send("Answer with what I have.", "answer_now");
+      else if (id === "back") send("Back to the client.", "show");
+      else if (id === "handoff") applyAct("handoff", log.indexOf(m));
+    };
+    const send = async (q, caseAction) => {
       q = (q || "").trim(); if (!q) return;
       // Last few finished turns, oldest first, so follow-ups like "and the floor?" make sense.
       const history = log.filter((m) => !m.pending && !m.failed).slice(-8).map((m) => ({ role: m.who === "user" ? "user" : "assistant", text: m.text }));
       log.push({ who: "user", text: q });
       const pending = { who: "ai", text: opts.pendingText || "Checking the source library…", pending: true }; log.push(pending); paint();
-      try { Object.assign(pending, await opts.send(q, history)); }
-      catch (err) { pending.text = "I couldn't reach the source library just now."; pending.failed = true; pending.question = q; toast(err.message || "Navigator unavailable"); }
+      try { Object.assign(pending, await opts.send(q, history, { thread: opts.thread || null, caseAction: caseAction || null })); }
+      catch (err) { pending.text = "I couldn't reach the source library just now."; pending.failed = true; pending.question = q; pending.caseAction = caseAction || null; toast(err.message || "Navigator unavailable"); }
       pending.pending = false; paint(); paintChips(); save();
     };
     // Push a thumbs vote to the tracker so it shows in Question Insights. Best-effort:
@@ -1326,7 +1535,7 @@
       else if (a === "retry") {
         const hasQ = log[i - 1] && log[i - 1].who === "user";
         const q = m.question || (hasQ ? log[i - 1].text : "");
-        log.splice(hasQ ? i - 1 : i, hasQ ? 2 : 1); send(q);
+        log.splice(hasQ ? i - 1 : i, hasQ ? 2 : 1); send(q, m.caseAction);
       }
       else if (a === "shorter") send("Make that shorter.");
       else if (a === "more") send("Give me more detail on that.");
@@ -1379,7 +1588,7 @@
     micb.onclick = mic;
     paint(); paintChips();
     return { send, mic, paint, focus: () => setTimeout(() => input.focus(), 50),
-      clear: () => { log.length = 0; save(); paint(); paintChips(); },
+      clear: () => { log.length = 0; if (opts.thread) opts.thread.case = null; save(); paint(); paintChips(); },
       destroy: () => { if (rec) { try { rec.stop(); } catch {} } } };
   }
 
@@ -1429,7 +1638,7 @@
     w.innerHTML = `<div class="sheet"><div class="grab"></div><div class="sheet-h nav-h"><span class="orb sm"></span>Ask Navigator<span class="spacer"></span><button class="nav-ib" id="navClear" title="Clear chat">${I.trash}Clear</button><button class="nav-ib" id="navClose" title="Close">${I.x}</button></div><div class="chat" id="navChat"></div></div>`;
     $("#phone").appendChild(w);
     const t = activeThread();
-    const chat = mountChat(w.querySelector("#navChat"), { log: t.messages, persist: () => onTurnSaved(t), chips: [], intro: NAV_INTRO, send: navSend });
+    const chat = mountChat(w.querySelector("#navChat"), { log: t.messages, thread: t, persist: () => onTurnSaved(t), chips: [], intro: NAV_INTRO, send: navSend });
     const close = () => { chat.destroy(); w.remove(); };
     w.onclick = (e) => { if (e.target === w) close(); };
     w.querySelector("#navClose").onclick = close;
@@ -1456,7 +1665,7 @@
     view.innerHTML = header(`<button class="iconbtn" id="chatHist" title="Your chats">${I.menu}</button><button class="iconbtn" id="chatSet" title="Answer preferences">${I.gear}</button><button class="iconbtn" id="chatNew" title="New chat">${I.plus}</button><span class="spacer"></span><div class="chat-toggle"><span class="seg on"><span class="orb"></span><b>Chat</b></span><button class="seg book" id="modeLearn" title="Switch to Learn">${I.learn}</button></div>`, "light chat-hdr") +
       `<main class="chatpage fade"><div class="chat" id="chatMain"></div></main>`;
     const chat = mountChat($("#chatMain"), {
-      log: t.messages, chips: NAV_CHIPS, intro: NAV_INTRO, send: navSend,
+      log: t.messages, thread: t, chips: NAV_CHIPS, intro: NAV_INTRO, send: navSend,
       persist: () => { onTurnSaved(t); const el = $("#chatTitle"); if (el) el.textContent = t.title || titleFrom(t.messages); },
     });
     const rerender = () => { chat.destroy(); renderChat(); };

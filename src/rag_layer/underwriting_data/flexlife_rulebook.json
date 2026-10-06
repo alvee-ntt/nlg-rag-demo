@@ -1,0 +1,2565 @@
+{
+  "version": 1,
+  "source": {
+    "title": "Life Insurance Underwriting Guide",
+    "cat_no": "62797(0126)",
+    "blob": "From NLG/Underwriting Guide.pdf",
+    "product": "FlexLife",
+    "note": "Extracted from the guide for agent reference. Not an underwriting decision tool."
+  },
+  "facts": {
+    "age": {
+      "label": "Age",
+      "type": "number",
+      "group": "universal",
+      "priority": 1,
+      "ask": "How old is the client?",
+      "why": "Age and coverage amount together set which medical requirements apply.",
+      "page": 23,
+      "source": "guide"
+    },
+    "face_amount": {
+      "label": "Coverage amount",
+      "type": "amount",
+      "group": "universal",
+      "priority": 2,
+      "ask": "How much coverage are they looking at?",
+      "options": [
+        {
+          "label": "Up to $250K",
+          "value": 250000
+        },
+        {
+          "label": "$250K to $1M",
+          "value": 1000000
+        },
+        {
+          "label": "$1M to $2M",
+          "value": 2000000
+        },
+        {
+          "label": "$2M to $3M",
+          "value": 3000000
+        },
+        {
+          "label": "$3M to $5M",
+          "value": 5000000
+        },
+        {
+          "label": "$5M to $10M",
+          "value": 10000000
+        },
+        {
+          "label": "Over $10M",
+          "value": 10000001
+        }
+      ],
+      "why": "With age, this decides whether an exam, labs or physician records are needed.",
+      "page": 23,
+      "source": "guide"
+    },
+    "tobacco": {
+      "label": "Tobacco or nicotine",
+      "type": "choice",
+      "group": "universal",
+      "priority": 3,
+      "ask": "Any tobacco or nicotine use, and how long ago?",
+      "options": [
+        {
+          "label": "Never, or more than 5 years ago",
+          "value": "none_60m"
+        },
+        {
+          "label": "3 to 5 years ago",
+          "value": "36_60m"
+        },
+        {
+          "label": "1 to 3 years ago",
+          "value": "12_36m"
+        },
+        {
+          "label": "Within the last 12 months",
+          "value": "within_12m"
+        }
+      ],
+      "why": "The non-tobacco classes use 12, 36 and 60 month cut-offs. Includes vaping, pouches, patches and gum.",
+      "page": 27,
+      "source": "guide"
+    },
+    "build": {
+      "label": "Height and weight",
+      "type": "height_weight",
+      "group": "universal",
+      "priority": 4,
+      "ask": "What are the client's height and weight?",
+      "why": "Underwriting uses a height and weight table as one of its guidelines.",
+      "page": 32,
+      "source": "guide"
+    },
+    "physical_24m": {
+      "label": "Physical in the last 24 months",
+      "type": "yes_no",
+      "group": "universal",
+      "priority": 5,
+      "required_when": {
+        "fact": "age",
+        "gte": 60
+      },
+      "ask": "Has the client had routine health care and a physical exam in the last 24 months?",
+      "why": "For ages 60 and over, the application is declined without one.",
+      "page": 34,
+      "source": "guide"
+    },
+    "need": {
+      "label": "Need",
+      "type": "text",
+      "group": "context",
+      "ask": "What is the coverage for?",
+      "why": "Underwriting confirms the amount is reasonable for the purpose of the coverage.",
+      "page": 12,
+      "source": "guide"
+    },
+    "earned_income": {
+      "label": "Annual earned income",
+      "type": "amount",
+      "group": "context",
+      "ask": "What is the client's annual earned income?",
+      "why": "Income replacement is limited to a multiple of earned income that depends on age.",
+      "page": 13,
+      "source": "guide"
+    },
+    "budget": {
+      "label": "Budget",
+      "type": "amount",
+      "group": "context",
+      "ask": "What annual premium are they comfortable with?",
+      "why": "Households with modest income generally should not put more than 10% of income into premiums.",
+      "page": 14,
+      "source": "guide"
+    },
+    "existing_coverage": {
+      "label": "Existing coverage",
+      "type": "text",
+      "group": "context",
+      "ask": "Does the client have any life insurance in force, and will any of it be replaced?",
+      "why": "A required application question that is commonly missed, and existing NLG coverage changes the requirements.",
+      "page": 4,
+      "source": "guide"
+    },
+    "state": {
+      "label": "State",
+      "type": "text",
+      "group": "context",
+      "ask": "Which state will the application be signed in?",
+      "why": "New York has a $2M limit on some classes and needs the Confidential Financial Questionnaire on every application.",
+      "page": 12,
+      "source": "guide"
+    },
+    "medication": {
+      "label": "Medication",
+      "type": "text",
+      "group": "context",
+      "ask": "What prescription medications does the client take, now or in the past?",
+      "why": "The prescription database goes back seven years; the application asks for the name and purpose of each.",
+      "page": 9,
+      "source": "guide"
+    }
+  },
+  "condition_facts": {
+    "when": {
+      "label": "When diagnosed",
+      "type": "text",
+      "ask": "When was {condition} diagnosed, and when was the last episode, surgery or change?",
+      "why": "The guide's criteria for most conditions depend on time since diagnosis or recovery.",
+      "source": "guide"
+    },
+    "severity": {
+      "label": "Type or severity",
+      "type": "text",
+      "ask": "What type or how severe is the {condition}?",
+      "why": "The guide's best-case assumptions are usually for the mild or early-stage form.",
+      "source": "guide"
+    },
+    "treatment": {
+      "label": "Treatment",
+      "type": "text",
+      "ask": "How is the {condition} being treated?",
+      "why": "Current treatment, surgery or certain medications change how the guide treats the condition.",
+      "source": "guide"
+    },
+    "stable": {
+      "label": "Stable or controlled",
+      "type": "choice",
+      "options": [
+        {
+          "label": "Stable and well controlled",
+          "value": "yes"
+        },
+        {
+          "label": "Not fully controlled, or recent changes",
+          "value": "no"
+        },
+        {
+          "label": "Not sure yet",
+          "value": "unknown"
+        }
+      ],
+      "ask": "Is the {condition} stable and well controlled?",
+      "why": "The guide's best-case assumptions are for a condition that is optimally controlled.",
+      "source": "guide"
+    },
+    "complications": {
+      "label": "Complications",
+      "type": "choice",
+      "options": [
+        {
+          "label": "None",
+          "value": "none"
+        },
+        {
+          "label": "Yes",
+          "value": "yes"
+        },
+        {
+          "label": "Not sure yet",
+          "value": "unknown"
+        }
+      ],
+      "ask": "Any complications, lasting effects or related conditions from the {condition}?",
+      "why": "The guide's best-case assumptions are without complications or residual effects.",
+      "source": "guide"
+    },
+    "insulin": {
+      "label": "Uses insulin",
+      "type": "yes_no",
+      "ask": "Is the diabetes treated with insulin?",
+      "why": "Diabetes treated by insulin, or combined with tobacco use, may need physician records at any coverage amount.",
+      "page": 8,
+      "source": "guide"
+    }
+  },
+  "conditions": {
+    "alcohol_use_disorder_with_treatment": {
+      "label": "Alcohol use disorder with treatment",
+      "best_offer": "standard",
+      "guide_text": "total abstinence >5 years, no relapses",
+      "needs": [
+        "when",
+        "stable"
+      ],
+      "page": 35
+    },
+    "anemia_iron_deficient": {
+      "label": "Anemia, Iron-deficient",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, single episode, resolved, no splenectomy",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 35
+    },
+    "anemia_sickle_cell": {
+      "label": "Anemia, Sickle-cell",
+      "best_offer": "substandard",
+      "guide_text": "mild, adults only, last episode > 5 years ago, no organ damage",
+      "needs": [
+        "when",
+        "severity",
+        "complications"
+      ],
+      "page": 35
+    },
+    "aneurysm": {
+      "label": "Aneurysm",
+      "best_offer": "substandard",
+      "guide_text": "surgically corrected >6 months ago, resolved with no ongoing symptoms",
+      "needs": [
+        "when",
+        "stable",
+        "complications"
+      ],
+      "page": 35
+    },
+    "anxiety": {
+      "label": "Anxiety",
+      "best_offer": "better_than_standard",
+      "guide_text": "depends on age, mild & stable, not chronic, diagnosis ≥ 6 months ago",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 35
+    },
+    "aortic_insufficiency": {
+      "label": "Aortic insufficiency",
+      "best_offer": "standard",
+      "guide_text": "mild, age ≥ 50, no underlying disease, aortic valve only & no surgery",
+      "needs": [
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 35
+    },
+    "atrial_fibrillation": {
+      "label": "Atrial fibrillation",
+      "best_offer": "standard",
+      "guide_text": "mild, not chronic, no underlying disease, depends on frequency & cause",
+      "needs": [
+        "severity",
+        "complications"
+      ],
+      "page": 35
+    },
+    "asthma": {
+      "label": "Asthma",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, depends on age, treatment, number & frequency of attacks, no limitations",
+      "needs": [
+        "when",
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 35
+    },
+    "autism": {
+      "label": "Autism",
+      "best_offer": "standard",
+      "guide_text": "mild, age >8 years, no other mental health disorders or epilepsy",
+      "needs": [
+        "when",
+        "severity",
+        "complications"
+      ],
+      "page": 35
+    },
+    "back_disorder_pain": {
+      "label": "Back disorder/pain",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, non-disabling, depends on dosage/number of opioid medications",
+      "needs": [
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 35
+    },
+    "basal_cell_carcinoma": {
+      "label": "Basal cell carcinoma",
+      "best_offer": "better_than_standard",
+      "guide_text": "in-situ or ≤2 cm, no invasion or lymph node involvement",
+      "needs": [
+        "complications"
+      ],
+      "page": 35
+    },
+    "bronchiectasis": {
+      "label": "Bronchiectasis",
+      "best_offer": "substandard",
+      "guide_text": "mild to moderate without daily symptoms, no surgery or hospitalization",
+      "needs": [
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 35
+    },
+    "bronchitis_chronic": {
+      "label": "Bronchitis, chronic",
+      "best_offer": "substandard",
+      "guide_text": "mild, minimal dyspnea, no home oxygen treatment or hospitalization",
+      "needs": [
+        "severity",
+        "treatment"
+      ],
+      "page": 35
+    },
+    "bundle_branch_block": {
+      "label": "Bundle Branch Block",
+      "best_offer": "standard",
+      "guide_text": "mild, stable, normal cardiac evaluation. No complete Left BBB",
+      "needs": [
+        "severity",
+        "stable"
+      ],
+      "page": 35
+    },
+    "cancer": {
+      "label": "Cancer",
+      "best_offer": "standard",
+      "guide_text": "depends on pathology, in remission & not currently under treatment",
+      "needs": [
+        "treatment",
+        "stable"
+      ],
+      "page": 35
+    },
+    "cardiomyopathy": {
+      "label": "Cardiomyopathy",
+      "best_offer": "standard",
+      "guide_text": "depends on type and age, diagnosis >2 years ago, stable/resolved",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 35
+    },
+    "cerebral_palsy": {
+      "label": "Cerebral palsy",
+      "best_offer": "standard",
+      "guide_text": "age >6 years, no epilepsy or intellectual disability",
+      "needs": [
+        "when",
+        "complications"
+      ],
+      "page": 35
+    },
+    "copd": {
+      "label": "COPD",
+      "best_offer": "substandard",
+      "guide_text": "mild, minimal dyspnea, no home oxygen treatment or hospitalization",
+      "needs": [
+        "severity",
+        "treatment"
+      ],
+      "page": 35
+    },
+    "congestive_heart_failure": {
+      "label": "Congestive Heart Failure",
+      "best_offer": "substandard",
+      "guide_text": "mild, diastolic dysfunction only, resolved without symptoms",
+      "needs": [
+        "severity",
+        "stable",
+        "complications"
+      ],
+      "page": 35
+    },
+    "coronary_artery_disease": {
+      "label": "Coronary Artery Disease",
+      "best_offer": "substandard",
+      "guide_text": "mild, depends on treatment, age & artery(ies) involved",
+      "needs": [
+        "severity",
+        "treatment"
+      ],
+      "page": 35
+    },
+    "crohn_s_disease": {
+      "label": "Crohn’s disease",
+      "best_offer": "standard",
+      "guide_text": "mild, age >30, more than 5 years since diagnosis or last major attack",
+      "needs": [
+        "when",
+        "severity"
+      ],
+      "page": 35
+    },
+    "cystitis": {
+      "label": "Cystitis",
+      "best_offer": "better_than_standard",
+      "guide_text": "single episode, fully recovered, no ongoing symptoms or treatment",
+      "needs": [
+        "when",
+        "severity",
+        "treatment",
+        "stable",
+        "complications"
+      ],
+      "page": 35
+    },
+    "deep_vein_thrombosis": {
+      "label": "Deep Vein Thrombosis",
+      "best_offer": "standard",
+      "guide_text": "single episode, no underlying disease, recovered >2 months ago",
+      "needs": [
+        "when",
+        "severity",
+        "stable",
+        "complications"
+      ],
+      "page": 35
+    },
+    "depression": {
+      "label": "Depression",
+      "best_offer": "standard",
+      "guide_text": "mild, stable & well-controlled for >6 months, no relapses",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 35
+    },
+    "diabetes_type_1": {
+      "label": "Diabetes, Type 1",
+      "best_offer": "substandard",
+      "guide_text": "depends on age & disease duration, stable, no complications",
+      "needs": [
+        "when",
+        "stable",
+        "complications",
+        "insulin"
+      ],
+      "page": 35
+    },
+    "diabetes_type_2": {
+      "label": "Diabetes, Type 2",
+      "best_offer": "standard",
+      "guide_text": "depends on age & disease duration, stable, no complications",
+      "needs": [
+        "when",
+        "stable",
+        "complications",
+        "insulin"
+      ],
+      "page": 35
+    },
+    "diverticulitis": {
+      "label": "Diverticulitis",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, no planned surgery, no current treatment, resolved",
+      "needs": [
+        "severity",
+        "treatment",
+        "stable"
+      ],
+      "page": 36
+    },
+    "drug_abuse": {
+      "label": "Drug abuse",
+      "best_offer": "standard",
+      "guide_text": "depends on substance(s), total abstinence for >6 years, no relapses",
+      "needs": [
+        "when",
+        "stable"
+      ],
+      "page": 36
+    },
+    "emphysema": {
+      "label": "Emphysema",
+      "best_offer": "substandard",
+      "guide_text": "mild, minimal dyspnea, no home oxygen treatment or hospitalization",
+      "needs": [
+        "severity",
+        "treatment"
+      ],
+      "page": 36
+    },
+    "endocarditis": {
+      "label": "Endocarditis",
+      "best_offer": "substandard",
+      "guide_text": "diagnosis >1 year ago, normal heart valves and no heart damage",
+      "needs": [
+        "when",
+        "complications"
+      ],
+      "page": 36
+    },
+    "epilepsy": {
+      "label": "Epilepsy",
+      "best_offer": "standard",
+      "guide_text": "diagnosis >6 months ago, average ≤12 seizures per year, last seizure >1 year ago",
+      "needs": [
+        "when"
+      ],
+      "page": 36
+    },
+    "esophageal_stricture": {
+      "label": "Esophageal stricture",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, confirmed benign, no ongoing symptoms",
+      "needs": [
+        "severity",
+        "complications"
+      ],
+      "page": 36
+    },
+    "fibromyalgia": {
+      "label": "Fibromyalgia",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, no physical or psychiatric impairments, no narcotic medication use",
+      "needs": [
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 36
+    },
+    "gallbladder_disorder": {
+      "label": "Gallbladder disorder",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, recovery >3 months ago, no pending investigation or surgery",
+      "needs": [
+        "when",
+        "severity",
+        "treatment",
+        "stable"
+      ],
+      "page": 36
+    },
+    "gastric_bypass": {
+      "label": "Gastric bypass",
+      "best_offer": "standard",
+      "guide_text": "depends on procedure, >6 months since surgery, no re-hospitalizations",
+      "needs": [
+        "when",
+        "treatment"
+      ],
+      "page": 36
+    },
+    "gestational_diabetes_not_currently_pregnant": {
+      "label": "Gestational diabetes, not currently pregnant",
+      "best_offer": "standard",
+      "guide_text": "fully resolved, normal A1c",
+      "needs": [
+        "stable"
+      ],
+      "page": 36
+    },
+    "glaucoma": {
+      "label": "Glaucoma",
+      "best_offer": "better_than_standard",
+      "guide_text": "corrected, no recurrence",
+      "needs": [
+        "stable"
+      ],
+      "page": 36
+    },
+    "gout": {
+      "label": "Gout",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, only NSAID use, no ongoing therapy, no physical impairments",
+      "needs": [
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 36
+    },
+    "head_injury": {
+      "label": "Head injury",
+      "best_offer": "better_than_standard",
+      "guide_text": "single event, mild and >3 months since injury, fully recovered, no limitations",
+      "needs": [
+        "when",
+        "severity",
+        "stable",
+        "complications"
+      ],
+      "page": 36
+    },
+    "heart_valve_surgery": {
+      "label": "Heart valve surgery",
+      "best_offer": "substandard",
+      "guide_text": "single valve, depends on age, fully recovered, >1 year since surgery",
+      "needs": [
+        "when",
+        "severity",
+        "treatment",
+        "stable"
+      ],
+      "page": 36
+    },
+    "hepatitis_b_chronic": {
+      "label": "Hepatitis B, chronic",
+      "best_offer": "standard",
+      "guide_text": "fully resolved with normal liver enzymes and no liver damage",
+      "needs": [
+        "stable",
+        "complications"
+      ],
+      "page": 36
+    },
+    "hepatitis_c_chronic": {
+      "label": "Hepatitis C, chronic",
+      "best_offer": "standard",
+      "guide_text": "fully resolved with normal liver enzymes and no liver damage",
+      "needs": [
+        "stable",
+        "complications"
+      ],
+      "page": 36
+    },
+    "hypertension": {
+      "label": "Hypertension",
+      "best_offer": "better_than_standard",
+      "guide_text": "see guidelines on pages 28-31, no other ratable health conditions",
+      "needs": [],
+      "page": 36
+    },
+    "hiv": {
+      "label": "HIV",
+      "best_offer": "substandard",
+      "guide_text": "age >18, CD4 counts stable for 2 years, undetectable viral load, no hepatitis or AIDS",
+      "needs": [
+        "when",
+        "stable"
+      ],
+      "page": 36
+    },
+    "hodgkin_s_disease": {
+      "label": "Hodgkin’s disease",
+      "best_offer": "standard",
+      "guide_text": "stage 1A or better, remission for >3 years, no recurrence",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 36
+    },
+    "hyperthyroid": {
+      "label": "Hyperthyroid",
+      "best_offer": "better_than_standard",
+      "guide_text": "stable ≥ 1 year, not current anti-thyroid medication, no atrial fibrillation",
+      "needs": [
+        "when",
+        "treatment",
+        "stable"
+      ],
+      "page": 36
+    },
+    "hypothyroid": {
+      "label": "Hypothyroid",
+      "best_offer": "better_than_standard",
+      "guide_text": "stable with no ratable hypertension or cardiovascular abnormalities",
+      "needs": [
+        "stable"
+      ],
+      "page": 36
+    },
+    "intellectual_disability": {
+      "label": "Intellectual disability",
+      "best_offer": "standard",
+      "guide_text": "mild, age >8, no physical or psychiatric impairments or limitations",
+      "needs": [
+        "severity",
+        "complications"
+      ],
+      "page": 36
+    },
+    "joint_replacement": {
+      "label": "Joint replacement",
+      "best_offer": "better_than_standard",
+      "guide_text": "fully recovered, surgery >3 months ago, no chronic pain or disease",
+      "needs": [
+        "when",
+        "treatment",
+        "stable"
+      ],
+      "page": 36
+    },
+    "kidney_disease_chronic": {
+      "label": "Kidney disease, chronic",
+      "best_offer": "standard",
+      "guide_text": "mild, controlled blood pressure, normal kidney function",
+      "needs": [
+        "severity",
+        "stable"
+      ],
+      "page": 36
+    },
+    "leukemia": {
+      "label": "Leukemia",
+      "best_offer": "standard",
+      "guide_text": "varies based on age, type & severity, remission >5 years with no recurrence",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 36
+    },
+    "lupus_systemic": {
+      "label": "Lupus, systemic",
+      "best_offer": "standard",
+      "guide_text": "mild, fully resolved >6 months ago, no current symptoms or treatment",
+      "needs": [
+        "when",
+        "severity",
+        "treatment",
+        "stable",
+        "complications"
+      ],
+      "page": 36
+    },
+    "lupus_discoid": {
+      "label": "Lupus, discoid",
+      "best_offer": "standard",
+      "guide_text": "mild, skin only, no current treatment with corticosteroid medications",
+      "needs": [
+        "severity",
+        "treatment"
+      ],
+      "page": 36
+    },
+    "melanoma": {
+      "label": "Melanoma",
+      "best_offer": "standard",
+      "guide_text": "single occurrence, stage ≤1A, completely excised and resolved >2 years ago",
+      "needs": [
+        "when",
+        "severity",
+        "treatment",
+        "stable"
+      ],
+      "page": 36
+    },
+    "meningitis": {
+      "label": "Meningitis",
+      "best_offer": "better_than_standard",
+      "guide_text": "non-tuberculous variant only, fully recovered >6 months, no current symptoms",
+      "needs": [
+        "when",
+        "stable",
+        "complications"
+      ],
+      "page": 36
+    },
+    "migraine_headaches": {
+      "label": "Migraine headaches",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, stable with no underlying disease or adverse features",
+      "needs": [
+        "severity",
+        "stable",
+        "complications"
+      ],
+      "page": 36
+    },
+    "mitral_valve_prolapse": {
+      "label": "Mitral valve prolapse",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, no symptoms, no disease, regurgitation or stenosis, no surgery",
+      "needs": [
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 36
+    },
+    "mitral_regurgitation": {
+      "label": "Mitral regurgitation",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, stable, depends on age, no underlying disease, no surgery",
+      "needs": [
+        "severity",
+        "treatment",
+        "stable",
+        "complications"
+      ],
+      "page": 36
+    },
+    "multiple_sclerosis": {
+      "label": "Multiple Sclerosis",
+      "best_offer": "substandard",
+      "guide_text": "mild, stable, >1 year since diagnosis, non-disabling or progressive",
+      "needs": [
+        "when",
+        "severity",
+        "stable",
+        "complications"
+      ],
+      "page": 36
+    },
+    "muscular_dystrophy": {
+      "label": "Muscular dystrophy",
+      "best_offer": "better_than_standard",
+      "guide_text": "depends on type, mild with slow progression and minimal disability",
+      "needs": [
+        "severity",
+        "complications"
+      ],
+      "page": 36
+    },
+    "myositis": {
+      "label": "Myositis",
+      "best_offer": "standard",
+      "guide_text": "malignancy excluded, treatment completed >3 years ago, fully recovered",
+      "needs": [
+        "when",
+        "treatment",
+        "stable"
+      ],
+      "page": 36
+    },
+    "myasthenia_gravis": {
+      "label": "Myasthenia Gravis",
+      "best_offer": "substandard",
+      "guide_text": "mild, stable, diagnosis >1 year ago",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 37
+    },
+    "myocarditis": {
+      "label": "Myocarditis",
+      "best_offer": "standard",
+      "guide_text": "single episode, no underlying disease, resolution >3 months ago",
+      "needs": [
+        "when",
+        "severity",
+        "complications"
+      ],
+      "page": 37
+    },
+    "nephritis_acute": {
+      "label": "Nephritis, Acute",
+      "best_offer": "better_than_standard",
+      "guide_text": "fully recovered >1 year ago, no ongoing treatment or underlying disease",
+      "needs": [
+        "when",
+        "treatment",
+        "stable",
+        "complications"
+      ],
+      "page": 37
+    },
+    "non_hodgkin_s_lymphoma": {
+      "label": "Non-Hodgkin’s lymphoma",
+      "best_offer": "standard",
+      "guide_text": "stage 1 or better, remission for >3 years, no recurrence",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 37
+    },
+    "osteoarthritis": {
+      "label": "Osteoarthritis",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, non-disabling, no continuous opioid use for treatment",
+      "needs": [
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 37
+    },
+    "osteomyelitis": {
+      "label": "Osteomyelitis",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, <2 attacks total, last attack >1 year ago, no history of amputation",
+      "needs": [
+        "when",
+        "severity"
+      ],
+      "page": 37
+    },
+    "pacemaker": {
+      "label": "Pacemaker",
+      "best_offer": "substandard",
+      "guide_text": "depends on underlying condition, normal pulse, >3 months since implanted",
+      "needs": [
+        "when",
+        "treatment",
+        "complications"
+      ],
+      "page": 37
+    },
+    "pancreatitis_acute": {
+      "label": "Pancreatitis, Acute",
+      "best_offer": "better_than_standard",
+      "guide_text": "no alcohol concerns, fully recovered, last episode >3 years ago",
+      "needs": [
+        "when",
+        "stable"
+      ],
+      "page": 37
+    },
+    "paralysis": {
+      "label": "Paralysis",
+      "best_offer": "standard",
+      "guide_text": "no paraparesis, > 3 years since injury, fully adjusted, not wheelchair dependent",
+      "needs": [
+        "when"
+      ],
+      "page": 37
+    },
+    "parkinson_s_disease": {
+      "label": "Parkinson’s disease",
+      "best_offer": "standard",
+      "guide_text": "mild, age >59, tremor only in fingers, no treatment, no dementia",
+      "needs": [
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 37
+    },
+    "pericarditis": {
+      "label": "Pericarditis",
+      "best_offer": "better_than_standard",
+      "guide_text": "viral, single episode, recovered >3 months ago, normal EKG, no effusion",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 37
+    },
+    "peripheral_vascular_disease": {
+      "label": "Peripheral vascular disease",
+      "best_offer": "substandard",
+      "guide_text": "mild, no evidence of diabetes or cardiovascular disease",
+      "needs": [
+        "severity"
+      ],
+      "page": 37
+    },
+    "phlebitis": {
+      "label": "Phlebitis",
+      "best_offer": "better_than_standard",
+      "guide_text": "fully recovered, no ongoing treatment, pulmonary embolism or underlying disease",
+      "needs": [
+        "when",
+        "treatment",
+        "stable",
+        "complications"
+      ],
+      "page": 37
+    },
+    "polycystic_kidney_disease": {
+      "label": "Polycystic kidney disease",
+      "best_offer": "substandard",
+      "guide_text": "diagnosis age >20, normal renal function, no kidney damage",
+      "needs": [
+        "when",
+        "complications"
+      ],
+      "page": 37
+    },
+    "polycythemia_vera": {
+      "label": "Polycythemia vera",
+      "best_offer": "substandard",
+      "guide_text": "no thrombosis, no myelosuppressive drug use, diagnosis >2 years ago",
+      "needs": [
+        "when",
+        "treatment"
+      ],
+      "page": 37
+    },
+    "pregnancy_current": {
+      "label": "Pregnancy, current",
+      "best_offer": "better_than_standard",
+      "guide_text": "age <40, in good health, no past or current pregnancy complications",
+      "needs": [
+        "complications"
+      ],
+      "page": 37
+    },
+    "prostatic_hypertrophy_benign": {
+      "label": "Prostatic hypertrophy, Benign",
+      "best_offer": "better_than_standard",
+      "guide_text": "stable minor symptoms only, no obstruction or neoplasia",
+      "needs": [
+        "stable",
+        "complications"
+      ],
+      "page": 37
+    },
+    "prostatitis": {
+      "label": "Prostatitis",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild infrequent symptoms, no obstruction or neoplasia, normal urinalysis",
+      "needs": [
+        "severity",
+        "complications"
+      ],
+      "page": 37
+    },
+    "raynaud_s_syndrome": {
+      "label": "Raynaud’s syndrome",
+      "best_offer": "better_than_standard",
+      "guide_text": "no disability, no underlying disease, last complication >2 years ago",
+      "needs": [
+        "when",
+        "complications"
+      ],
+      "page": 37
+    },
+    "rheumatoid_arthritis": {
+      "label": "Rheumatoid arthritis",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, depends on age & duration, no disability, only NSAID use",
+      "needs": [
+        "when",
+        "severity",
+        "treatment",
+        "complications"
+      ],
+      "page": 37
+    },
+    "rheumatic_fever": {
+      "label": "Rheumatic fever",
+      "best_offer": "standard",
+      "guide_text": "single episode, no residual heart murmur, no heart damage",
+      "needs": [
+        "when",
+        "severity",
+        "complications"
+      ],
+      "page": 37
+    },
+    "sarcoidosis": {
+      "label": "Sarcoidosis",
+      "best_offer": "standard",
+      "guide_text": "depends on organs involved, mild/stage 1, >6 months since diagnosis",
+      "needs": [
+        "when",
+        "severity"
+      ],
+      "page": 37
+    },
+    "seizures": {
+      "label": "Seizures",
+      "best_offer": "standard",
+      "guide_text": "mild, stable, average of ≤12 seizures per year, last seizure >1 year ago",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 37
+    },
+    "sleep_apnea": {
+      "label": "Sleep Apnea",
+      "best_offer": "better_than_standard",
+      "guide_text": "mild, not central or mixed apnea, consistent CPAP use, no adverse factors",
+      "needs": [
+        "severity",
+        "treatment"
+      ],
+      "page": 37
+    },
+    "stroke_cva": {
+      "label": "Stroke (CVA)",
+      "best_offer": "substandard",
+      "guide_text": "varies based on type, fully recovered, single episode >6 months ago",
+      "needs": [
+        "when",
+        "severity",
+        "stable"
+      ],
+      "page": 37
+    },
+    "suicide_attempt": {
+      "label": "Suicide attempt",
+      "best_offer": "standard",
+      "guide_text": "single attempt >5 years ago, stable with no ongoing symptoms",
+      "needs": [
+        "when",
+        "severity",
+        "stable",
+        "complications"
+      ],
+      "page": 37
+    },
+    "thalassemia": {
+      "label": "Thalassemia",
+      "best_offer": "better_than_standard",
+      "guide_text": "trait only, stable hemoglobin ≤10.0 for 5 years, no anemia treatment",
+      "needs": [
+        "when",
+        "severity",
+        "treatment",
+        "stable"
+      ],
+      "page": 37
+    },
+    "transient_ischemic_attack_tia": {
+      "label": "Transient ischemic attack (TIA)",
+      "best_offer": "substandard",
+      "guide_text": "single episode, no underlying disease, fully recovered",
+      "needs": [
+        "when",
+        "severity",
+        "stable",
+        "complications"
+      ],
+      "page": 37
+    },
+    "tuberculosis": {
+      "label": "Tuberculosis",
+      "best_offer": "standard",
+      "guide_text": "treatment completed >3 months ago, normal lung function, negative HIV",
+      "needs": [
+        "when",
+        "treatment"
+      ],
+      "page": 37
+    },
+    "tumors_benign": {
+      "label": "Tumors, Benign",
+      "best_offer": "better_than_standard",
+      "guide_text": "varies by organ, no obstruction, underlying disease, or pending surgery",
+      "needs": [
+        "treatment",
+        "complications"
+      ],
+      "page": 37
+    },
+    "ulcerative_colitis": {
+      "label": "Ulcerative Colitis",
+      "best_offer": "standard",
+      "guide_text": "mild, diagnosis >6 months ago, no immunosuppressive medications",
+      "needs": [
+        "when",
+        "severity",
+        "treatment"
+      ],
+      "page": 37
+    },
+    "varicose_veins": {
+      "label": "Varicose veins",
+      "best_offer": "better_than_standard",
+      "guide_text": "located on leg, no underlying disease or thrombosis",
+      "needs": [
+        "complications"
+      ],
+      "page": 37
+    }
+  },
+  "conditions_note": {
+    "page": 35,
+    "text": "Potential rate classes shown assume the condition has been fully evaluated and is optimally controlled without complications or residual effects. Multiple conditions may alter the potential offer, and final rating will depend on the specific details of the individual case. The \"Potential Best Offer\" guidelines are provided as a courtesy for information purposes and should not be interpreted as tentative quotes or binding in any way."
+  },
+  "knockouts": {
+    "page": 34,
+    "intro": "Applications should not be written on individuals presenting the following impairments or issues. This list is not intended to be all inclusive.",
+    "medical": [
+      "Abdominal Aortic Aneurysm (present or surgery <6 months ago)",
+      "Alcohol Treatment within the past 2 years",
+      "ALS (Lou Gehrig's Disease)",
+      "Alzheimer's Disease",
+      "Cancer currently under treatment (any type)",
+      "Cirrhosis of the Liver",
+      "Cystic Fibrosis",
+      "Dementia",
+      "Down Syndrome",
+      "Epilepsy/seizures diagnosed within the past 6 months",
+      "Gastric bypass surgery within the past 6 months",
+      "Heart attack and/or heart surgery within the past 6 months",
+      "Heart disorder requiring a defibrillator",
+      "Heart valve surgery within the past 12 months",
+      "Illegal drug use within the past 3 years",
+      "Kidney failure requiring dialysis",
+      "Lung disease, severe or requiring oxygen",
+      "Mental health disorder requiring hospitalization within the past 12 months",
+      "Organ transplant, awaiting or recipient",
+      "Pregnancy with current or past complications",
+      "Suicide attempt within the past year; or more than one attempt within the past 2 years",
+      "Surgery, pending"
+    ],
+    "non_medical": [
+      "Bankruptcy, Chapter 7, that has not been discharged",
+      "Driver's License currently suspended or revoked",
+      "Single DUI within the past year",
+      "Multiple DUIs within the past 5 years",
+      "Criminal charges pending",
+      "Probation or parole, current or <12 months since ending",
+      "Multiple criminal convictions, <7 years since last conviction",
+      "Violent criminal activity",
+      "IOLI/SOLI - Investor or Stranger Owned Life Insurance",
+      "Disability (receiving SSDI or DI)"
+    ]
+  },
+  "requirements_grid": {
+    "page": 23,
+    "age_bands": [
+      {
+        "label": "0-17",
+        "max": 17
+      },
+      {
+        "label": "18-30",
+        "max": 30
+      },
+      {
+        "label": "31-40",
+        "max": 40
+      },
+      {
+        "label": "41-50",
+        "max": 50
+      },
+      {
+        "label": "51-60",
+        "max": 60
+      },
+      {
+        "label": "61-65",
+        "max": 65
+      },
+      {
+        "label": "66-69",
+        "max": 69
+      },
+      {
+        "label": "70+",
+        "max": null
+      }
+    ],
+    "codes": {
+      "A": "Application",
+      "D": "Application, exam, blood profile, urine",
+      "M": "Application, exam, blood profile, urine, mature assessment",
+      "ME": "Application, exam, blood profile, urine, EKG, mature assessment",
+      "APS": "Attending physician statement"
+    },
+    "rows": [
+      {
+        "up_to": 250000,
+        "label": "Through $250,000",
+        "cells": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "D",
+          "ME/APS"
+        ]
+      },
+      {
+        "up_to": 1000000,
+        "label": "$250,001 - $1,000,000",
+        "cells": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "D",
+          "D",
+          "ME/APS"
+        ]
+      },
+      {
+        "up_to": 2000000,
+        "label": "$1,000,001 - $2,000,000",
+        "cells": [
+          "A/APS",
+          "A",
+          "A",
+          "A",
+          "D",
+          "D/APS",
+          "D/APS",
+          "ME/APS"
+        ]
+      },
+      {
+        "up_to": 3000000,
+        "label": "$2,000,001 - $3,000,000",
+        "cells": [
+          "A/APS",
+          "A",
+          "A",
+          "A/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "ME/APS"
+        ]
+      },
+      {
+        "up_to": 5000000,
+        "label": "$3,000,001 - $5,000,000",
+        "cells": [
+          "A/APS",
+          "D",
+          "D",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "ME/APS"
+        ]
+      },
+      {
+        "up_to": 10000000,
+        "label": "$5,000,001 - $10,000,000",
+        "cells": [
+          "A/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "ME/APS"
+        ]
+      },
+      {
+        "up_to": null,
+        "label": "$10,000,001 & Up",
+        "cells": [
+          "A/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "D/APS",
+          "ME/APS"
+        ]
+      }
+    ],
+    "notes": [
+      "Issue age is age nearest birthday.",
+      "Existing coverage with National Life Group will impact the needed requirements.",
+      "Medical testing may be requested for cause (such as diabetes or morbid obesity)."
+    ]
+  },
+  "financial_requirements": {
+    "page": 23,
+    "codes": {
+      "EI": "E-Inspection",
+      "CFQ": "Confidential Financial Questionnaire (Form 1392)",
+      "IV": "Income Verification",
+      "TPV": "Third Party-Verified Financials"
+    },
+    "rules": [
+      {
+        "code": "EI",
+        "face_over": 2000000
+      },
+      {
+        "code": "CFQ",
+        "face_over": 5000000
+      },
+      {
+        "code": "IV",
+        "face_over": 10000000
+      },
+      {
+        "code": "TPV",
+        "face_over": 5000000,
+        "min_age": 70
+      },
+      {
+        "code": "TPV",
+        "face_over": 10000000,
+        "min_age": 18
+      },
+      {
+        "code": "CFQ",
+        "face_over": 0,
+        "state": "NY"
+      }
+    ]
+  },
+  "routine_aps": {
+    "page": 8,
+    "by_age": [
+      {
+        "max_age": 17,
+        "face_over": 1000000
+      },
+      {
+        "max_age": 40,
+        "face_over": 5000000
+      },
+      {
+        "max_age": 60,
+        "face_over": 2000000
+      },
+      {
+        "max_age": 69,
+        "face_over": 1000000
+      },
+      {
+        "max_age": null,
+        "face_over": 0
+      }
+    ],
+    "conditions_any_amount": [
+      "Alcohol/Drug Abuse and/or treatment",
+      "Cardiovascular or Coronary Artery Disease",
+      "Cancer",
+      "Diabetes treated by insulin/with tobacco use",
+      "Emphysema, COPD, Chronic Bronchitis",
+      "Heart Murmur",
+      "Hepatitis",
+      "Kidney/Renal Disease",
+      "Lupus",
+      "Mental Disorders requiring multiple or psychotropic medications",
+      "Multiple Sclerosis",
+      "Peripheral Vascular Disease",
+      "Stroke, TIA, CVA, Cerebral Hemorrhage",
+      "Ulcerative Colitis/Crohn's Disease",
+      "Opioid/Narcotic/Chronic Pain Medication",
+      "History of incarceration",
+      "PTSD",
+      "Multiple chronic medical conditions",
+      "Emergency room visit or hospitalization in the last 6 months"
+    ]
+  },
+  "aps_condition_ids": {
+    "alcohol_use_disorder_with_treatment": "Alcohol/Drug Abuse and/or treatment",
+    "drug_abuse": "Alcohol/Drug Abuse and/or treatment",
+    "coronary_artery_disease": "Cardiovascular or Coronary Artery Disease",
+    "congestive_heart_failure": "Cardiovascular or Coronary Artery Disease",
+    "cardiomyopathy": "Cardiovascular or Coronary Artery Disease",
+    "cancer": "Cancer",
+    "leukemia": "Cancer",
+    "hodgkin_s_disease": "Cancer",
+    "non_hodgkin_s_lymphoma": "Cancer",
+    "melanoma": "Cancer",
+    "emphysema": "Emphysema, COPD, Chronic Bronchitis",
+    "copd": "Emphysema, COPD, Chronic Bronchitis",
+    "bronchitis_chronic": "Emphysema, COPD, Chronic Bronchitis",
+    "hepatitis_b_chronic": "Hepatitis",
+    "hepatitis_c_chronic": "Hepatitis",
+    "kidney_disease_chronic": "Kidney/Renal Disease",
+    "polycystic_kidney_disease": "Kidney/Renal Disease",
+    "lupus_systemic": "Lupus",
+    "lupus_discoid": "Lupus",
+    "multiple_sclerosis": "Multiple Sclerosis",
+    "peripheral_vascular_disease": "Peripheral Vascular Disease",
+    "stroke_cva": "Stroke, TIA, CVA, Cerebral Hemorrhage",
+    "transient_ischemic_attack_tia": "Stroke, TIA, CVA, Cerebral Hemorrhage",
+    "ulcerative_colitis": "Ulcerative Colitis/Crohn's Disease",
+    "crohn_s_disease": "Ulcerative Colitis/Crohn's Disease"
+  },
+  "elite_preferred_excluded_ids": [
+    "coronary_artery_disease",
+    "hepatitis_b_chronic",
+    "hepatitis_c_chronic",
+    "diabetes_type_1",
+    "diabetes_type_2",
+    "melanoma",
+    "cancer"
+  ],
+  "ez_underwriting": {
+    "page": 18,
+    "text": "Accelerated underwriting: the client may be eligible for the best class without blood profile, urinalysis, paramedical exam or EKG.",
+    "limits": [
+      {
+        "min_age": 18,
+        "max_age": 50,
+        "face_up_to": 3000000
+      },
+      {
+        "min_age": 51,
+        "max_age": 60,
+        "face_up_to": 1000000
+      },
+      {
+        "min_age": 61,
+        "max_age": 65,
+        "face_up_to": 250000
+      }
+    ],
+    "expanded_limits": {
+      "requires": "A routine physical exam with age-appropriate screening tests within the last 12 months.",
+      "limits": [
+        {
+          "min_age": 18,
+          "max_age": 50,
+          "face_up_to": 5000000
+        },
+        {
+          "min_age": 51,
+          "max_age": 60,
+          "face_up_to": 3000000
+        }
+      ]
+    }
+  },
+  "income_multiples": {
+    "page": 13,
+    "note": "Earned income only: money received from paid work, not investments, rental property, alimony or savings.",
+    "bands": [
+      {
+        "min_age": 18,
+        "max_age": 30,
+        "multiple": 40
+      },
+      {
+        "min_age": 31,
+        "max_age": 40,
+        "multiple": 35
+      },
+      {
+        "min_age": 41,
+        "max_age": 50,
+        "multiple": 25
+      },
+      {
+        "min_age": 51,
+        "max_age": 60,
+        "multiple": 15
+      },
+      {
+        "min_age": 61,
+        "max_age": 65,
+        "multiple": 10
+      },
+      {
+        "min_age": 66,
+        "max_age": 69,
+        "multiple": 5
+      }
+    ]
+  },
+  "tobacco": {
+    "page": 27,
+    "includes": [
+      "Betel Nut",
+      "Chewing Tobacco",
+      "Cigarettes",
+      "Cigars",
+      "E-Cigarettes",
+      "Hookah",
+      "Nicotine Gum",
+      "Nicotine Patch",
+      "Nicotine Pouches (Zyn)",
+      "Pipe",
+      "Vaping"
+    ],
+    "note": "Tobacco rates may be applicable for marijuana use depending on delivery method and frequency of use."
+  },
+  "rate_classes": {
+    "page": 23,
+    "available": [
+      {
+        "class": "Elite",
+        "face": "All face amounts",
+        "min_age": 18,
+        "max_age": 75
+      },
+      {
+        "class": "Preferred NT",
+        "face": "All face amounts",
+        "min_age": 18,
+        "max_age": 85
+      },
+      {
+        "class": "Select NT",
+        "face": "All face amounts",
+        "min_age": 18,
+        "max_age": 85
+      },
+      {
+        "class": "Standard NT",
+        "face": "All face amounts",
+        "min_age": 0,
+        "max_age": 85
+      },
+      {
+        "class": "Express Standard NT 1",
+        "face": "Total face up to $3M ($2M in New York)",
+        "min_age": 0,
+        "max_age": 85
+      },
+      {
+        "class": "Express Standard NT 2",
+        "face": "Total face up to $3M ($2M in New York)",
+        "min_age": 18,
+        "max_age": 85
+      },
+      {
+        "class": "Preferred Tobacco",
+        "face": "All face amounts",
+        "min_age": 18,
+        "max_age": 85
+      },
+      {
+        "class": "Standard Tobacco",
+        "face": "All face amounts",
+        "min_age": 18,
+        "max_age": 85
+      },
+      {
+        "class": "Express Standard Tobacco",
+        "face": "Total face up to $3M ($2M in New York)",
+        "min_age": 18,
+        "max_age": 85
+      }
+    ],
+    "criteria": {
+      "page": 29,
+      "Elite": {
+        "tobacco_free_months": 60,
+        "bmi_under": 27.1,
+        "health": "No personal health history of coronary artery disease, hepatitis B or C, diabetes, melanoma, or cancer (except skin cancer in situ).",
+        "blood_pressure": "12-month average of 135/85 or better; treatment with one drug is acceptable.",
+        "cholesterol": "Cholesterol/HDL ratio 4.5 or less (5.0 at ages 65+); total 260 mg/dl or less; one drug is acceptable.",
+        "family_history": "No parental death from coronary artery disease or cancer before age 65.",
+        "alcohol_drugs": "No history of drug or alcohol abuse or treatment at any time.",
+        "driving": "No reckless or alcohol-related violations in 5 years, no suspension in 3 years, no more than one moving violation in 3 years."
+      },
+      "Preferred": {
+        "tobacco_free_months": 36,
+        "bmi_under": 29.9,
+        "health": "No personal health history of coronary artery disease, hepatitis B or C, diabetes, melanoma, or cancer (except skin cancer in situ).",
+        "blood_pressure": "12-month average of 140/90 or better; treatment with one drug is acceptable.",
+        "cholesterol": "Cholesterol/HDL ratio 5.5 or less (6.0 at ages 65+); total 280 mg/dl or less; one drug is acceptable.",
+        "family_history": "No parental death from coronary artery disease or cancer before age 60.",
+        "alcohol_drugs": "No history of drug or alcohol abuse or treatment within the last 10 years.",
+        "driving": "No reckless or alcohol-related violations in 5 years, no suspension in 3 years, no more than two moving violations in 3 years."
+      },
+      "Select": {
+        "tobacco_free_months": 12,
+        "bmi_under": 32.7,
+        "health": "No current borderline medical problems. No currently ratable medical history.",
+        "blood_pressure": "12-month average of 150/90 or better.",
+        "cholesterol": "Cholesterol/HDL ratio 6.5 or less (7.0 at ages 65+); total 300 mg/dl or less; one drug is acceptable.",
+        "family_history": "No more than one parental death from coronary artery disease or cancer before age 60.",
+        "alcohol_drugs": "No ratable history of drug or alcohol abuse.",
+        "driving": "No reckless or alcohol-related violations in 5 years, no suspension in 3 years, no more than three moving violations in 3 years."
+      }
+    }
+  },
+  "build_table": {
+    "page": 32,
+    "note": "A guideline to the weights usually acceptable within the rate classes shown. Other factors, including age or disproportion in body measurements, may impact the final decision. Individual consideration will be given for low BMIs.",
+    "columns": [
+      "Elite",
+      "Preferred",
+      "Select",
+      "Standard",
+      "Express Standard 1",
+      "Express Standard 2"
+    ],
+    "bmi_bands": [
+      [
+        18.5,
+        27.1
+      ],
+      [
+        27.1,
+        29.9
+      ],
+      [
+        29.9,
+        32.7
+      ],
+      [
+        32.7,
+        37.5
+      ],
+      [
+        37.5,
+        42.5
+      ],
+      [
+        42.5,
+        46.5
+      ]
+    ],
+    "rows": [
+      {
+        "height_in": 56,
+        "weights": [
+          [
+            83,
+            120
+          ],
+          [
+            121,
+            133
+          ],
+          [
+            134,
+            145
+          ],
+          [
+            146,
+            167
+          ],
+          [
+            168,
+            189
+          ],
+          [
+            190,
+            207
+          ]
+        ]
+      },
+      {
+        "height_in": 57,
+        "weights": [
+          [
+            86,
+            125
+          ],
+          [
+            126,
+            138
+          ],
+          [
+            139,
+            151
+          ],
+          [
+            152,
+            173
+          ],
+          [
+            174,
+            196
+          ],
+          [
+            197,
+            214
+          ]
+        ]
+      },
+      {
+        "height_in": 58,
+        "weights": [
+          [
+            89,
+            129
+          ],
+          [
+            130,
+            143
+          ],
+          [
+            144,
+            156
+          ],
+          [
+            157,
+            179
+          ],
+          [
+            180,
+            203
+          ],
+          [
+            204,
+            222
+          ]
+        ]
+      },
+      {
+        "height_in": 59,
+        "weights": [
+          [
+            92,
+            134
+          ],
+          [
+            135,
+            148
+          ],
+          [
+            149,
+            161
+          ],
+          [
+            162,
+            185
+          ],
+          [
+            186,
+            210
+          ],
+          [
+            211,
+            230
+          ]
+        ]
+      },
+      {
+        "height_in": 60,
+        "weights": [
+          [
+            95,
+            138
+          ],
+          [
+            139,
+            153
+          ],
+          [
+            154,
+            167
+          ],
+          [
+            168,
+            191
+          ],
+          [
+            192,
+            217
+          ],
+          [
+            218,
+            238
+          ]
+        ]
+      },
+      {
+        "height_in": 61,
+        "weights": [
+          [
+            98,
+            143
+          ],
+          [
+            144,
+            158
+          ],
+          [
+            159,
+            173
+          ],
+          [
+            174,
+            198
+          ],
+          [
+            199,
+            224
+          ],
+          [
+            225,
+            246
+          ]
+        ]
+      },
+      {
+        "height_in": 62,
+        "weights": [
+          [
+            102,
+            148
+          ],
+          [
+            149,
+            163
+          ],
+          [
+            164,
+            178
+          ],
+          [
+            179,
+            205
+          ],
+          [
+            206,
+            232
+          ],
+          [
+            233,
+            254
+          ]
+        ]
+      },
+      {
+        "height_in": 63,
+        "weights": [
+          [
+            105,
+            152
+          ],
+          [
+            153,
+            168
+          ],
+          [
+            169,
+            184
+          ],
+          [
+            185,
+            211
+          ],
+          [
+            212,
+            239
+          ],
+          [
+            240,
+            262
+          ]
+        ]
+      },
+      {
+        "height_in": 64,
+        "weights": [
+          [
+            108,
+            157
+          ],
+          [
+            158,
+            174
+          ],
+          [
+            175,
+            190
+          ],
+          [
+            191,
+            218
+          ],
+          [
+            219,
+            247
+          ],
+          [
+            248,
+            270
+          ]
+        ]
+      },
+      {
+        "height_in": 65,
+        "weights": [
+          [
+            112,
+            162
+          ],
+          [
+            163,
+            179
+          ],
+          [
+            180,
+            196
+          ],
+          [
+            197,
+            225
+          ],
+          [
+            226,
+            255
+          ],
+          [
+            256,
+            279
+          ]
+        ]
+      },
+      {
+        "height_in": 66,
+        "weights": [
+          [
+            115,
+            167
+          ],
+          [
+            168,
+            185
+          ],
+          [
+            186,
+            202
+          ],
+          [
+            203,
+            232
+          ],
+          [
+            233,
+            263
+          ],
+          [
+            264,
+            288
+          ]
+        ]
+      },
+      {
+        "height_in": 67,
+        "weights": [
+          [
+            119,
+            172
+          ],
+          [
+            173,
+            190
+          ],
+          [
+            191,
+            208
+          ],
+          [
+            209,
+            239
+          ],
+          [
+            240,
+            271
+          ],
+          [
+            272,
+            296
+          ]
+        ]
+      },
+      {
+        "height_in": 68,
+        "weights": [
+          [
+            122,
+            177
+          ],
+          [
+            178,
+            196
+          ],
+          [
+            197,
+            215
+          ],
+          [
+            216,
+            246
+          ],
+          [
+            247,
+            279
+          ],
+          [
+            280,
+            305
+          ]
+        ]
+      },
+      {
+        "height_in": 69,
+        "weights": [
+          [
+            126,
+            183
+          ],
+          [
+            184,
+            202
+          ],
+          [
+            203,
+            221
+          ],
+          [
+            222,
+            253
+          ],
+          [
+            254,
+            287
+          ],
+          [
+            288,
+            314
+          ]
+        ]
+      },
+      {
+        "height_in": 70,
+        "weights": [
+          [
+            129,
+            188
+          ],
+          [
+            189,
+            208
+          ],
+          [
+            209,
+            227
+          ],
+          [
+            228,
+            261
+          ],
+          [
+            262,
+            296
+          ],
+          [
+            297,
+            324
+          ]
+        ]
+      },
+      {
+        "height_in": 71,
+        "weights": [
+          [
+            133,
+            194
+          ],
+          [
+            195,
+            214
+          ],
+          [
+            215,
+            234
+          ],
+          [
+            235,
+            268
+          ],
+          [
+            269,
+            304
+          ],
+          [
+            305,
+            333
+          ]
+        ]
+      },
+      {
+        "height_in": 72,
+        "weights": [
+          [
+            137,
+            199
+          ],
+          [
+            200,
+            220
+          ],
+          [
+            221,
+            241
+          ],
+          [
+            242,
+            276
+          ],
+          [
+            277,
+            313
+          ],
+          [
+            314,
+            342
+          ]
+        ]
+      },
+      {
+        "height_in": 73,
+        "weights": [
+          [
+            141,
+            205
+          ],
+          [
+            206,
+            226
+          ],
+          [
+            227,
+            247
+          ],
+          [
+            248,
+            284
+          ],
+          [
+            285,
+            322
+          ],
+          [
+            323,
+            352
+          ]
+        ]
+      },
+      {
+        "height_in": 74,
+        "weights": [
+          [
+            145,
+            211
+          ],
+          [
+            212,
+            232
+          ],
+          [
+            233,
+            254
+          ],
+          [
+            255,
+            292
+          ],
+          [
+            293,
+            330
+          ],
+          [
+            331,
+            362
+          ]
+        ]
+      },
+      {
+        "height_in": 75,
+        "weights": [
+          [
+            148,
+            216
+          ],
+          [
+            217,
+            239
+          ],
+          [
+            240,
+            261
+          ],
+          [
+            262,
+            299
+          ],
+          [
+            300,
+            339
+          ],
+          [
+            340,
+            371
+          ]
+        ]
+      },
+      {
+        "height_in": 76,
+        "weights": [
+          [
+            152,
+            222
+          ],
+          [
+            223,
+            245
+          ],
+          [
+            246,
+            268
+          ],
+          [
+            269,
+            308
+          ],
+          [
+            309,
+            349
+          ],
+          [
+            350,
+            381
+          ]
+        ]
+      },
+      {
+        "height_in": 77,
+        "weights": [
+          [
+            156,
+            228
+          ],
+          [
+            229,
+            252
+          ],
+          [
+            253,
+            275
+          ],
+          [
+            276,
+            316
+          ],
+          [
+            317,
+            358
+          ],
+          [
+            359,
+            392
+          ]
+        ]
+      },
+      {
+        "height_in": 78,
+        "weights": [
+          [
+            161,
+            234
+          ],
+          [
+            235,
+            258
+          ],
+          [
+            259,
+            282
+          ],
+          [
+            283,
+            324
+          ],
+          [
+            325,
+            367
+          ],
+          [
+            368,
+            402
+          ]
+        ]
+      },
+      {
+        "height_in": 79,
+        "weights": [
+          [
+            165,
+            240
+          ],
+          [
+            241,
+            265
+          ],
+          [
+            266,
+            290
+          ],
+          [
+            291,
+            332
+          ],
+          [
+            333,
+            377
+          ],
+          [
+            378,
+            412
+          ]
+        ]
+      },
+      {
+        "height_in": 80,
+        "weights": [
+          [
+            169,
+            246
+          ],
+          [
+            247,
+            272
+          ],
+          [
+            273,
+            297
+          ],
+          [
+            298,
+            341
+          ],
+          [
+            342,
+            386
+          ],
+          [
+            387,
+            423
+          ]
+        ]
+      }
+    ]
+  },
+  "rules": [
+    {
+      "id": "age60_physical",
+      "page": 34,
+      "when": {
+        "fact": "age",
+        "gte": 60
+      },
+      "text": "Applicants age 60 and over must have routine health care and a physical exam within the past 24 months; otherwise, the application will be declined."
+    },
+    {
+      "id": "juvenile_minimum",
+      "page": 12,
+      "when": {
+        "fact": "age",
+        "lte": 17
+      },
+      "text": "For juvenile coverage the child must be at least 14 days old and a U.S. citizen or permanent resident. Ownership is limited to parents, legal guardians or grandparents."
+    },
+    {
+      "id": "income_replacement_70",
+      "page": 14,
+      "when": {
+        "fact": "age",
+        "gte": 70
+      },
+      "text": "Income replacement is not applicable at ages 70 and over."
+    },
+    {
+      "id": "premium_to_income",
+      "page": 14,
+      "text": "Households with modest annual income generally should not exceed 10% of income for life insurance premiums."
+    },
+    {
+      "id": "application_validity",
+      "page": 17,
+      "text": "An application is good for 6 months from the signing date. A Statement of Health is required after 90 days from the date of last evidence."
+    },
+    {
+      "id": "lab_validity",
+      "page": 17,
+      "text": "Paramedical exams and labs are good for 12 months up to age 70, and 6 months at ages 70 and up."
+    },
+    {
+      "id": "motor_vehicle_report",
+      "page": 8,
+      "text": "Motor Vehicle Reports are ordered on all applicants ages 16 and up, at all face amounts."
+    },
+    {
+      "id": "no_testing_before_application",
+      "page": 6,
+      "text": "Medical testing should not be ordered until the applicant has completed an application and signed the authorization, HIPAA and HIV consent forms."
+    },
+    {
+      "id": "assistance_only_income",
+      "page": 14,
+      "text": "If state or federal aid, SSI or SSDI is the applicant's only source of income, coverage is not offered."
+    },
+    {
+      "id": "non_working_spouse",
+      "page": 14,
+      "text": "A non-working spouse can match the working spouse's in-force or pending coverage up to $1,000,000; more requires financial justification."
+    },
+    {
+      "id": "replacement_question",
+      "page": 4,
+      "text": "Whether any in-force life insurance will be replaced is a required application question that is commonly missed. Replacement and 1035 forms are submitted through the Agent Portal."
+    },
+    {
+      "id": "xrae_quote",
+      "page": 39,
+      "text": "For a tentative, non-binding assessment of a specific client's medical history, use the XRAE underwriting quote tool."
+    }
+  ]
+}
