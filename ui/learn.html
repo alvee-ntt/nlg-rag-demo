@@ -493,9 +493,9 @@
   .modal .btn + .btn { margin-top: 8px; }
   .sheet-wrap.center { align-items: center; }
   .ask-log { max-height: 42dvh; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 0 10px; }
-  .bubble { max-width: 88%; padding: 9px 12px; border-radius: 8px; font-size: 13.5px; line-height: 1.45; white-space: pre-line; }
-  .bubble.user { align-self: flex-end; background: var(--g700); color: #fff; border-bottom-right-radius: 4px; }
-  .bubble.ai { align-self: flex-start; background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .bubble { max-width: 88%; padding: 11px 14px; border-radius: 16px; font-size: 13.5px; line-height: 1.5; white-space: pre-line; }
+  .bubble.user { align-self: flex-end; background: var(--g700); color: #fff; border-bottom-right-radius: 6px; }
+  .bubble.ai { align-self: flex-start; background: #fff; border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(20,66,31,.04); }
   .bubble.ai.pending { color: var(--muted); }
   .ask-input { display: flex; gap: 8px; margin-top: 8px; }
   .ask-input input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; font: inherit; font-size: 13.5px; outline: 0; background: #fff; }
@@ -503,11 +503,11 @@
   .ask-input button svg { width: 16px; height: 16px; }
 
   /* ===== Ask Navigator (grounded Q&A over the source library) ===== */
-  .orb { width: 20px; height: 20px; border-radius: 50%; flex: none; position: relative; display: inline-block;
-    background: radial-gradient(circle at 32% 30%, #7ef0d0 0%, #3fb98a 26%, #2f9d55 46%, #57c98a 66%, #c8f26a 90%);
-    box-shadow: 0 0 0 3px rgba(200,235,205,.55), 0 0 10px rgba(90,190,130,.45); }
-  .orb::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 70% 75%, rgba(255,255,255,.35), transparent 55%); }
-  .orb.sm { width: 16px; height: 16px; box-shadow: 0 0 0 2px rgba(190,225,240,.5); }
+  .orb { width: 20px; height: 20px; flex: none; position: relative; display: inline-block;
+    background: url('assets/orb-A-disc.png') center / contain no-repeat;
+    filter: drop-shadow(0 0 4px rgba(120,200,110,.42)); }
+  .orb::after { content: none; }
+  .orb.sm { width: 16px; height: 16px; }
   .tab.ask { transition: transform .12s ease; }
   .tab.ask:active { transform: scale(.9); }
   .tab.ask .orb { margin: 1px 0; }
@@ -612,16 +612,18 @@
   .chat .bubble.user { align-self: flex-end; max-width: 84%; }
   .ai-row { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; max-width: 92%; }
   .ai-row .orb { margin-top: 5px; }
-  .ai-row .bubble.ai { max-width: none; border-top-left-radius: 4px; border-bottom-left-radius: 14px; }
+  .ai-row .bubble.ai { max-width: none; border-radius: 16px; border-top-left-radius: 6px; padding: 13px 15px; }
   .ai-row.failed .bubble.ai { border-color: #f2c9c5; color: var(--ink-2); }
-  .thumbs { display: flex; align-items: center; gap: 2px; padding: 3px 0 0 4px; }
+  .thumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 2px; padding: 8px 0 2px 4px; }
   .thumbs button { background: none; border: 0; padding: 3px; color: var(--muted); cursor: pointer; border-radius: 6px; display: inline-flex; }
   .thumbs button:hover { background: var(--g050); color: var(--g800); }
   .thumbs button.on { color: var(--g700); }
   .thumbs svg { width: 14px; height: 14px; }
   .thumbs .act { font-size: 11px; color: var(--g700); font-weight: 600; cursor: pointer; margin-left: 8px; }
   .chat-foot { position: sticky; bottom: 0; background: var(--cream); padding: 6px 0 12px; }
-  .chat-foot .chips { margin: 0 0 8px; }
+  .chat-foot .chips { margin: 0 0 10px; gap: 8px; }
+  .chat-foot .chips .chip { background: #fff; border: 1px solid var(--g100); border-radius: 999px; padding: 8px 15px; color: var(--g800); font-weight: 600; font-size: 12.5px; }
+  .chat-foot .chips .chip:hover { border-color: var(--g700); background: var(--g050); color: var(--g800); }
   .chat-input { display: flex; align-items: center; gap: 8px; }
   .chat-input .field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 4px 4px 4px 14px; margin: 0; }
   .chat-input .field:focus-within { border-color: var(--g700); }
@@ -664,12 +666,22 @@
   .bubble.ai.md hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
   .bubble.ai.md .cite { display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; padding: 0 4px; margin: 0 1px; border-radius: 999px; background: var(--g700); color: #fff; font-size: 10px; font-weight: 700; line-height: 1; vertical-align: 1px; cursor: pointer; }
   /* Foundry citation footnotes (shown under an answer with the Sources toggle) */
-  .ncite { display: flex; align-items: baseline; gap: 8px; background: var(--mint); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; font-size: 12px; text-decoration: none; color: var(--g800); }
-  .ncite-n { flex: none; width: 16px; height: 16px; border-radius: 999px; background: var(--g700); color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
-  .ncite-t { flex: 1; min-width: 0; word-break: break-word; line-height: 1.35; }
+  .ncite { display: flex; align-items: center; gap: 10px; background: var(--mint); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 13px; text-decoration: none; color: var(--g800); }
+  .ncite-doc { flex: none; width: 30px; height: 30px; border-radius: 8px; background: var(--g050); color: var(--g700); display: grid; place-items: center; }
+  .ncite-doc svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .ncite-t { flex: 1; min-width: 0; font-weight: 600; line-height: 1.3; color: var(--g900); word-break: break-word; }
+  .ncite-open { flex: none; color: var(--muted); }
 
   /* ===== Ask Navigator full page (#/chat) ===== */
   .hdr.chat-hdr { padding-bottom: 14px; }
+  /* Chat/Learn mode toggle (from Figma "Mode switch"): pale capsule, white active pill with orb + label, book for Learn */
+  .chat-toggle { display: inline-flex; align-items: center; gap: 4px; background: #e6f0e4; border-radius: 999px; padding: 4px; }
+  .chat-toggle .seg { border: 0; background: transparent; font: inherit; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 999px; padding: 7px 15px; color: var(--g800); line-height: 1; }
+  .chat-toggle .seg.on { background: #fff; box-shadow: 0 1px 3px rgba(20,66,31,.14); }
+  .chat-toggle .seg.on b { font-size: 16px; font-weight: 800; color: var(--g800); letter-spacing: -.1px; }
+  .chat-toggle .seg .orb { width: 24px; height: 24px; }
+  .chat-toggle .book { padding: 7px 13px; color: var(--g700); }
+  .chat-toggle .book svg { width: 22px; height: 20px; display: block; }
   main.chatpage { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0; }
   main.chatpage .chat { padding: 4px 18px 0; }
   .chat-title { font-size: 17px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
@@ -710,6 +722,8 @@
   .seg { display: flex; gap: 6px; }
   .seg button { flex: 1; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 6px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
   .seg button.on { background: var(--g700); border-color: var(--g700); color: #fff; }
+  .setbody .seg { flex-wrap: wrap; }
+  .setbody .seg button { flex: 0 0 auto; padding: 9px 19px; font-size: 13px; }
   .settoggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 2px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink); cursor: pointer; }
   .settoggle input { width: 18px; height: 18px; accent-color: var(--g700); flex: none; }
   .setarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 13px; outline: 0; resize: vertical; background: #fff; }
@@ -724,6 +738,16 @@
   .memadd input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 999px; padding: 8px 13px; font: inherit; font-size: 13px; outline: 0; background: #fff; }
   .memadd input:focus { border-color: var(--g700); }
   .memadd .nav-ib { border: 1px solid var(--line); border-radius: 999px; padding: 0 12px; }
+  .set-title { font-family: var(--serif); font-size: 22px; font-weight: 700; color: var(--g800); letter-spacing: -.2px; margin: 8px 0 4px; }
+  .set-sub { font-size: 13px; color: var(--muted); line-height: 1.4; margin-bottom: 4px; }
+  .langsel { position: relative; }
+  .langsel select { width: 100%; appearance: none; -webkit-appearance: none; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 11px 38px 11px 15px; font: inherit; font-size: 14px; color: var(--ink); cursor: pointer; outline: 0; }
+  .langsel select:focus { border-color: var(--g700); }
+  .langchev { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
+  .set-preview { margin-top: 14px; background: var(--mint); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .set-preview .pvl { display: block; font-size: 11px; font-weight: 700; color: var(--g800); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 5px; }
+  .set-preview p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2); white-space: pre-line; }
+  .set-div { height: 1px; background: var(--line); margin: 18px 0 2px; }
 
   /* ===== Live call ===== */
   .call { text-align: center; padding-top: 26px; display: flex; flex-direction: column; align-items: center; }
@@ -762,6 +786,14 @@
   .handoff-ta { resize: vertical; line-height: 1.5; min-height: 170px; }
   .handoff-cta { display: inline-block; margin: 8px 0 2px; background: var(--g700); color: #fff; border: 0; border-radius: 8px; padding: 8px 12px; font: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
   .handoff-cta:hover { background: var(--g800); }
+  /* Thumbs-down feedback sheet */
+  .modal.fb-modal { max-width: 460px; }
+  .fb-note { font-size: 12.5px; color: var(--ink-2); margin: 0 0 12px; line-height: 1.45; }
+  .fb-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .fb-chip { font-size: 12.5px; background: #fff; border: 1.5px solid var(--line); border-radius: 999px; padding: 7px 13px; cursor: pointer; color: var(--ink-2); font: inherit; transition: background .12s ease, border-color .12s ease, color .12s ease; }
+  .fb-chip:hover { border-color: var(--g300, var(--g100)); }
+  .fb-chip.on { background: var(--g050); border-color: var(--g700); color: var(--g800); font-weight: 600; }
+  .fb-text { width: 100%; box-sizing: border-box; border: 1.5px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; font-size: 13.5px; background: #fff; color: var(--ink); resize: vertical; line-height: 1.5; min-height: 72px; margin-bottom: 14px; }
 
   /* ===== Feedback ===== */
   .fbgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -972,8 +1004,7 @@
   function tabbar(active) {
     const tb = $("#tabbar"); tb.hidden = false;
     const tab = (k, h, ic, l, title = "") => `<button class="tab ${k} ${active === k ? "on" : ""}" data-go="${h}" title="${title}"><span class="ico">${ic}</span><span>${l}</span></button>`;
-    tb.innerHTML = tab("home", "/", I.home, "Home") + tab("learn", "/learn", I.learn, "Learn") + tab("prepare", "/prepare", I.prepare, "Prepare") +
-      tab("coach", "/coach", I.coach, "Coach", "Your week in review, upcoming and completed calls") +
+    tb.innerHTML = tab("home", "/", I.home, "Home") + tab("learn", "/learn", I.learn, "Learn") +
       `<button class="tab ask ${active === "ask" ? "on" : ""}" data-go="/chat" title="Ask Navigator a question about the source library"><span class="ico"><span class="orb"></span></span><span>Ask</span></button>`;
     tb.querySelectorAll("[data-go]").forEach((el) => (el.onclick = () => go(el.dataset.go)));
   }
@@ -1031,9 +1062,31 @@
   // Style preferences stay browser-local. About-me and memory records are loaded from
   // PostgreSQL through the API and resolved again by the server on every Foundry call.
   const PREFS_KEY = "chatPrefs", MEM_KEY = "chatMemories";
-  const DEFAULT_PREFS = { length: "balanced", format: "auto", tone: "warm", plain: false, alwaysSources: false };
+  const DEFAULT_PREFS = { language: "en", length: "balanced", format: "auto", tone: "warm", wording: "plain", askMode: "type", replyMode: "type", plain: true, alwaysSources: false };
   let chatPrefs = Object.assign({}, DEFAULT_PREFS, store.get(PREFS_KEY, {}));
+  // Migrate settings saved by earlier versions of this sheet.
+  if (chatPrefs.tone === "plain") chatPrefs.tone = "neutral";           // tone values are now warm/neutral/formal
+  if (!("wording" in store.get(PREFS_KEY, {}))) chatPrefs.wording = chatPrefs.plain ? "plain" : "industry";
+  chatPrefs.plain = chatPrefs.wording === "plain";                       // keep the backend flag in sync with Wording
   const savePrefs = () => store.set(PREFS_KEY, chatPrefs);
+  // A sample answer that restyles itself to the current preferences, so the sheet shows
+  // what the knobs do. Same facts every time — only the wording/shape/length change.
+  function previewText(p) {
+    const plain = (p.wording || "plain") === "plain";
+    const open = { warm: "Happy to help — ", neutral: "", formal: "Please note: " }[p.tone] || "";
+    const a = plain
+      ? "Cap Focus leaves more room in a strong year."
+      : "Cap Focus preserves more upside participation in high-index years.";
+    const b = plain
+      ? "Participation Focus credits more of an average year but caps sooner."
+      : "Participation Focus front-loads crediting in moderate years but reaches its ceiling earlier.";
+    const extra = plain
+      ? "Which fits depends on how the index performs."
+      : "Suitability depends on the client's index-performance outlook.";
+    const parts = p.length === "brief" ? [a] : p.length === "detailed" ? [a, b, extra] : [a, b];
+    if (p.format === "bullets") return (open ? open.trim() + "\n" : "") + parts.map((s) => "• " + s).join("\n");
+    return open + parts.join(" ");
+  }
   let aboutMe = "", chatMemories = [], askContextSave = Promise.resolve();
   async function loadAskUserContext() {
     let context = await api("/v1/foundry/user-context");
@@ -1176,7 +1229,7 @@
 
   // A Foundry citation shown as a tappable footnote under an answer.
   function citeHtml(c) {
-    return `<a class="ncite" href="${esc(c.url || "#")}" target="_blank" rel="noopener" data-n="${esc(c.n)}"><span class="ncite-n">${esc(c.n)}</span><span class="ncite-t">${esc(c.title || c.url || "Source")}</span></a>`;
+    return `<a class="ncite" href="${esc(c.url || "#")}" target="_blank" rel="noopener" data-n="${esc(c.n)}"><span class="ncite-doc"><svg viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/></svg></span><span class="ncite-t">${esc(c.title || c.url || "Source")}</span><span class="ncite-open">↗</span></a>`;
   }
 
   // opts: { log, send(question, history) -> {text, sources?, citations?, follow_ups?}, chips?, intro?, placeholder?, pendingText?, persist? }
@@ -1193,10 +1246,9 @@
         const rich = !m.pending && !m.intro && !m.failed;
         const isLast = log.length > 0 && i === arr.length - 1;
         const n = (m.sources || []).length + (m.citations || []).length;
-        const refine = isLast ? `<span class="act" data-act="shorter">Shorter</span><span class="act" data-act="more">More detail</span><span class="act" data-act="regen">Regenerate</span><span class="act" data-act="edit">Edit</span>` : "";
         const tools = m.pending || m.intro ? "" : m.failed
           ? `<div class="thumbs"><span class="act" data-act="retry" style="margin-left:0">Try again</span></div>`
-          : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${n ? `<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="copy">Copy</span>${refine}<span class="act" data-act="handoff">Ask NLG Support</span></div>`;
+          : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${n ? `<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="menu">Options</span><span class="act" data-act="handoff">Ask NLG Support</span></div>`;
         const body = rich ? mdToHtml(m.text) : esc(m.text);
         const handoffCta = (rich && m.escalate) ? `<div><button class="handoff-cta" data-act="handoff">${m.escalate_reason === "case_specific" ? "Ask NLG for a decision" : "Prepare a request to NLG Support"}</button></div>` : "";
         return `<div class="ai-row${m.failed ? " failed" : ""}" data-i="${i}"><span class="orb sm"></span><div><div class="bubble ai${rich ? " md" : ""}${m.pending ? " pending" : ""}">${body}</div>${tools}${handoffCta}<div class="nsrc-list${m.open ? " open" : ""}">${(m.citations || []).map(citeHtml).join("")}${(m.sources || []).map(srcHtml).join("")}</div></div></div>`;
@@ -1219,24 +1271,58 @@
       catch (err) { pending.text = "I couldn't reach the source library just now."; pending.failed = true; pending.question = q; toast(err.message || "Navigator unavailable"); }
       pending.pending = false; paint(); paintChips(); save();
     };
-    logEl.onclick = (e) => {
-      const chip = e.target.closest(".cite");
-      if (chip) {
-        const r = chip.closest(".ai-row"); const mm = r && log[Number(r.dataset.i)];
-        const c = mm && (mm.citations || []).find((x) => String(x.n) === chip.dataset.n);
-        if (c && c.url) window.open(c.url, "_blank", "noopener");
-        else if (mm) { mm.open = true; paint(); }
-        return;
-      }
-      const src = e.target.closest(".nsrc");
-      if (src) { src.classList.toggle("open"); return; }
-      const row = e.target.closest(".ai-row"); if (!row) return;
-      const i = Number(row.dataset.i), m = log[i]; if (!m || m.pending) return;
-      const act = e.target.closest("[data-act]"); if (!act) return;
-      const a = act.dataset.act;
+    // Push a thumbs vote to the tracker so it shows in Question Insights. Best-effort:
+    // a failure never disturbs the chat, the local vote still stands. Needs the turn's
+    // question_id (absent if tracking failed, or on intro/failed turns that have no vote).
+    const sendVote = (m) => {
+      if (!m.question_id) return;
+      const req = m.vote
+        ? api("/v1/ask/feedback", { method: "POST", body: JSON.stringify({ question_id: m.question_id, vote: m.vote, reasons: (m.feedback && m.feedback.reasons) || [], comment: (m.feedback && m.feedback.comment) || null }) })
+        : api("/v1/ask/feedback/" + m.question_id, { method: "DELETE" });
+      req.catch(() => {});
+    };
+    // Options overflow: Copy always; the refine actions only on the latest answer.
+    function openAnswerMenu(i) {
+      const isLast = i === log.length - 1;
+      const items = [["copy", "Copy answer"]];
+      if (isLast) items.push(["shorter", "Make it shorter"], ["more", "Add more detail"], ["regen", "Regenerate answer"], ["edit", "Edit my question"]);
+      const w = document.createElement("div"); w.className = "sheet-wrap";
+      w.innerHTML = `<div class="sheet"><div class="grab"></div><div class="menu-list">${items.map(([a, label]) => `<button data-act="${a}">${esc(label)}</button>`).join("")}</div></div>`;
+      $("#phone").appendChild(w);
+      w.onclick = (e) => { if (e.target === w) w.remove(); };
+      w.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => { w.remove(); applyAct(b.dataset.act, i); }));
+    }
+    // Thumbs-down detail: why the answer fell short, feeding Question Insights.
+    function openFeedback({ current, onSubmit }) {
+      const reasons = ["Incorrect", "Incomplete", "Not in the sources / wrong source", "Outdated", "Hard to understand", "Wrong wording or tone"];
+      const picked = new Set((current && current.reasons) || []);
+      const w = document.createElement("div"); w.className = "sheet-wrap center";
+      w.innerHTML = `<div class="modal fb-modal"><h3>What was wrong?</h3>
+        <p class="fb-note">This helps us spot gaps in the source library. Pick any that apply.</p>
+        <div class="fb-chips">${reasons.map((r) => `<button type="button" class="fb-chip${picked.has(r) ? " on" : ""}" data-r="${esc(r)}">${esc(r)}</button>`).join("")}</div>
+        <textarea class="fb-text" maxlength="2000" placeholder="Anything else? (optional)">${esc((current && current.comment) || "")}</textarea>
+        <div class="two"><button class="btn ghost" id="fbCancel">Cancel</button><button class="btn green" id="fbSend">Submit feedback</button></div></div>`;
+      $("#phone").appendChild(w);
+      w.querySelectorAll(".fb-chip").forEach((c) => (c.onclick = () => { const r = c.dataset.r; if (picked.has(r)) { picked.delete(r); c.classList.remove("on"); } else { picked.add(r); c.classList.add("on"); } }));
+      w.querySelector("#fbCancel").onclick = () => w.remove();
+      w.querySelector("#fbSend").onclick = () => { const comment = w.querySelector(".fb-text").value.trim(); w.remove(); onSubmit({ reasons: [...picked], comment: comment || null }); };
+    }
+    const applyAct = (a, i) => {
+      const m = log[i]; if (!m || m.pending) return;
       if (a === "copy") (navigator.clipboard ? navigator.clipboard.writeText(m.text) : Promise.reject()).then(() => toast("Answer copied"), () => toast("Couldn't copy"));
       else if (a === "src") { m.open = !m.open; paint(); }
-      else if (a === "up" || a === "down") { m.vote = m.vote === a ? null : a; paint(); save(); if (m.vote) toast(m.vote === "up" ? "Thanks, noted" : "Thanks, I'll do better"); }
+      else if (a === "menu") openAnswerMenu(i);
+      else if (a === "up") {
+        const cleared = m.vote === "up";
+        m.vote = cleared ? null : "up"; m.feedback = null; paint(); save();
+        if (!cleared) toast("Thanks, noted"); sendVote(m);
+      }
+      else if (a === "down") {
+        if (m.vote === "down") { m.vote = null; m.feedback = null; paint(); save(); sendVote(m); return; }
+        openFeedback({ current: m.feedback, onSubmit: (fb) => {
+          m.vote = "down"; m.feedback = fb; paint(); save(); toast("Thanks, I'll do better"); sendVote(m);
+        } });
+      }
       else if (a === "retry") {
         const hasQ = log[i - 1] && log[i - 1].who === "user";
         const q = m.question || (hasQ ? log[i - 1].text : "");
@@ -1259,6 +1345,22 @@
         const reason = m.escalate ? (m.escalate_reason === "case_specific" ? "case_specific" : "insufficient") : "manual";
         openHandoff({ question: q, log, reason, questionId: m.question_id || null });
       }
+    };
+    logEl.onclick = (e) => {
+      const chip = e.target.closest(".cite");
+      if (chip) {
+        const r = chip.closest(".ai-row"); const mm = r && log[Number(r.dataset.i)];
+        const c = mm && (mm.citations || []).find((x) => String(x.n) === chip.dataset.n);
+        if (c && c.url) window.open(c.url, "_blank", "noopener");
+        else if (mm) { mm.open = true; paint(); }
+        return;
+      }
+      const src = e.target.closest(".nsrc");
+      if (src) { src.classList.toggle("open"); return; }
+      const row = e.target.closest(".ai-row"); if (!row) return;
+      const i = Number(row.dataset.i), m = log[i]; if (!m || m.pending) return;
+      const act = e.target.closest("[data-act]"); if (!act) return;
+      applyAct(act.dataset.act, i);
     };
     const submit = () => { const q = input.value; input.value = ""; send(q); };
     root.querySelector(".sendb").onclick = submit;
@@ -1351,7 +1453,7 @@
     tabbar("ask");
     const t = activeThread();
     const title = t.title || titleFrom(t.messages);
-    view.innerHTML = header(`<button class="iconbtn" id="chatHist" title="Your chats">${I.menu}</button><h1 class="chat-title" id="chatTitle">${esc(title)}</h1><span class="spacer"></span><button class="iconbtn" id="chatSet" title="Answer preferences">${I.gear}</button><button class="iconbtn" id="chatNew" title="New chat">${I.plus}</button>`, "chat-hdr") +
+    view.innerHTML = header(`<button class="iconbtn" id="chatHist" title="Your chats">${I.menu}</button><button class="iconbtn" id="chatSet" title="Answer preferences">${I.gear}</button><button class="iconbtn" id="chatNew" title="New chat">${I.plus}</button><span class="spacer"></span><div class="chat-toggle"><span class="seg on"><span class="orb"></span><b>Chat</b></span><button class="seg book" id="modeLearn" title="Switch to Learn">${I.learn}</button></div>`, "light chat-hdr") +
       `<main class="chatpage fade"><div class="chat" id="chatMain"></div></main>`;
     const chat = mountChat($("#chatMain"), {
       log: t.messages, chips: NAV_CHIPS, intro: NAV_INTRO, send: navSend,
@@ -1364,6 +1466,7 @@
       newThread(); rerender();
     };
     $("#chatHist").onclick = () => openChatHistory(rerender);
+    { const ml = $("#modeLearn"); if (ml) ml.onclick = () => go("/learn"); }
     $("#chatSet").onclick = () => openChatSettings();
     chat.focus();
     cleanup = () => chat.destroy();
@@ -1439,38 +1542,38 @@
     const w = document.createElement("div"); w.className = "sheet-wrap sets";
     const seg = (key, opts) => `<div class="seg" data-key="${key}">` + opts.map(([v, l]) => `<button class="${chatPrefs[key] === v ? "on" : ""}" data-v="${v}">${l}</button>`).join("") + `</div>`;
     w.innerHTML = `<div class="sheet setsheet"><div class="grab"></div>
-      <div class="sheet-h nav-h"><span>Answer preferences</span><span class="spacer"></span><button class="nav-ib" id="setClose">${I.x}</button></div>
+      <div class="sheet-h nav-h"><span>Settings</span><span class="spacer"></span><button class="nav-ib" id="setClose">${I.x}</button></div>
       <div class="setbody">
-        <label class="setlbl">Length</label>${seg("length", [["brief", "Brief"], ["balanced", "Balanced"], ["detailed", "Detailed"]])}
-        <label class="setlbl">Format</label>${seg("format", [["auto", "Auto"], ["bullets", "Bullets"], ["prose", "Prose"]])}
-        <label class="setlbl">Tone</label>${seg("tone", [["warm", "Warm"], ["plain", "Plain"], ["formal", "Formal"]])}
-        <label class="settoggle"><span>Plain language (new-agent friendly)</span><input type="checkbox" id="setPlain" ${chatPrefs.plain ? "checked" : ""}></label>
-        <label class="settoggle"><span>Always cite sources</span><input type="checkbox" id="setSources" ${chatPrefs.alwaysSources ? "checked" : ""}></label>
-        <label class="setlbl">About me<span class="setsub">Your role, market, or focus</span></label>
-        <textarea id="setRole" class="setarea" rows="2" placeholder="e.g. I sell FlexLife to Spanish-speaking families in California.">${esc(aboutMe)}</textarea>
-        <label class="setlbl">Memories<span class="setsub">Facts to always keep in mind</span></label>
-        <div id="memList" class="memlist"></div>
-        <div class="memadd"><input id="memInput" placeholder="Remember that…" maxlength="140" autocomplete="off"><button id="memAdd" class="nav-ib">${I.plus}Add</button></div>
+        <div class="set-title">How answers come back</div>
+        <div class="set-sub">Changes the style, never the facts or sources.</div>
+        <label class="setlbl">Language</label>
+        <div class="langsel"><select id="setLang">${[["en", "🇺🇸", "English"], ["es", "🇪🇸", "Español"], ["fr", "🇫🇷", "Français"], ["pt", "🇵🇹", "Português"], ["zh", "🇨🇳", "中文"]].map(([v, f, l]) => `<option value="${v}" ${chatPrefs.language === v ? "selected" : ""}>${f}  ${l}</option>`).join("")}</select><svg class="langchev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        <label class="setlbl">Length:</label>${seg("length", [["brief", "Brief"], ["balanced", "Balanced"], ["detailed", "Detailed"]])}
+        <label class="setlbl">Format:</label>${seg("format", [["auto", "Auto"], ["bullets", "Bullets"], ["prose", "Prose"]])}
+        <label class="setlbl">Tone:</label>${seg("tone", [["warm", "Warm"], ["neutral", "Neutral"], ["formal", "Formal"]])}
+        <label class="setlbl">How you ask</label>${seg("askMode", [["type", "Type"], ["voice", "Voice"]])}
+        <label class="setlbl">How answers reach you</label>${seg("replyMode", [["type", "Type"], ["voice", "Voice"]])}
+        <label class="setlbl">Wording</label>${seg("wording", [["plain", "Plain Language"], ["industry", "Industry terms"]])}
+        <div class="set-preview"><span class="pvl">Preview</span><p id="setPreview">${esc(previewText(chatPrefs))}</p></div>
       </div></div>`;
     $("#phone").appendChild(w);
-    const close = () => w.remove();
-    w.onclick = (e) => { if (e.target === w) close(); };
-    w.querySelector("#setClose").onclick = close;
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    const close = () => { document.removeEventListener("keydown", onKey); w.remove(); };
+    w.onclick = (e) => { if (e.target === w) close(); };          // tap the dimmed backdrop to dismiss
+    w.querySelector("#setClose").onclick = close;                 // the X in the header
+    document.addEventListener("keydown", onKey);                  // or press Esc
+    const pvEl = w.querySelector("#setPreview");
+    const refreshPreview = () => { if (pvEl) pvEl.textContent = previewText(chatPrefs); };
     w.querySelectorAll(".seg").forEach((segEl) => {
-      segEl.onclick = (e) => { const b = e.target.closest("button[data-v]"); if (!b) return; chatPrefs[segEl.dataset.key] = b.dataset.v; savePrefs(); segEl.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); };
+      segEl.onclick = (e) => {
+        const b = e.target.closest("button[data-v]"); if (!b) return;
+        chatPrefs[segEl.dataset.key] = b.dataset.v;
+        if (segEl.dataset.key === "wording") chatPrefs.plain = b.dataset.v === "plain"; // keep backend flag in sync
+        savePrefs(); refreshPreview();
+        segEl.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+      };
     });
-    w.querySelector("#setPlain").onchange = (e) => { chatPrefs.plain = e.target.checked; savePrefs(); };
-    w.querySelector("#setSources").onchange = (e) => { chatPrefs.alwaysSources = e.target.checked; savePrefs(); };
-    const roleEl = w.querySelector("#setRole");
-    roleEl.oninput = () => { aboutMe = roleEl.value; };
-    roleEl.onblur = async () => { try { await saveAskUserContext(); } catch (e) { toast(e.message || "Couldn't save About me"); } };
-    const memList = w.querySelector("#memList"), memInput = w.querySelector("#memInput");
-    const paintMem = () => { memList.innerHTML = chatMemories.length ? chatMemories.map((mm) => `<div class="memitem"><span>${esc(mm.text)}</span><button data-del="${mm.id}" title="Remove">${I.x}</button></div>`).join("") : `<div class="empty" style="padding:8px 2px">No memories yet.</div>`; };
-    const addMem = async () => { const v = memInput.value.trim(); if (!v) return; const before = chatMemories.slice(); chatMemories.push({ id: uid(), text: v }); memInput.value = ""; paintMem(); try { await saveAskUserContext(); paintMem(); } catch (e) { chatMemories = before; paintMem(); toast(e.message || "Couldn't save memory"); } };
-    w.querySelector("#memAdd").onclick = addMem;
-    memInput.onkeydown = (e) => { if (e.key === "Enter") addMem(); };
-    memList.onclick = async (e) => { const b = e.target.closest("[data-del]"); if (!b) return; const before = chatMemories.slice(); chatMemories = chatMemories.filter((mm) => mm.id !== b.dataset.del); paintMem(); try { await saveAskUserContext(); } catch (err) { chatMemories = before; paintMem(); toast(err.message || "Couldn't remove memory"); } };
-    paintMem();
+    w.querySelector("#setLang").onchange = (e) => { chatPrefs.language = e.target.value; savePrefs(); refreshPreview(); };
   }
 
   // Download one thread as a Markdown transcript (falls back to clipboard if blobs fail).

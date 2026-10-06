@@ -185,6 +185,20 @@ CREATE TABLE IF NOT EXISTS ask_question_log (
 CREATE INDEX IF NOT EXISTS ask_question_log_asked_idx
     ON ask_question_log(asked_at DESC);
 
+-- Thumbs up/down feedback on an Ask Navigator answer. One row per answered turn
+-- (keyed by the question-tracker row), upserted when an agent changes their vote.
+-- A thumbs-down also carries why (reasons) and an optional free-text comment; the
+-- Question Insights page reads these to show how often answers landed and what was
+-- wrong when they didn't. Deleted with the question row it hangs off.
+CREATE TABLE IF NOT EXISTS ask_answer_feedback (
+    question_id BIGINT PRIMARY KEY REFERENCES ask_question_log(id) ON DELETE CASCADE,
+    user_id     TEXT NOT NULL,
+    vote        TEXT NOT NULL CHECK (vote IN ('up', 'down')),
+    reasons     JSONB NOT NULL DEFAULT '[]'::jsonb,
+    comment     TEXT,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Foundry request diagnostics used to be emitted as a directory tree containing
 -- session.json, inputs.json, provider-request.json, prompt.txt, and response/error
 -- JSON files. Keep the same information as structured, durable rows instead.

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orb Refined — Based on Figma Original</title>
+<style>
+  :root{
+    --g900:#14421f; --g800:#1f6a34; --g700:#2f8a45; --g600:#3aa257;
+    --g100:#dcefdf; --g050:#eef7ef; --cream:#f4f6f4; --lime:#a9e06b;
+    --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#0f120f;color:#e9ece9;font-family:var(--sans);}
+  .head{max-width:1080px;margin:0 auto;padding:30px 24px 6px}
+  .head .kick{color:#5fb46f;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+  .head h1{font-family:var(--serif);font-size:26px;margin:6px 0 8px}
+  .head p{color:#9aa39b;font-size:14px;max-width:74ch;line-height:1.55;margin:0}
+  .grid{max-width:1080px;margin:0 auto;padding:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px}
+  .card{background:#171a17;border:1px solid #242824;border-radius:16px;padding:18px}
+  .card.win{border-color:#2f5a33;box-shadow:0 0 0 1px #2f5a33}
+  .card h2{font-size:15px;margin:0 0 2px;display:flex;align-items:center;gap:9px}
+  .badge{width:26px;height:26px;border-radius:7px;background:#20351f;color:#bfe6c8;display:grid;place-items:center;font-weight:700;font-size:13px}
+  .pick{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#bfe6c8;background:#20351f;border:1px solid #2f5a33;border-radius:999px;padding:3px 9px}
+  .card .note{color:#9aa39b;font-size:12.5px;margin:6px 0 14px;line-height:1.45;min-height:48px}
+  .swatches{display:flex;gap:12px}
+  .sw{flex:1;border-radius:12px;padding:18px 8px;display:flex;flex-direction:column;align-items:center;gap:14px}
+  .sw.light{background:var(--cream)} .sw.dark{background:#0b0d0b;border:1px solid #242824}
+  .sw .lbl{font-size:10px;letter-spacing:.6px;text-transform:uppercase}
+  .sw.light .lbl{color:#9aa79b} .sw.dark .lbl{color:#6b746c}
+  .big{width:116px;height:116px;position:relative;display:grid;place-items:center}
+  .sm{width:30px;height:30px;position:relative}
+  .smrow{display:flex;align-items:center;gap:10px}
+  .smrow .cap{font-size:10px;color:#9aa79b}
+  .sw.dark .smrow .cap{color:#6b746c}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+  .chip{font-size:10.5px;border:1px solid #2c312c;border-radius:999px;padding:3px 9px;color:#9aa39b}
+  .chip.on{background:#20351f;border-color:#2f5a33;color:#bfe6c8}
+  img.orb{width:100%;height:100%;object-fit:contain;display:block}
+  .haloed{filter:drop-shadow(0 0 9px rgba(120,200,110,.42)) drop-shadow(0 0 20px rgba(120,200,110,.22))}
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="kick">Ask Navigator · AI avatar</div>
+    <h1>Orb — refined from the Figma original</h1>
+    <p>Keeping Option A, just clearer — and keeping the <b>distinct ball outline</b> you flagged. All de-grained, colour-boosted, with a clean glow. Shown big (116px, landing orb) and small (30px, toggle/chat avatar), light and dark.</p>
+  </div>
+
+  <div class="grid">
+
+    <div class="card">
+      <h2><span class="badge">0</span>Figma original</h2>
+      <div class="note">The raw export — distinct outline, but grainy and a tiny soft sphere lost in a big halo.</div>
+      <div class="swatches">
+        <div class="sw light"><span class="lbl">Light</span><div class="big"><img class="orb" src="assets/orb-figma.png" alt=""></div><div class="smrow"><div class="sm"><img class="orb" src="assets/orb-figma.png" alt=""></div><span class="cap">30px</span></div></div>
+        <div class="sw dark"><span class="lbl">Dark</span><div class="big"><img class="orb" src="assets/orb-figma.png" alt=""></div><div class="smrow"><div class="sm"><img class="orb" src="assets/orb-figma.png" alt=""></div><span class="cap">30px</span></div></div>
+      </div>
+      <div class="chips"><span class="chip">Raster</span><span class="chip">Grainy</span><span class="chip">Baseline</span></div>
+    </div>
+
+    <div class="card win">
+      <h2><span class="badge">1</span>Refined — natural edge <span class="pick">Recommended</span></h2>
+      <div class="note">Cropped looser so the translucent glass bubble and its soft round edge stay in frame. Closest to the original's feel — just de-grained and clearer.</div>
+      <div class="swatches">
+        <div class="sw light"><span class="lbl">Light</span><div class="big"><img class="orb haloed" src="assets/orb-A-loose.png" alt=""></div><div class="smrow"><div class="sm"><img class="orb haloed" src="assets/orb-A-loose.png" alt=""></div><span class="cap">30px</span></div></div>
+        <div class="sw dark"><span class="lbl">Dark</span><div class="big"><img class="orb haloed" src="assets/orb-A-loose.png" alt=""></div><div class="smrow"><div class="sm"><img class="orb haloed" src="assets/orb-A-loose.png" alt=""></div><span class="cap">30px</span></div></div>
+      </div>
+      <div class="chips"><span class="chip on">Distinct edge</span><span class="chip on">Glassy</span><span class="chip on">True to art</span></div>
+    </div>
+
+    <div class="card">
+      <h2><span class="badge">2</span>Refined — defined edge</h2>
+      <div class="note">Same marble clipped to a clean circle with a subtle 3D rim shadow — the most distinct, button-like outline. Crispest at small sizes.</div>
+      <div class="swatches">
+        <div class="sw light"><span class="lbl">Light</span><div class="big"><img class="orb haloed" src="assets/orb-A-disc.png" alt=""></div><div class="smrow"><div class="sm"><img class="orb haloed" src="assets/orb-A-disc.png" alt=""></div><span class="cap">30px</span></div></div>
+        <div class="sw dark"><span class="lbl">Dark</span><div class="big"><img class="orb haloed" src="assets/orb-A-disc.png" alt=""></div><div class="smrow"><div class="sm"><img class="orb haloed" src="assets/orb-A-disc.png" alt=""></div><span class="cap">30px</span></div></div>
+      </div>
+      <div class="chips"><span class="chip on">Sharpest outline</span><span class="chip on">3D rim</span><span class="chip">Button-like</span></div>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -24,6 +24,8 @@ copy_rag_runtime() {
   cp -R "$PROJECT_ROOT/src" "$RUNTIME_ROOT/src"
   rm -rf "$RUNTIME_ROOT/ui"
   cp -R "$PROJECT_ROOT/ui" "$RUNTIME_ROOT/ui"
+  rm -rf "$RUNTIME_ROOT/Prompts"
+  cp -R "$PROJECT_ROOT/Prompts" "$RUNTIME_ROOT/Prompts"
 }
 
 if ! command -v docker >/dev/null 2>&1; then

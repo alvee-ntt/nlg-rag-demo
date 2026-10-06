@@ -130,6 +130,60 @@ def mark_support(conn, question_id: int, status: str) -> None:
     )
 
 
+# The fixed reasons a thumbs-down can cite. Kept short and stable so the "Top issues"
+# aggregate stays comparable over time; the UI sends these exact strings.
+FEEDBACK_REASONS: tuple[str, ...] = (
+    "Incorrect",
+    "Incomplete",
+    "Not in the sources / wrong source",
+    "Outdated",
+    "Hard to understand",
+    "Wrong wording or tone",
+)
+
+
+def record_feedback(
+    conn,
+    *,
+    question_id: int,
+    user_id: str,
+    vote: str,
+    reasons: list[str] | None = None,
+    comment: str | None = None,
+) -> None:
+    """Upsert the thumbs vote for one answered turn. A later vote replaces the earlier one."""
+    if vote not in {"up", "down"}:
+        raise ValueError(f"Unsupported vote: {vote!r}")
+    # Only a thumbs-down carries why; drop reasons/comment on an up so the row stays clean.
+    kept_reasons = [r for r in (reasons or []) if r in FEEDBACK_REASONS] if vote == "down" else []
+    kept_comment = (comment or "").strip() or None if vote == "down" else None
+    conn.execute(
+        """
+        INSERT INTO ask_answer_feedback (question_id, user_id, vote, reasons, comment, updated_at)
+        VALUES (%s, %s, %s, %s, %s, now())
+        ON CONFLICT (question_id) DO UPDATE
+        SET vote = EXCLUDED.vote,
+            reasons = EXCLUDED.reasons,
+            comment = EXCLUDED.comment,
+            user_id = EXCLUDED.user_id,
+            updated_at = now()
+        """,
+        (question_id, user_id, vote, Jsonb(kept_reasons), kept_comment),
+    )
+
+
+def clear_feedback(conn, question_id: int) -> None:
+    """Remove the vote for a turn (agent un-clicked the thumb)."""
+    conn.execute("DELETE FROM ask_answer_feedback WHERE question_id = %s", (question_id,))
+
+
+def question_exists(conn, question_id: int) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM ask_question_log WHERE id = %s", (question_id,)
+    ).fetchone()
+    return row is not None
+
+
 def mark_support_safely(settings: Settings, question_id: int | None, status: str) -> None:
     if question_id is None:
         return
@@ -203,7 +257,30 @@ def question_insights(conn, *, days: int = 0, limit: int = 500) -> dict[str, Any
         count(*) FILTER (WHERE support_status = 'drafted') AS support_drafted,
         count(*) FILTER (WHERE support_status = 'sent') AS support_sent
     """
-    totals = conn.execute(f"SELECT {counts} FROM ask_question_log {where}", params).fetchone()
+    totals = conn.execute(
+        f"""
+        SELECT {counts},
+               count(f.question_id) AS rated,
+               count(*) FILTER (WHERE f.vote = 'up') AS thumbs_up,
+               count(*) FILTER (WHERE f.vote = 'down') AS thumbs_down
+        FROM ask_question_log
+        LEFT JOIN ask_answer_feedback f ON f.question_id = ask_question_log.id
+        {where}
+        """,
+        params,
+    ).fetchone()
+    issues = conn.execute(
+        f"""
+        SELECT reason, count(*) AS count
+        FROM ask_question_log
+        JOIN ask_answer_feedback f ON f.question_id = ask_question_log.id,
+             jsonb_array_elements_text(f.reasons) AS reason
+        {where + (' AND' if where else 'WHERE')} f.vote = 'down'
+        GROUP BY reason
+        ORDER BY count DESC, reason
+        """,
+        params,
+    ).fetchall()
     categories = conn.execute(
         f"""
         SELECT coalesce(category, 'Uncategorized') AS category, {counts}
@@ -226,10 +303,13 @@ def question_insights(conn, *, days: int = 0, limit: int = 500) -> dict[str, Any
     ).fetchall()
     questions = conn.execute(
         f"""
-        SELECT id, user_id, question, coalesce(category, 'Uncategorized') AS category,
-               outcome, support_status, sources, trace_request_id, asked_at
-        FROM ask_question_log {where}
-        ORDER BY asked_at DESC, id DESC
+        SELECT q.id, q.user_id, q.question, coalesce(q.category, 'Uncategorized') AS category,
+               q.outcome, q.support_status, q.sources, q.trace_request_id, q.asked_at,
+               f.vote, coalesce(f.reasons, '[]'::jsonb) AS feedback_reasons, f.comment
+        FROM ask_question_log q
+        LEFT JOIN ask_answer_feedback f ON f.question_id = q.id
+        {where.replace('asked_at', 'q.asked_at')}
+        ORDER BY q.asked_at DESC, q.id DESC
         LIMIT %s
         """,
         (*params, limit),
@@ -239,6 +319,7 @@ def question_insights(conn, *, days: int = 0, limit: int = 500) -> dict[str, Any
         "totals": dict(totals),
         "categories": [dict(row) for row in categories],
         "documents": [dict(row) for row in documents],
+        "issues": [dict(row) for row in issues],
         "questions": [
             {**dict(row), "asked_at": row["asked_at"].isoformat()} for row in questions
         ],

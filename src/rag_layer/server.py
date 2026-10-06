@@ -63,7 +63,14 @@ from .learn import (
 )
 from . import profile
 from .prompt_admin import router as prompt_admin_router
-from .question_tracker import mark_support_safely, router as question_insights_router, track_question
+from .question_tracker import (
+    clear_feedback,
+    mark_support_safely,
+    question_exists,
+    record_feedback,
+    router as question_insights_router,
+    track_question,
+)
 from .roleplay import OUTCOME_LABELS, Roleplay
 from .service import (
     answer,
@@ -189,6 +196,15 @@ class HandoffDraftResponse(BaseModel):
 
 class HandoffSentRequest(BaseModel):
     question_id: int
+
+
+class AnswerFeedbackRequest(BaseModel):
+    """Thumbs up/down on one answered turn. reasons/comment only apply to a down."""
+
+    question_id: int
+    vote: Literal["up", "down"]
+    reasons: list[str] = Field(default_factory=list, max_length=12)
+    comment: str | None = Field(default=None, max_length=2000)
 
 
 class FoundryStatusResponse(BaseModel):
@@ -556,6 +572,31 @@ def handoff_draft_endpoint(payload: HandoffDraftRequest, request: Request) -> di
 def handoff_sent_endpoint(payload: HandoffSentRequest, request: Request) -> Response:
     """Record that the user pressed the (simulated) send on a support draft."""
     mark_support_safely(request.app.state.settings, payload.question_id, "sent")
+    return Response(status_code=204)
+
+
+@app.post("/v1/ask/feedback", status_code=204)
+def ask_feedback_endpoint(payload: AnswerFeedbackRequest, request: Request) -> Response:
+    """Record a thumbs up/down (with why, on a down) for one answered Ask Navigator turn."""
+    with connect(request.app.state.settings) as conn:
+        if not question_exists(conn, payload.question_id):
+            raise HTTPException(status_code=404, detail="Unknown question_id")
+        record_feedback(
+            conn,
+            question_id=payload.question_id,
+            user_id=DEMO_ASK_USER_ID,
+            vote=payload.vote,
+            reasons=payload.reasons,
+            comment=payload.comment,
+        )
+    return Response(status_code=204)
+
+
+@app.delete("/v1/ask/feedback/{question_id}", status_code=204)
+def ask_feedback_clear_endpoint(question_id: int, request: Request) -> Response:
+    """Remove the vote for a turn (agent un-clicked the thumb)."""
+    with connect(request.app.state.settings) as conn:
+        clear_feedback(conn, question_id)
     return Response(status_code=204)
 
 

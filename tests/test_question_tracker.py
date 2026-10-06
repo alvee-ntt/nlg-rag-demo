@@ -119,6 +119,39 @@ def test_mark_support_rejects_unknown_status():
         qt.mark_support(_Conn(), 1, "resolved")
 
 
+# --- answer feedback (thumbs) ----------------------------------------------------
+
+def test_record_feedback_down_keeps_and_filters_reasons():
+    conn = _Conn()
+    qt.record_feedback(conn, question_id=7, user_id="demo-user", vote="down",
+                       reasons=["Incorrect", "made up", "Outdated"], comment="  too vague  ")
+    sql, params = conn.calls[0]
+    assert "ON CONFLICT (question_id) DO UPDATE" in sql
+    assert params[0] == 7 and params[1] == "demo-user" and params[2] == "down"
+    assert params[3].obj == ["Incorrect", "Outdated"]  # unknown reason dropped
+    assert params[4] == "too vague"
+
+
+def test_record_feedback_up_drops_reasons_and_comment():
+    conn = _Conn()
+    qt.record_feedback(conn, question_id=7, user_id="u", vote="up",
+                       reasons=["Incorrect"], comment="nice")
+    params = conn.calls[0][1]
+    assert params[2] == "up" and params[3].obj == [] and params[4] is None
+
+
+def test_record_feedback_rejects_bad_vote():
+    with pytest.raises(ValueError):
+        qt.record_feedback(_Conn(), question_id=1, user_id="u", vote="meh")
+
+
+def test_clear_feedback_deletes_row():
+    conn = _Conn()
+    qt.clear_feedback(conn, 7)
+    sql, params = conn.calls[0]
+    assert "DELETE FROM ask_answer_feedback" in sql and params == (7,)
+
+
 # --- endpoint wiring (offline; app.state set by hand, lifespan not run) -----------
 
 @pytest.fixture()
@@ -173,3 +206,33 @@ def test_handoff_endpoints_mark_support(client, monkeypatch):
     assert client.post("/v1/handoff/draft", json={"question": "q?", "question_id": 42}).status_code == 200
     assert client.post("/v1/handoff/sent", json={"question_id": 42}).status_code == 204
     assert marks == [(42, "drafted"), (42, "sent")]
+
+
+def test_feedback_endpoint_records_a_vote(client, monkeypatch):
+    from src.rag_layer import server
+
+    seen = {}
+    monkeypatch.setattr(server, "question_exists", lambda conn, qid: True)
+    monkeypatch.setattr(server, "record_feedback", lambda conn, **k: seen.update(k))
+    resp = client.post("/v1/ask/feedback", json={
+        "question_id": 7, "vote": "down", "reasons": ["Incorrect"], "comment": "x"})
+    assert resp.status_code == 204
+    assert seen["question_id"] == 7 and seen["vote"] == "down" and seen["reasons"] == ["Incorrect"]
+
+
+def test_feedback_endpoint_rejects_unknown_question(client, monkeypatch):
+    from src.rag_layer import server
+
+    monkeypatch.setattr(server, "question_exists", lambda conn, qid: False)
+    resp = client.post("/v1/ask/feedback", json={"question_id": 999, "vote": "up"})
+    assert resp.status_code == 404
+
+
+def test_feedback_clear_endpoint(client, monkeypatch):
+    from src.rag_layer import server
+
+    cleared = []
+    monkeypatch.setattr(server, "clear_feedback", lambda conn, qid: cleared.append(qid))
+    resp = client.delete("/v1/ask/feedback/7")
+    assert resp.status_code == 204
+    assert cleared == [7]

@@ -76,6 +76,10 @@
     .q-time { color:var(--faint); font-size:11px; white-space:nowrap; }
     .tag { display:inline-flex; align-items:center; padding:3px 8px; border-radius:99px; background:#edf1ee; color:#53615d; font-size:11px; font-weight:750; white-space:nowrap; }
     .tag.support { background:#fbefd9; color:#8a5b18; }
+    .tag.fb-up { background:#e4f3e6; color:#276b33; }
+    .tag.fb-down { background:#fbe6e4; color:#9a3b2f; }
+    .fb-cell { font-size:11px; }
+    .fb-why { color:var(--muted); font-size:11px; margin-top:3px; max-width:240px; overflow-wrap:anywhere; }
     .srcs { color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
     .empty { padding:34px 22px; color:var(--muted); text-align:center; }
     .empty a { color:var(--accent); font-weight:750; }
@@ -120,7 +124,7 @@
       const $ = (query, root = document) => root.querySelector(query);
       const OUTCOMES = { answered:"Answered", unanswered:"No answer found", out_of_domain:"Off-topic" };
       const SUPPORT = { drafted:"Support draft prepared", sent:"Sent to support" };
-      const state = { days:30, data:null, category:"", outcome:"", support:"" };
+      const state = { days:30, data:null, category:"", outcome:"", support:"", feedback:"" };
 
       const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
       const pct = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : "–");
@@ -145,15 +149,18 @@
       }
 
       function render() {
-        const { totals, categories, documents } = state.data;
+        const { totals, categories, documents, issues = [] } = state.data;
         if (!totals.total) return renderMessage("No questions have been asked in this period yet. Ask something in Ask Navigator and it will show up here.");
         const onTopic = totals.answered + totals.unanswered;
         const maxCategory = Math.max(...categories.map((row) => row.total));
         const maxDocument = Math.max(1, ...documents.map((row) => row.citations));
+        const rated = totals.rated || 0, up = totals.thumbs_up || 0, down = totals.thumbs_down || 0;
+        const maxIssue = Math.max(1, ...issues.map((row) => row.count));
         $("#content").innerHTML = `
           <section class="tiles">
             <div class="tile"><label>Questions asked</label><strong>${totals.total}</strong><span>${plural(totals.out_of_domain, "off-topic question")} declined</span></div>
             <div class="tile"><label>Answered from documents</label><strong>${pct(totals.answered, onTopic)}</strong><span>${totals.answered} of ${plural(onTopic, "on-topic question")}</span></div>
+            <div class="tile"><label>Rated helpful</label><strong>${rated ? pct(up, rated) : "–"}</strong><span>${rated ? `${up} up · ${down} down of ${plural(rated, "rating")}` : "No ratings yet"}</span></div>
             <div class="tile"><label>No answer found</label><strong>${totals.unanswered}</strong><span>The library had nothing to cite</span></div>
             <div class="tile"><label>Sent to NLG Support</label><strong>${totals.support_sent}</strong><span>${plural(totals.support_drafted, "more draft")} prepared, not sent</span></div>
           </section>
@@ -172,11 +179,18 @@
               : '<div class="empty">No answers cited a document in this period.</div>'}
           </section>
           <section class="panel">
+            <div class="panel-head"><div><h2>Top feedback issues</h2><p>Why agents marked answers unhelpful (thumbs down). The biggest bars are where answers most need work.</p></div></div>
+            ${issues.length ? `<div class="scroll-x"><table><thead><tr><th>Reason</th><th class="num">Count</th><th></th></tr></thead>
+              <tbody>${issues.map((row) => `<tr><td>${esc(row.reason)}</td><td class="num">${row.count}</td><td class="bar-cell"><div class="bar doc-bar"><b style="width:${(row.count / maxIssue) * 100}%" title="${esc(row.reason)}: ${row.count}"></b></div></td></tr>`).join("")}</tbody></table></div>`
+              : '<div class="empty">No thumbs-down feedback in this period.</div>'}
+          </section>
+          <section class="panel">
             <div class="panel-head"><div><h2>Questions</h2><p id="questionCount"></p></div>
               <div class="filters">
                 <select id="fCategory" aria-label="Category"><option value="">All categories</option>${categories.map((row) => `<option${state.category === row.category ? " selected" : ""}>${esc(row.category)}</option>`).join("")}</select>
                 <select id="fOutcome" aria-label="Outcome"><option value="">All outcomes</option>${Object.entries(OUTCOMES).map(([key, label]) => `<option value="${key}"${state.outcome === key ? " selected" : ""}>${label}</option>`).join("")}</select>
                 <select id="fSupport" aria-label="Support"><option value="">Support: any</option><option value="routed"${state.support === "routed" ? " selected" : ""}>Routed to support</option></select>
+                <select id="fFeedback" aria-label="Feedback"><option value="">Rating: any</option><option value="up"${state.feedback === "up" ? " selected" : ""}>Rated helpful</option><option value="down"${state.feedback === "down" ? " selected" : ""}>Rated unhelpful</option><option value="rated"${state.feedback === "rated" ? " selected" : ""}>Any rating</option><option value="comment"${state.feedback === "comment" ? " selected" : ""}>Has a comment</option></select>
               </div></div>
             <div class="scroll-x" id="questionTable"></div>
           </section>`;
@@ -187,17 +201,34 @@
         $("#fCategory").onchange = (event) => { state.category = event.target.value; render(); };
         $("#fOutcome").onchange = (event) => { state.outcome = event.target.value; renderQuestions(); };
         $("#fSupport").onchange = (event) => { state.support = event.target.value; renderQuestions(); };
+        $("#fFeedback").onchange = (event) => { state.feedback = event.target.value; renderQuestions(); };
         renderQuestions();
+      }
+
+      function feedbackMatch(row) {
+        if (!state.feedback) return true;
+        if (state.feedback === "rated") return !!row.vote;
+        if (state.feedback === "comment") return !!row.comment;
+        return row.vote === state.feedback;
+      }
+      function feedbackCell(row) {
+        if (!row.vote) return "–";
+        const reasons = row.feedback_reasons || [];
+        const detail = [...reasons, row.comment].filter(Boolean).join(" · ");
+        const icon = row.vote === "up" ? "👍" : "👎";
+        const label = row.vote === "up" ? "Helpful" : "Unhelpful";
+        return `<span class="tag fb-${row.vote}" title="${esc(detail || label)}">${icon} ${label}</span>${detail ? `<div class="fb-why">${esc(detail)}</div>` : ""}`;
       }
 
       function renderQuestions() {
         const all = state.data.questions;
         const rows = all.filter((row) => (!state.category || row.category === state.category)
-          && (!state.outcome || row.outcome === state.outcome) && (!state.support || row.support_status));
+          && (!state.outcome || row.outcome === state.outcome) && (!state.support || row.support_status) && feedbackMatch(row));
         $("#questionCount").textContent = `${plural(rows.length, "question")}${rows.length === all.length ? "" : ` of ${all.length}`}, newest first`;
-        $("#questionTable").innerHTML = rows.length ? `<table><thead><tr><th>Asked</th><th>Question</th><th>Category</th><th>Outcome</th><th>Sources</th></tr></thead>
+        $("#questionTable").innerHTML = rows.length ? `<table><thead><tr><th>Asked</th><th>Question</th><th>Category</th><th>Outcome</th><th>Feedback</th><th>Sources</th></tr></thead>
           <tbody>${rows.map((row) => `<tr><td class="q-time">${esc(formatDate(row.asked_at))}</td><td class="q-text">${esc(row.question)}</td><td><span class="tag">${esc(row.category)}</span></td>
             <td><span class="tag"><i class="dot ${row.outcome}"></i>${esc(OUTCOMES[row.outcome] || row.outcome)}</span>${row.support_status ? ` <span class="tag support">${esc(SUPPORT[row.support_status])}</span>` : ""}</td>
+            <td class="fb-cell">${feedbackCell(row)}</td>
             <td class="srcs">${row.sources.length ? row.sources.map(esc).join("<br>") : "–"}</td></tr>`).join("")}</tbody></table>`
           : '<div class="empty">No questions match these filters.</div>';
       }

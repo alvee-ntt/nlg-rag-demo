@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Navigator — Chat Restyle Reference</title>
+<style>
+  :root{
+    --g900:#14421f; --g800:#1f6a34; --g700:#2f8a45; --g600:#3aa257;
+    --g100:#dcefdf; --g050:#eef7ef;
+    --cream:#f4f6f4; --paper:#ffffff; --mint:#f2f6f2;
+    --ink:#1c1f1c; --ink-2:#4a514b; --muted:#7a827b; --line:#e6e9e6;
+    --orange:#ee6b17; --orange-2:#d85e0f;
+    --amber-bg:#fdf3e3; --amber-line:#f0d9b0; --amber-ink:#8a5a16;
+    --warn-bg:#fdf6e6; --warn-line:#eeddb0; --warn-ink:#7a5a1a;
+    --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#1b1d1b;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  .page-head{max-width:1200px;margin:0 auto;padding:32px 24px 8px;color:#e9ece9;}
+  .page-head h1{font-family:var(--serif);font-weight:600;font-size:26px;margin:0 0 6px;letter-spacing:-.2px;}
+  .page-head p{margin:0;color:#9aa39b;font-size:14px;max-width:70ch;line-height:1.5;}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px;font-size:12px;color:#9aa39b;}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+  .deck{max-width:1200px;margin:0 auto;padding:26px 24px 60px;display:flex;flex-wrap:wrap;gap:40px 28px;align-items:flex-start;}
+  .slot{width:320px;}
+  .slot > .cap{color:#cdd3cd;font-size:12.5px;font-weight:600;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .slot > .cap .tag{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 7px;border-radius:999px;color:#bfe6c8;background:rgba(58,162,87,.18);}
+
+  /* ===== phone frame ===== */
+  .phone{width:320px;height:660px;background:var(--cream);border-radius:34px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.45);border:1px solid #0c0d0c;}
+  .status{background:var(--g800);color:#fff;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center;padding:12px 20px 8px;flex:none;}
+  .status .right{display:flex;gap:5px;align-items:center}
+  .status .right svg{width:16px;height:12px;fill:#fff}
+
+  /* ===== chat header with Ask/Learn pill ===== */
+  .chdr{background:var(--cream);display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;flex:none;}
+  .chdr .ic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:var(--g800);cursor:pointer;}
+  .chdr .ic svg{width:21px;height:21px;stroke:var(--g800);fill:none;stroke-width:2.2}
+  .toggle{display:flex;align-items:center;gap:4px;background:#e6f0e4;border-radius:999px;padding:5px;}
+  .toggle .active{display:flex;align-items:center;gap:9px;background:#fff;border-radius:999px;padding:6px 16px 6px 6px;box-shadow:0 1px 3px rgba(20,66,31,.12)}
+  .toggle .active .orbmini{width:27px;height:27px;border-radius:50%;flex:none;background:url('assets/orb-A-disc.png') center/contain no-repeat;}
+  .toggle .active b{font-size:16px;font-weight:800;color:var(--g800);letter-spacing:-.1px}
+  .toggle .book{display:grid;place-items:center;padding:0 10px 0 4px;cursor:pointer}
+  .toggle .book svg{width:23px;height:20px;stroke:var(--g700);fill:none;stroke-width:2}
+
+  /* ===== chat body ===== */
+  .sheet{background:var(--paper);border-top:1px solid var(--line);margin-top:0;flex:1;min-height:0;display:flex;flex-direction:column;position:relative;z-index:2;}
+  .clog{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:20px 16px 8px;scrollbar-width:none;}
+  .clog::-webkit-scrollbar{display:none}
+
+  /* landing / empty state */
+  .land{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px 24px;}
+  .orb{width:154px;height:154px;border-radius:50%;margin:0 auto;
+    background:url('assets/orb-A-disc.png') center/contain no-repeat;
+    filter:drop-shadow(0 0 16px rgba(120,200,110,.40)) drop-shadow(0 0 36px rgba(120,200,110,.22));}
+  .land h2{font-family:var(--serif);font-size:24px;font-weight:700;color:var(--ink);margin:40px 0 0;line-height:1.25;}
+  .land .sub{color:var(--muted);font-size:13px;margin-top:8px}
+
+  /* bubbles */
+  .bubble{max-width:86%;padding:10px 13px;border-radius:16px;font-size:13.5px;line-height:1.5;}
+  .bubble.user{align-self:flex-end;background:var(--g700);color:#fff;border-bottom-right-radius:5px;}
+  .airow{display:grid;grid-template-columns:24px 1fr;gap:9px;align-items:start;max-width:94%;}
+  .airow .mini{width:24px;height:24px;border-radius:50%;margin-top:3px;
+    background:url('assets/orb-A-disc.png') center/contain no-repeat;flex:none;}
+  .ai{background:#fff;border:1px solid var(--line);border-radius:16px;border-top-left-radius:5px;padding:12px 13px;font-size:13.5px;line-height:1.5;color:var(--ink);}
+  .ai p{margin:0 0 8px} .ai p:last-child{margin:0}
+  .ai .lead{font-weight:700}
+  .ai h4{font-family:var(--serif);font-size:14px;margin:2px 0 6px;font-weight:700}
+  .cite{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--g700);color:#fff;font-size:10px;font-weight:700;vertical-align:1px;margin:0 1px;}
+
+  /* source document chip */
+  .srccard{display:flex;align-items:center;gap:10px;background:var(--mint);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-top:10px;cursor:pointer;}
+  .srccard .doc{width:30px;height:30px;border-radius:7px;background:var(--g050);color:var(--g700);display:grid;place-items:center;flex:none}
+  .srccard .doc svg{width:16px;height:16px;stroke:var(--g700);fill:none;stroke-width:2}
+  .srccard .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+  .srccard .t b{font-size:12.5px;font-weight:700;color:var(--g900);line-height:1.3}
+  .srccard .t small{font-size:10.5px;color:var(--muted)}
+  .approved{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--g800);background:var(--g050);border:1px solid var(--g100);border-radius:999px;padding:2px 7px;}
+  .approved svg{width:10px;height:10px;stroke:var(--g700);fill:none;stroke-width:2.5}
+
+  /* guardrail callout */
+  .callout{display:flex;gap:8px;align-items:flex-start;background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:10px;padding:9px 11px;margin-top:10px;font-size:12px;color:var(--warn-ink);line-height:1.4}
+  .callout svg{width:15px;height:15px;flex:none;margin-top:1px;stroke:var(--warn-ink);fill:none;stroke-width:2}
+
+  /* fit signals table */
+  .fit{margin-top:12px}
+  .fit .fh{font-family:var(--serif);font-weight:700;font-size:13.5px;color:var(--g900);margin-bottom:5px}
+  .fit .fr{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:12.5px}
+  .fit .fr .k{color:var(--ink-2)} .fit .fr .v{font-weight:600;color:var(--ink)}
+  .fit .fr .v.pend{color:var(--muted);font-weight:500}
+
+  /* small inline source chip (client-case flow) */
+  .srcchip{display:inline-flex;align-items:center;gap:4px;background:var(--mint);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:10.5px;color:var(--ink-2);margin-left:4px;vertical-align:1px;white-space:nowrap}
+  .srcchip svg{width:11px;height:11px;stroke:var(--g700);fill:none;stroke-width:2}
+  .lchips .qchip{color:var(--ink-2);border-color:var(--line)}
+  .lchips .qchip:hover{border-color:var(--g700);color:var(--g800)}
+
+  /* feedback thumbs */
+  .thumbs{display:flex;align-items:center;gap:4px;padding:6px 0 0 34px}
+  .thumbs button{background:none;border:0;padding:4px;color:var(--muted);cursor:pointer;border-radius:6px;display:inline-flex}
+  .thumbs svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+  /* chips row */
+  .chips{display:flex;flex-wrap:wrap;gap:7px;padding:4px 0 2px 34px}
+  .qchip{font-size:12px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 12px;color:var(--g800);cursor:pointer;white-space:nowrap}
+  .qchip:hover{border-color:var(--g700);background:var(--g050)}
+
+  /* landing suggestion chips (wrap, centered) */
+  .lchips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:0 10px;margin-top:26px}
+  .lchips .qchip{border-radius:999px}
+
+  /* footer input */
+  .cfoot{flex:none;background:var(--paper);border-top:1px solid var(--line);padding:10px 14px 16px;}
+  .cinput{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 6px 5px 8px;}
+  .cinput:focus-within{border-color:var(--g700)}
+  .cinput .plus{width:28px;height:28px;border-radius:50%;background:var(--g050);color:var(--g700);display:grid;place-items:center;flex:none;font-size:18px;line-height:1}
+  .cinput input{flex:1;min-width:0;border:0;outline:0;font:inherit;font-size:13.5px;background:transparent;padding:6px 2px;color:var(--ink)}
+  .cinput input::placeholder{color:var(--muted)}
+  .cinput .mic{width:30px;height:30px;border-radius:50%;background:transparent;color:var(--g700);display:grid;place-items:center;flex:none;border:0;cursor:pointer}
+  .cinput .mic svg{width:16px;height:16px;stroke:var(--g700);fill:none;stroke-width:2}
+
+  /* ===== facts panel (client case) ===== */
+  .facts{margin-top:10px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+  .facts .frow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);font-size:13px}
+  .facts .frow:first-child{border-top:0}
+  .facts .frow .k{color:var(--ink-2)}
+  .facts .frow .v{font-weight:600;color:var(--ink)}
+  .missing{font-size:10.5px;font-weight:700;color:var(--amber-ink);background:var(--amber-bg);border:1px solid var(--amber-line);border-radius:999px;padding:2px 9px}
+  .facts .fnote{font-size:11px;color:var(--muted);padding:9px 12px;border-top:1px solid var(--line)}
+  .actrow{display:flex;flex-wrap:wrap;gap:8px;padding:10px 0 2px 34px}
+  .btn{font:inherit;font-size:12.5px;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;border:1.5px solid var(--g700);background:#fff;color:var(--g800)}
+  .btn.solid{background:var(--g700);color:#fff;border-color:var(--g700)}
+
+  /* ===== missing-facts modal ===== */
+  .modal{position:absolute;inset:0;background:rgba(20,30,22,.35);display:flex;align-items:flex-end;z-index:5}
+  .msheet{background:#fff;width:100%;border-radius:20px 20px 0 0;padding:16px 18px 22px;max-height:88%;overflow:auto}
+  .mtop{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--muted);font-weight:600}
+  .mtop .x{width:28px;height:28px;border:0;background:var(--g050);border-radius:50%;color:var(--ink-2);cursor:pointer;font-size:16px;line-height:1}
+  .msheet h3{font-family:var(--serif);font-size:20px;margin:12px 0 6px;line-height:1.25}
+  .msheet .mhint{font-size:12.5px;color:var(--muted);margin:0 0 14px}
+  .opt{display:flex;align-items:center;gap:11px;border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:9px;cursor:pointer;font-size:14px}
+  .opt .rad{width:19px;height:19px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center}
+  .opt.sel{border-color:var(--g700);background:var(--g050)}
+  .opt.sel .rad{border-color:var(--g700)}
+  .opt.sel .rad::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--g700)}
+  .minfo{font-size:12px;color:var(--ink-2);background:var(--g050);border-radius:10px;padding:10px 12px;margin:4px 0 16px;line-height:1.4}
+  .mbtn{width:100%;background:var(--g700);color:#fff;border:0;border-radius:12px;padding:14px;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+  .mskip{display:block;width:100%;text-align:center;background:none;border:0;color:var(--g700);font:inherit;font-size:13.5px;font-weight:600;padding:14px 0 2px;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="page-head">
+    <h1>Ask Navigator — Chat Restyle Reference</h1>
+    <p>Standalone reference built from the Figma <b>Flows</b> page (“Ask a live question” + “Check a client case”). Review the look here; once approved I’ll port these styles into <code>ui/learn.html</code>. Uses the app’s real palette and type tokens. Content is representative mock data from the mock-ups.</p>
+    <div class="legend">
+      <span><i style="background:#3aa257"></i> Core chat shell</span>
+      <span><i style="background:#2f8a45"></i> Source cards</span>
+      <span><i style="background:#ee6b17"></i> Client-case extras</span>
+    </div>
+  </div>
+
+  <div class="deck">
+
+    <!-- 1. Landing -->
+    <div class="slot">
+      <p class="cap">1 · Chat landing <span class="tag">core shell</span></p>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="right"><svg viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1" width="3" height="11" rx="1"/></svg><svg viewBox="0 0 18 12"><path d="M9 3c2.5 0 4.7 1 6.3 2.6l-1.4 1.4A6.7 6.7 0 0 0 9 6c-1.9 0-3.6.7-4.9 1.9L2.7 6.5A9 9 0 0 1 9 3z"/></svg><svg viewBox="0 0 18 12"><rect x="0" y="2" width="15" height="8" rx="2" fill="none" stroke="#fff" stroke-width="1.3"/><rect x="2" y="4" width="10" height="4" rx="1"/><rect x="16" y="4.5" width="1.5" height="3" rx="1"/></svg></span></div>
+        <div class="chdr">
+          <div class="ic"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></div>
+          <div class="toggle"><span class="active"><span class="orbmini"></span><b>Chat</b></span><span class="book"><svg viewBox="0 0 24 24"><path d="M12 6.4c-1.7-1-4.3-1.6-6.4-1.6v12.4c2.1 0 4.7.6 6.4 1.6"/><path d="M12 6.4c1.7-1 4.3-1.6 6.4-1.6v12.4c-2.1 0-4.7.6-6.4 1.6"/></svg></span></div>
+        </div>
+        <div class="sheet">
+          <div class="land">
+            <div class="orb"></div>
+            <h2>Hi, how can I<br>help you today?</h2>
+            <div class="lchips">
+              <span class="qchip">Define participation rate</span>
+              <span class="qchip">When would you pick fixed?</span>
+              <span class="qchip">Common objections</span>
+              <span class="qchip">What is PCC?</span>
+              <span class="qchip">IUL vs. fixed</span>
+            </div>
+          </div>
+          <div class="cfoot">
+            <div class="cinput"><span class="plus">+</span><input placeholder="Ask Navigator…"><button class="mic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Short answer with sources -->
+    <div class="slot">
+      <p class="cap">2 · Short answer + source <span class="tag">core · sources</span></p>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="right"><svg viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1" width="3" height="11" rx="1"/></svg><svg viewBox="0 0 18 12"><rect x="0" y="2" width="15" height="8" rx="2" fill="none" stroke="#fff" stroke-width="1.3"/><rect x="2" y="4" width="10" height="4" rx="1"/></svg></span></div>
+        <div class="chdr">
+          <div class="ic"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></div>
+          <div class="toggle"><span class="active"><span class="orbmini"></span><b>Chat</b></span><span class="book"><svg viewBox="0 0 24 24"><path d="M12 6.4c-1.7-1-4.3-1.6-6.4-1.6v12.4c2.1 0 4.7.6 6.4 1.6"/><path d="M12 6.4c1.7-1 4.3-1.6 6.4-1.6v12.4c-2.1 0-4.7.6-6.4 1.6"/></svg></span></div>
+        </div>
+        <div class="sheet">
+          <div class="clog">
+            <div class="bubble user">Fred asked which one will make him the most money. If I can’t say Cap Focus is best, what do I say?</div>
+            <div class="airow">
+              <div class="mini"></div>
+              <div>
+                <div class="ai">
+                  <p>Don’t rank them by growth. Frame it as a tradeoff.</p>
+                  <p><span class="lead">Cap Focus:</span> more room in a strong year.</p>
+                  <p><span class="lead">Participation Focus:</span> credits at least 110% of the index move, but caps sooner.<span class="cite">1</span></p>
+                  <p>Same index, same 0% floor.<span class="cite">2</span></p>
+                  <div class="srccard">
+                    <div class="doc"><svg viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/></svg></div>
+                    <div class="t"><b>FlexLife IUL product guide</b><small>Section 4.2 · Index crediting · v4.2</small><span class="approved"><svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 7"/></svg>Approved NLG material</span></div>
+                  </div>
+                </div>
+                <div class="thumbs">
+                  <button><svg viewBox="0 0 24 24"><path d="M7 10v10H4V10zM7 10l5-7c1.5 0 2 1 2 2l-1 5h5a2 2 0 0 1 2 2l-1.5 7a2 2 0 0 1-2 1.5H7"/></svg></button>
+                  <button><svg viewBox="0 0 24 24"><path d="M17 14V4h3v10zM17 14l-5 7c-1.5 0-2-1-2-2l1-5H6a2 2 0 0 1-2-2l1.5-7A2 2 0 0 1 7.5 2H17"/></svg></button>
+                  <button><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>
+                </div>
+                <div class="chips">
+                  <span class="qchip">Show approved wording</span>
+                  <span class="qchip">Give an example</span>
+                  <span class="qchip">What to ask next</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cfoot">
+            <div class="cinput"><span class="plus">+</span><input placeholder="Ask Navigator…"><button class="mic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Client case: facts panel -->
+    <div class="slot">
+      <p class="cap">3 · Client case — facts panel <span class="tag">client-case</span></p>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="right"><svg viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1" width="3" height="11" rx="1"/></svg><svg viewBox="0 0 18 12"><rect x="0" y="2" width="15" height="8" rx="2" fill="none" stroke="#fff" stroke-width="1.3"/><rect x="2" y="4" width="10" height="4" rx="1"/></svg></span></div>
+        <div class="chdr">
+          <div class="ic"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></div>
+          <div class="toggle"><span class="active"><span class="orbmini"></span><b>Chat</b></span><span class="book"><svg viewBox="0 0 24 24"><path d="M12 6.4c-1.7-1-4.3-1.6-6.4-1.6v12.4c2.1 0 4.7.6 6.4 1.6"/><path d="M12 6.4c1.7-1 4.3-1.6 6.4-1.6v12.4c-2.1 0-4.7.6-6.4 1.6"/></svg></span></div>
+        </div>
+        <div class="sheet">
+          <div class="clog">
+            <div class="bubble user">Client is 46, takes metformin for type 2 diabetes. Looking at FlexLife for family protection.</div>
+            <div class="airow">
+              <div class="mini"></div>
+              <div>
+                <div class="ai">
+                  <p>Here’s what I picked up. I need three more facts before I check the guide.</p>
+                  <div class="facts">
+                    <div class="frow"><span class="k">Age</span><span class="v">46</span></div>
+                    <div class="frow"><span class="k">Condition</span><span class="v">Type 2 diabetes</span></div>
+                    <div class="frow"><span class="k">Medication</span><span class="v">Metformin</span></div>
+                    <div class="frow"><span class="k">Last A1C</span><span class="missing">Missing</span></div>
+                    <div class="frow"><span class="k">Height &amp; weight</span><span class="missing">Missing</span></div>
+                    <div class="frow"><span class="k">Tobacco</span><span class="missing">Missing</span></div>
+                    <div class="fnote">I don’t save names, SSNs or banking details.</div>
+                  </div>
+                </div>
+                <div class="actrow">
+                  <button class="btn">Walk through questions with client</button>
+                  <button class="btn">Edit facts</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cfoot">
+            <div class="cinput"><span class="plus">+</span><input placeholder="Ask Navigator…"><button class="mic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Missing-facts modal -->
+    <div class="slot">
+      <p class="cap">4 · Missing-facts prompt <span class="tag">client-case</span></p>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="right"><svg viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1" width="3" height="11" rx="1"/></svg><svg viewBox="0 0 18 12"><rect x="0" y="2" width="15" height="8" rx="2" fill="none" stroke="#fff" stroke-width="1.3"/><rect x="2" y="4" width="10" height="4" rx="1"/></svg></span></div>
+        <div class="chdr">
+          <div class="ic"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></div>
+          <div class="toggle"><span class="active"><span class="orbmini"></span><b>Chat</b></span><span class="book"><svg viewBox="0 0 24 24"><path d="M12 6.4c-1.7-1-4.3-1.6-6.4-1.6v12.4c2.1 0 4.7.6 6.4 1.6"/><path d="M12 6.4c1.7-1 4.3-1.6 6.4-1.6v12.4c-2.1 0-4.7.6-6.4 1.6"/></svg></span></div>
+        </div>
+        <div class="sheet">
+          <div class="clog" style="opacity:.5"><div class="bubble user">Client is 46, takes metformin…</div></div>
+          <div class="modal">
+            <div class="msheet">
+              <div class="mtop"><span>Question 1 of 3</span><button class="x">×</button></div>
+              <h3>What was your last A1C reading?</h3>
+              <p class="mhint">This changes the answer the most, so I’m asking it first.</p>
+              <div class="opt"><span class="rad"></span>Under 7</div>
+              <div class="opt sel"><span class="rad"></span>7 to 8</div>
+              <div class="opt"><span class="rad"></span>8 to 9</div>
+              <div class="opt"><span class="rad"></span>Over 9</div>
+              <div class="opt"><span class="rad"></span>Not sure yet</div>
+              <div class="minfo">Underwriting looks at how well diabetes is controlled. Next: height and weight, then tobacco use.</div>
+              <button class="mbtn">Next</button>
+              <button class="mskip">Skip for now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Guidance with cited sources + fit signals -->
+    <div class="slot">
+      <p class="cap">5 · Guidance + Fit signals <span class="tag">client-case · sources</span></p>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span class="right"><svg viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1" width="3" height="11" rx="1"/></svg><svg viewBox="0 0 18 12"><rect x="0" y="2" width="15" height="8" rx="2" fill="none" stroke="#fff" stroke-width="1.3"/><rect x="2" y="4" width="10" height="4" rx="1"/></svg></span></div>
+        <div class="chdr">
+          <div class="ic"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></div>
+          <div class="toggle"><span class="active"><span class="orbmini"></span><b>Chat</b></span><span class="book"><svg viewBox="0 0 24 24"><path d="M12 6.4c-1.7-1-4.3-1.6-6.4-1.6v12.4c2.1 0 4.7.6 6.4 1.6"/><path d="M12 6.4c1.7-1 4.3-1.6 6.4-1.6v12.4c-2.1 0-4.7.6-6.4 1.6"/></svg></span></div>
+        </div>
+        <div class="sheet">
+          <div class="clog">
+            <div class="bubble user">A1C 7 to 8 · 5′6″, 190 lb · Non-smoker</div>
+            <div class="airow">
+              <div class="mini"></div>
+              <div>
+                <div class="ai">
+                  <h4>What the underwriting guide says</h4>
+                  <p>Type 2 diabetes on metformin with an A1C of 7 to 8 is usually reviewed with a few extra questions.<span class="srcchip"><svg viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/></svg>FlexLife.pdf</span></p>
+                  <p>Underwriting may ask about date of diagnosis, recent A1C results and any complications.<span class="srcchip"><svg viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/></svg>PrinciplesForConsumers</span></p>
+                  <div class="fit">
+                    <div class="fh">Fit signals</div>
+                    <div class="fr"><span class="k">Need</span><span class="v">Family protection</span></div>
+                    <div class="fr"><span class="k">Budget</span><span class="v pend">Not shared yet</span></div>
+                    <div class="fr"><span class="k">Existing coverage</span><span class="v pend">Not asked yet</span></div>
+                  </div>
+                  <div class="callout"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/></svg>Guidance only. NLG underwriting decides.</div>
+                </div>
+                <div class="chips">
+                  <span class="qchip">What if income drops 30%?</span>
+                  <span class="qchip">What if payments stop?</span>
+                  <span class="qchip">Ask NLG support</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cfoot">
+            <div class="cinput"><span class="plus">+</span><input placeholder="Ask Navigator…"><button class="mic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
