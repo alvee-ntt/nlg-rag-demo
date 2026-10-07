@@ -1,0 +1,17 @@
+.git
+.gitignore
+.vscode
+.codex-build
+.codex-finalizer
+backend/.env
+backend/.pytest_cache
+backend/.venv
+backend/**/__pycache__
+frontend/dist
+frontend/node_modules
+output
+scripts/.run
+traces
+**/*.pyc
+**/*.pyo
+**/.DS_Store

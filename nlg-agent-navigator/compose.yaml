@@ -1,0 +1,35 @@
+services:
+  app:
+    build:
+      context: .
+    env_file:
+      - backend/.env
+    environment:
+      PROMPT_DATABASE_URL: postgresql://postgres:postgres@prompt-db:5432/nlg_agent
+      LOG_PATH: /var/log/nlg-agent
+    ports:
+      - "8080:8080"
+    depends_on:
+      prompt-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  prompt-db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nlg_agent
+    ports:
+      - "5433:5432"
+    volumes:
+      - prompt-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nlg_agent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  prompt-db-data:

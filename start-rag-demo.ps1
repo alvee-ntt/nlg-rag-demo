@@ -36,6 +36,12 @@ function Copy-RagRuntime() {
         Remove-Item -LiteralPath $runtimeUi -Recurse -Force
     }
     Copy-Item -LiteralPath (Join-Path $ProjectRoot 'ui') -Destination $runtimeUi -Recurse -Force
+
+    $runtimePrompts = Join-Path $RuntimeRoot 'Prompts'
+    if (Test-Path -LiteralPath $runtimePrompts) {
+        Remove-Item -LiteralPath $runtimePrompts -Recurse -Force
+    }
+    Copy-Item -LiteralPath (Join-Path $ProjectRoot 'Prompts') -Destination $runtimePrompts -Recurse -Force
 }
 
 function Test-DockerEngine() {
@@ -185,4 +191,3 @@ if (-not $NoBrowser) {
 Write-Host ""
 Write-Host "Leave Docker Desktop running while your app uses the API."
 Wait-ForExit
-

@@ -1,0 +1,14 @@
+backend/.env
+backend/.venv/
+backend/.pytest_cache/
+.pytest_cache/
+backend/**/__pycache__/
+frontend/node_modules/
+frontend/dist/
+/.vscode/
+.codex-build/
+.codex-finalizer/
+/output/
+/traces/
+/backend/traces/
+/scripts/.run/

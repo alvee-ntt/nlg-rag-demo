@@ -1,0 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap');
+
+:root {
+  --paper: #f7f8f3;
+  --ink: #17201e;
+  --muted: #687773;
+  --line: #dfe4df;
+  --line-strong: #bdc8c4;
+  --lime: #c8ff3d;
+  --sans: 'Manrope', Candara, sans-serif;
+  --display: 'Newsreader', Georgia, serif;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  letter-spacing: 0;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-width: 320px; min-height: 100%; height: 100%; }
+button, textarea { letter-spacing: 0; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid #ff654f; outline-offset: 2px; }
