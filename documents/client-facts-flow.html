@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Shareable version: https://claude.ai/artifact/F1x6W4xkBYsaBH4PksHkmT -->
+<title>Client Facts Flow</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: one reading column; the diagram and the table may run wider and scroll on their own. */
+  :root {
+    --bg: #f3f5f2; --surface: #ffffff; --ink: #18211b; --ink-2: #4c584f; --rule: #dfe5df;
+    --green: #1f6a34; --green-soft: #e4f0e5; --amber: #9a5600; --amber-soft: #fdf0d9;
+    --model: #5b3fa8; --model-soft: #ece7f8;
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --body: "Figtree", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #111612; --surface: #1a211c; --ink: #e8eee9; --ink-2: #a5b2a8; --rule: #2c362f;
+    --green: #7fce92; --green-soft: #1e3324; --amber: #f0b45c; --amber-soft: #3a2c12;
+    --model: #b9a4f2; --model-soft: #2a2444; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #111612; --surface: #1a211c; --ink: #e8eee9; --ink-2: #a5b2a8; --rule: #2c362f;
+    --green: #7fce92; --green-soft: #1e3324; --amber: #f0b45c; --amber-soft: #3a2c12;
+    --model: #b9a4f2; --model-soft: #2a2444; color-scheme: dark }
+
+  body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.6; }
+  .page { max-width: 46rem; margin: 0 auto; padding-inline: 20px; padding-block: 48px 72px; display: flex; flex-direction: column; gap: 44px; }
+  .page > * { min-width: 0; }
+  h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(2rem, 6vw, 2.9rem); line-height: 1.08; font-weight: 700; }
+  h2 { font-size: 1.45rem; line-height: 1.2; font-weight: 700; }
+  p { margin: 0; }
+  .eyebrow { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--green); }
+  .lede { font-size: 1.14rem; color: var(--ink-2); max-width: 38rem; }
+  header, section { display: flex; flex-direction: column; gap: 16px; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  code { background: var(--green-soft); color: var(--ink); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+
+  .tag { display: inline-block; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .tag.model { background: var(--model-soft); color: var(--model); }
+  .tag.code { background: var(--green-soft); color: var(--green); }
+
+  .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 14px; }
+  .split > div { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .split h3 { margin: 0; font-family: var(--body); font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .split ul { margin: 0; padding-left: 18px; color: var(--ink-2); display: flex; flex-direction: column; gap: 4px; }
+
+  .scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+  pre.mermaid { margin: 0; min-width: 40rem; background: transparent; font-family: var(--body); }
+
+  ol.turns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; counter-reset: t; }
+  ol.turns li { counter-increment: t; display: grid; grid-template-columns: 2.2rem 1fr; gap: 14px; padding: 16px 0; border-top: 1px solid var(--rule); }
+  ol.turns li:last-child { border-bottom: 1px solid var(--rule); }
+  ol.turns li::before { content: counter(t); font-family: var(--display); font-weight: 700; font-size: 1.3rem; color: var(--green); line-height: 1.3; }
+  ol.turns li > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .said { font-weight: 600; }
+  .does { color: var(--ink-2); }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .card-wrap { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 20px; align-items: start; }
+  .card-wrap > * { min-width: 0; }
+  .facts { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px 14px 14px 4px; padding: 14px 16px; font-size: 0.92rem; }
+  .facts .row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--rule); }
+  .facts .row:first-of-type { border-top: 0; }
+  .facts .k { color: var(--ink-2); }
+  .facts .v { font-weight: 700; text-align: right; }
+  .pill { background: var(--amber-soft); color: var(--amber); font-weight: 700; font-size: 0.74rem; padding: 2px 10px; border-radius: 999px; align-self: center; }
+  .facts .lead { margin-bottom: 6px; }
+  .facts .note { color: var(--ink-2); font-size: 0.78rem; margin-top: 8px; }
+  .side { display: flex; flex-direction: column; gap: 10px; color: var(--ink-2); }
+  .side strong { color: var(--ink); }
+
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: 0.92rem; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-top: 1px solid var(--rule); }
+  th { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); font-weight: 500; border-top: 0; }
+  td:first-child { font-weight: 700; white-space: nowrap; }
+  td.file { font-family: var(--mono); font-size: 0.8rem; overflow-wrap: anywhere; }
+
+  dl { margin: 0; display: flex; flex-direction: column; gap: 14px; }
+  dt { font-weight: 700; }
+  dd { margin: 2px 0 0; color: var(--ink-2); }
+  pre.json { margin: 0; font-family: var(--mono); font-size: 0.8rem; line-height: 1.55; color: var(--ink); white-space: pre; }
+  section > .eyebrow { margin-bottom: -8px; }
+  footer { color: var(--ink-2); font-size: 0.85rem; border-top: 1px solid var(--rule); padding-top: 16px; }
+</style>
+</head>
+<body style="margin:0">
+<main class="page">
+  <header>
+    <span class="eyebrow">Ask Navigator · M16</span>
+    <h1>How the client facts flow works</h1>
+    <p class="lede">When an agent describes a specific client, Ask Navigator collects the facts the underwriting guide treats as material, asks for what is missing, and answers with what the guide lays out for those facts. This page explains what happens on each message.</p>
+  </header>
+
+  <section>
+    <h2>The short version</h2>
+    <p>Every message is classified once. Only messages about a specific client enter the client-facts path. Inside that path the model does two jobs; everything else is lookup code against a rulebook extracted from the guide.</p>
+    <div class="split">
+      <div>
+        <h3>The model <span class="tag model">model call</span></h3>
+        <ul>
+          <li>Decides whether a message is about a client or a replacement</li>
+          <li>Turns the agent's sentence into rulebook keys</li>
+          <li>Writes the final answer, through the hosted Foundry agent</li>
+        </ul>
+      </div>
+      <div>
+        <h3>The rulebook <span class="tag code">lookup code</span></h3>
+        <ul>
+          <li>Which facts are required, and their answer options</li>
+          <li>Which questions to ask, and why each matters</li>
+          <li>Every line under "What the underwriting guide says", with its page</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What happens on one message</h2>
+    <div class="scroll">
+<pre class="mermaid">
+flowchart TD
+  A["Browser sends message, history and the case sheet"] --> B{"classify_turn<br/>(model call)"}
+  B -->|out of domain| C["Fixed decline"]
+  B -->|not about a client| D["Hosted Foundry agent, same as before"]
+  B -->|about a client| E["extract_case_facts<br/>(model call)<br/>sentence to rulebook keys"]
+  E --> F["Merge into the sheet<br/>unknown keys dropped"]
+  F --> G{"What kind of turn?"}
+  G -->|replacement| H["Foundry with a no-talk-track instruction<br/>banner and NLG handoff"]
+  G -->|facts missing, never asked| I["Facts card<br/>no agent call<br/>facts marked as asked"]
+  G -->|nothing new to ask| J["Guide lookup: grid, rules, condition lines"]
+  J --> K["Foundry agent with the facts and the guardrail<br/>(model call)"]
+  H --> L["Response: answer, updated sheet, card or findings, chips"]
+  I --> L
+  K --> L
+  L --> M["Browser draws it and saves the sheet on the thread"]
+</pre>
+    </div>
+    <p>Each missing fact can hold up an answer only once. After the card has asked for it, later turns answer with what is known.</p>
+  </section>
+
+  <section>
+    <h2>One client, turn by turn</h2>
+    <ol class="turns">
+      <li><div>
+        <p class="said">The agent types: "Client is 46, takes metformin for type 2 diabetes. Looking at FlexLife for family protection."</p>
+        <p class="does">The classifier flags the message as about a client. The extractor returns age 46, the medication, the need, and the condition type 2 diabetes.</p>
+        <div class="tags"><span class="tag model">2 model calls</span></div>
+      </div></li>
+      <li><div>
+        <p class="said">The server works out what is missing.</p>
+        <p class="does">Required facts are the four universal ones (age, coverage amount, tobacco, height and weight) plus what the rulebook lists for type 2 diabetes. Seven are unknown and none has been asked, so it returns the facts card and does not call the agent.</p>
+        <div class="tags"><span class="tag code">lookup only</span></div>
+      </div></li>
+      <li><div>
+        <p class="said">The agent taps "Walk through questions with client".</p>
+        <p class="does">The stepper runs in the browser from the question list that came with the card. On finish, the browser writes the answers onto the sheet and sends one summary message marked as hand-entered.</p>
+        <div class="tags"><span class="tag code">no server call per question</span></div>
+      </div></li>
+      <li><div>
+        <p class="said">The server answers.</p>
+        <p class="does">It skips extraction because the facts are already structured, runs the guide lookups, and calls the agent with the facts as context. The reply carries the agent's answer plus the guide block, and the card above fills in.</p>
+        <div class="tags"><span class="tag model">classifier + agent</span><span class="tag code">guide lookup</span></div>
+      </div></li>
+      <li><div>
+        <p class="said">A follow-up: "Does he need an exam?"</p>
+        <p class="does">It goes to the agent with the same facts. The guide block is not repeated, because the sheet did not change.</p>
+      </div></li>
+      <li><div>
+        <p class="said">"They want to cash out a whole life policy to pay for this."</p>
+        <p class="does">This takes the replacement branch: a state-rules banner, the existing "Ask NLG for a decision" handoff, and a "Back to the client" chip that redraws the card with no model call.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>What the agent sees after the first message</h2>
+    <div class="card-wrap">
+      <div class="facts" aria-label="Example facts card">
+        <p class="lead">Here's what I picked up. The underwriting guide treats 7 more facts as relevant here.</p>
+        <div class="row"><span class="k">Condition</span><span class="v">Diabetes, Type 2</span></div>
+        <div class="row"><span class="k">Age</span><span class="v">46</span></div>
+        <div class="row"><span class="k">Medication</span><span class="v">Metformin</span></div>
+        <div class="row"><span class="k">Coverage amount</span><span class="pill">Missing</span></div>
+        <div class="row"><span class="k">Tobacco or nicotine</span><span class="pill">Missing</span></div>
+        <div class="row"><span class="k">Height and weight</span><span class="pill">Missing</span></div>
+        <div class="row"><span class="k">Uses insulin</span><span class="pill">Missing</span></div>
+        <p class="note">Example, shortened. The real card lists all seven missing facts.</p>
+      </div>
+      <div class="side">
+        <p><strong>Where the rows come from.</strong> The known rows are what the extractor found. The missing rows are the rulebook's required facts that are not on the sheet yet.</p>
+        <p><strong>Where the questions come from.</strong> Each missing fact has a question, answer options taken from the guide's own cut-offs, a reason, and a page number, for example the requirements grid on p.23.</p>
+        <p><strong>What it never does.</strong> It collects and explains the information underwriting needs. It does not say whether a client will be approved or name a rate class for them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where each piece lives</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Piece</th><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>Rulebook</td><td class="file">src/rag_layer/underwriting_data/flexlife_rulebook.json</td><td>Fact definitions, 93 conditions, the requirements grid and documented rules, each with a page</td></tr>
+          <tr><td>Lookup logic</td><td class="file">src/rag_layer/underwriting.py</td><td>Validates the sheet, computes what is missing, builds questions, produces findings. No model, no database</td></tr>
+          <tr><td>Model steps</td><td class="file">src/rag_layer/embeddings.py</td><td><code>classify_turn</code> and <code>extract_case_facts</code></td></tr>
+          <tr><td>Orchestration</td><td class="file">src/rag_layer/service.py</td><td><code>chat_foundry</code> holds the branching shown in the diagram</td></tr>
+          <tr><td>Agent context</td><td class="file">src/rag_layer/foundry.py</td><td>Adds the facts and the guardrail to the message sent to the hosted agent</td></tr>
+          <tr><td>Interface</td><td class="file">ui/learn.html</td><td>Facts card, chips, stepper, edit sheet, answer block</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Design choices behind it</h2>
+    <dl>
+      <div><dt>The browser holds the sheet.</dt><dd>The server keeps no client state. It re-validates the sheet against the rulebook on every turn and drops any key it does not recognise, so there is no slot for a name or an SSN.</dd></div>
+      <div><dt>The model never decides what matters.</dt><dd>It only maps sentences to rulebook keys. Required facts, answer options and guide findings all come from the rulebook, so they are the same every time and can be reviewed.</dd></div>
+      <div><dt>Ordinary questions are untouched.</dt><dd>Client detection is folded into the domain check that already ran on every message, so a general question makes no extra model call.</dd></div>
+      <div><dt>Failures fall back to normal chat.</dt><dd>If the classifier or the extractor errors, the turn is treated as an ordinary question.</dd></div>
+    </dl>
+  </section>
+
+  <section id="integrate">
+    <span class="eyebrow">For developers</span>
+    <h2>Integrating with your own changes</h2>
+    <p>The whole feature rides on the existing <code>POST /v1/foundry/chat</code> endpoint. There is no new endpoint, table or dependency. Every new field is optional, so a client that ignores them sees the same behaviour as before.</p>
+    <div class="split">
+      <div>
+        <h3>Request, two new fields</h3>
+        <ul>
+          <li><code>case</code>: the sheet the server returned last turn, or null</li>
+          <li><code>case_action</code>: <code>"answers"</code> when the sheet was filled in by hand, <code>"answer_now"</code> to skip the questions, <code>"show"</code> to redraw the card with no model call</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Response, new fields</h3>
+        <ul>
+          <li><code>case</code>: the updated sheet; store it and send it back</li>
+          <li><code>case_card</code>: <code>show</code>, <code>rows</code>, <code>questions</code>, <code>edit_questions</code>, <code>note</code></li>
+          <li><code>findings</code>, <code>fit_signals</code>, <code>actions</code>, <code>disclaimer</code>, <code>banner</code>, <code>underwriting</code></li>
+        </ul>
+      </div>
+    </div>
+    <div class="scroll"><pre class="json">// the case sheet: only keys the rulebook defines survive validation
+{ "v": 1,
+  "conditions": ["diabetes_type_2"],
+  "facts": {
+    "age":         { "value": 46, "display": "46" },
+    "face_amount": { "value": 1000000, "display": "$250K to $1M" },
+    "build":       { "value": { "height_in": 66, "weight_lb": 190 }, "display": "5'6\", 190 lb" },
+    "tobacco":     { "status": "skipped" },
+    "diabetes_type_2.insulin": { "value": false, "display": "No" } },
+  "asked": ["face_amount", "tobacco", "build", "diabetes_type_2.insulin"] }
+
+// one question, as sent in case_card.questions
+{ "key": "tobacco", "label": "Tobacco or nicotine", "type": "choice",
+  "prompt": "Any tobacco or nicotine use, and how long ago?",
+  "options": [{ "label": "Never, or more than 5 years ago", "value": "none_60m" }, "..."],
+  "why": "The non-tobacco classes use 12, 36 and 60 month cut-offs.", "page": 27 }
+
+// one finding, as sent in findings
+{ "kind": "requirements", "page": 23, "url": "/v1/documents/59/open#page=23",
+  "text": "Medical requirements at age 46 for $250K to $1M of FlexLife: application only, with no exam or labs." }</pre></div>
+    <dl>
+      <div><dt>If you are changing the chat path.</dt><dd>All branching is in <code>service.chat_foundry</code>, after the domain check. A turn that is not about a client returns early through the same agent call as before, so changes to the ordinary path do not need to know about any of this. <code>classify_domain</code> still exists as a wrapper, but <code>chat_foundry</code> now calls <code>classify_turn</code>.</dd></div>
+      <div><dt>If you are building a different front end.</dt><dd>Draw <code>case_card.rows</code> when <code>show</code> is true. To collect answers, write <code>{ value }</code> or <code>{ status: "skipped" }</code> into <code>case.facts</code> under each question's <code>key</code> and send the next message with <code>case_action: "answers"</code>. The server recomputes every <code>display</code> string, so the client does not need to format values.</dd></div>
+      <div><dt>What to run.</dt><dd><code>tests/test_m16_rulebook.py</code> covers the rulebook and lookups; <code>tests/test_m16_client_facts.py</code> covers every branch of the chat path with the model and agent mocked. Run the suite inside the app image, because the endpoint tests do not run on the host Python.</dd></div>
+    </dl>
+  </section>
+
+  <section id="multi-agent">
+    <h2>What carries over to a multi-agent workflow</h2>
+    <p>The feature is already split along the lines a multi-agent design wants: one routing step, one intake step, a set of deterministic lookups, and one answering step, all passing a single validated state object. The lookups move across unchanged. The glue that sequences them does not.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Piece today</th><th>Role in a multi-agent design</th><th>Reusable as is?</th></tr></thead>
+        <tbody>
+          <tr><td>Case sheet + <code>clean_case</code></td><td>Shared workflow state, validated at every hand-off so no agent can add a key the rulebook does not define</td><td>Yes</td></tr>
+          <tr><td><code>missing_keys</code>, <code>unasked_missing</code>, <code>questions_for</code></td><td>A "what should I ask next" tool for an intake agent</td><td>Yes. Pure functions, no model or database</td></tr>
+          <tr><td><code>findings_for</code>, <code>requirement_code</code>, <code>financial_requirements</code>, <code>income_multiple</code></td><td>Guide-lookup tools for an underwriting agent. They return cited facts, so the agent does not have to recall the grid</td><td>Yes</td></tr>
+          <tr><td><code>context_text</code></td><td>The guardrail and facts block for whichever agent writes the answer</td><td>Yes, as text</td></tr>
+          <tr><td>Rulebook JSON</td><td>The knowledge those tools read. Also usable directly as a tool schema: each fact has a type, options and a page</td><td>Yes</td></tr>
+          <tr><td><code>extract_case_facts</code></td><td>The intake agent's extraction step, or a tool it calls</td><td>Mostly. The prompt is built from the rulebook; the model client is this repo's Azure OpenAI helper</td></tr>
+          <tr><td><code>classify_turn</code></td><td>The orchestrator's routing decision</td><td>As a reference. An orchestrator will usually route itself</td></tr>
+          <tr><td>Replacement branch</td><td>A hand-off to a compliance or support agent</td><td>The trigger and wording, yes. The sequencing, no</td></tr>
+          <tr><td><code>service.chat_foundry</code></td><td>Becomes the orchestrator</td><td>No. This is the part to rewrite</td></tr>
+          <tr><td>Card, stepper, edit sheet</td><td>The human-in-the-loop step when an agent needs facts from the user</td><td>The JSON contract, yes. The UI code is inside one large file</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <dl>
+      <div><dt>The rule worth keeping.</dt><dd>Agents may read facts and call the lookups, but they should not decide what is material or state an outcome. Today that is enforced by the rulebook owning the required facts and by the instruction in <code>context_text</code>. In a multi-agent design, keep the lookups as tools and keep that instruction on the answering agent.</dd></div>
+      <div><dt>What needs work before reuse.</dt><dd>The loader reads one rulebook by file name, so a second product needs a product parameter. A few rules are written in <code>underwriting.py</code> instead of the JSON, including the insulin and tobacco records rule. The script that generated the rulebook from the guide PDF is not in the repository yet.</dd></div>
+      <div><dt>A sensible first step.</dt><dd>Import <code>underwriting.py</code> and call <code>merge_extracted</code>, <code>missing_keys</code> and <code>findings_for</code> directly with a hand-written sheet. They have no dependencies beyond the JSON file, so this works before any agent framework is chosen.</dd></div>
+    </dl>
+  </section>
+
+  <footer>Source: Life Insurance Underwriting Guide, Cat No 62797(0126). The per-condition question assignments in the rulebook were derived from the guide's wording and still need a review pass.</footer>
+</main>
+<!-- The hosted version draws the diagram natively; this copy loads Mermaid to do it. -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });</script>
+</body>
+</html>
