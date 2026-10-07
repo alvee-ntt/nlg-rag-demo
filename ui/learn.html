@@ -682,6 +682,13 @@
   .chat-toggle .seg .orb { width: 24px; height: 24px; }
   .chat-toggle .book { padding: 7px 13px; color: var(--g700); }
   .chat-toggle .book svg { width: 22px; height: 20px; display: block; }
+  /* Mirrored state on the Learn page: orb-only Chat button on the left, white active pill with book + "Learn" on the right */
+  .chat-toggle { flex: none; }
+  .chat-toggle .seg.on { cursor: default; }
+  .chat-toggle .seg.on.book { padding: 7px 15px; }
+  .chat-toggle .seg.orbonly { padding: 5px 11px; }
+  .hdr.learn-hdr .hdr-row { gap: 8px; }
+  .hdr.learn-hdr .chat-toggle .seg.on.book { padding: 7px 12px; gap: 6px; }
   main.chatpage { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0; }
   main.chatpage .chat { padding: 4px 18px 0; }
   .chat-title { font-size: 17px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
@@ -1201,10 +1208,17 @@
   const uwPage = (f) => f.page == null ? "" : (f.url
     ? `<a class="uw-pg" href="${esc(f.url)}" target="_blank" rel="noopener" title="Open the underwriting guide">p.${esc(f.page)}</a>`
     : `<span class="uw-pg">p.${esc(f.page)}</span>`);
-  function caseCardHtml(card) {
-    const rows = card.rows || [];
+  // sheet is the thread's current facts: a card further up the chat fills in as the
+  // agent answers, rather than staying a snapshot of what was missing when it was drawn.
+  function caseCardHtml(card, sheet) {
+    const facts = (sheet && sheet.facts) || {};
+    const rows = (card.rows || []).map((r) => {
+      const f = facts[r.key];
+      if (!f) return r;
+      return f.status === "skipped" ? { ...r, value: "Skipped", status: "skipped" } : { ...r, value: f.display, status: "known" };
+    });
     const n = rows.filter((r) => r.status === "missing").length;
-    const lead = n ? `Here's what I picked up. The underwriting guide treats ${n === 1 ? "one more fact" : n + " more facts"} as relevant here.` : "Here's what I picked up.";
+    const lead = n ? `Here's what I picked up. The underwriting guide treats ${n === 1 ? "one more fact" : n + " more facts"} as relevant here.` : "Here's what I have for this client.";
     return `<div>${esc(lead)}</div><div class="uw-rows">${rows.map((r) => `<div class="uw-row"><span class="k">${esc(r.label)}</span>${
       r.status === "missing" ? `<span class="uw-pill">Missing</span>` : `<span class="v${r.status === "skipped" ? " soft" : ""}">${esc(r.value)}</span>`}</div>`).join("")}</div>${
       card.note ? `<div class="uw-note">${esc(card.note)}</div>` : ""}`;
@@ -1424,7 +1438,7 @@
           ? `<div class="thumbs"><span class="act" data-act="retry" style="margin-left:0">Try again</span></div>`
           : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${n ? `<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="menu">Options</span><span class="act" data-act="handoff">Ask NLG Support</span></div>`;
         const banner = rich && m.banner ? `<div class="uw-banner">${UW_SHIELD}<span>${esc(m.banner)}</span></div>` : "";
-        const body = card ? caseCardHtml(card) : rich ? banner + mdToHtml(m.text) + caseAnswerHtml(m) : esc(m.text);
+        const body = card ? caseCardHtml(card, opts.thread && opts.thread.case) : rich ? banner + mdToHtml(m.text) + caseAnswerHtml(m) : esc(m.text);
         const handoffCta = (rich && m.escalate) ? `<div><button class="handoff-cta" data-act="handoff">${m.escalate_reason === "case_specific" ? "Ask NLG for a decision" : "Prepare a request to NLG Support"}</button></div>` : "";
         return `<div class="ai-row${m.failed ? " failed" : ""}" data-i="${i}"><span class="orb sm"></span><div><div class="bubble ai${rich ? " md" : ""}${m.pending ? " pending" : ""}">${body}</div>${tools}${handoffCta}<div class="nsrc-list${m.open ? " open" : ""}">${(m.citations || []).map(citeHtml).join("")}${(m.sources || []).map(srcHtml).join("")}</div></div></div>`;
       }).join("");
@@ -1662,7 +1676,7 @@
     tabbar("ask");
     const t = activeThread();
     const title = t.title || titleFrom(t.messages);
-    view.innerHTML = header(`<button class="iconbtn" id="chatHist" title="Your chats">${I.menu}</button><button class="iconbtn" id="chatSet" title="Answer preferences">${I.gear}</button><button class="iconbtn" id="chatNew" title="New chat">${I.plus}</button><span class="spacer"></span><div class="chat-toggle"><span class="seg on"><span class="orb"></span><b>Chat</b></span><button class="seg book" id="modeLearn" title="Switch to Learn">${I.learn}</button></div>`, "light chat-hdr") +
+    view.innerHTML = header(`<button class="iconbtn" id="chatHist" title="Your chats">${I.menu}</button><button class="iconbtn" id="chatSet" title="Answer preferences">${I.gear}</button><button class="iconbtn" id="chatNew" title="New chat">${I.plus}</button><span class="spacer"></span>${modeToggle("chat")}`, "light chat-hdr") +
       `<main class="chatpage fade"><div class="chat" id="chatMain"></div></main>`;
     const chat = mountChat($("#chatMain"), {
       log: t.messages, thread: t, chips: NAV_CHIPS, intro: NAV_INTRO, send: navSend,
@@ -1675,7 +1689,7 @@
       newThread(); rerender();
     };
     $("#chatHist").onclick = () => openChatHistory(rerender);
-    { const ml = $("#modeLearn"); if (ml) ml.onclick = () => go("/learn"); }
+    wireModeToggle();
     $("#chatSet").onclick = () => openChatSettings();
     chat.focus();
     cleanup = () => chat.destroy();
@@ -1806,6 +1820,13 @@
 
   const STATUSBAR = `<div class="statusbar"><span>9:41</span><span class="sig">▂▄▆ ᯤ ▮</span></div>`;
   function header(inner, cls = "") { return `<div class="hdr ${cls}">${STATUSBAR}<div class="hdr-row">${inner}</div></div>`; }
+  // Chat/Learn mode toggle shared by the Chat and Learn headers: Chat always left, Learn always
+  // right; the active side is the white labelled pill, the other is an icon-only button.
+  function modeToggle(active) {
+    const chat = active === "chat";
+    return `<div class="chat-toggle">${chat ? `<span class="seg on"><span class="orb"></span><b>Chat</b></span>` : `<button class="seg orbonly" id="modeChat" title="Switch to Chat"><span class="orb"></span></button>`}${chat ? `<button class="seg book" id="modeLearn" title="Switch to Learn">${I.learn}</button>` : `<span class="seg on book">${I.learn}<b>Learn</b></span>`}</div>`;
+  }
+  function wireModeToggle() { const mc = $("#modeChat"), ml = $("#modeLearn"); if (mc) mc.onclick = () => go("/chat"); if (ml) ml.onclick = () => go("/learn"); }
   // Cream header for every screen that isn't a tab root: back (or close) + serif title.
   function lightHeader(title, extra = "", o = {}) {
     return `<div class="hdr light">${STATUSBAR}<div class="hdr-row"><button class="back" id="back" title="${o.close ? "Close" : "Back"}">${o.close ? I.x : I.back}${o.orb ? `<span class="orb sm"></span>` : ""}<span>${esc(title)}</span></button><span class="spacer"></span>${extra}</div></div>`;
@@ -1936,9 +1957,10 @@
   // --- Learn home ---------------------------------------------------------------
   async function renderLearn() {
     tabbar("learn");
-    view.innerHTML = header(`<h1>Learn</h1><span class="spacer"></span>${streakPill(store.get("streak", 0))}<button class="iconbtn" id="menuBtn" title="Menu">${I.menu}</button>`) +
+    view.innerHTML = header(`<h1>Learn</h1><span class="spacer"></span>${modeToggle("learn")}${streakPill(store.get("streak", 0))}<button class="iconbtn" id="menuBtn" title="Menu">${I.menu}</button>`, "learn-hdr") +
       `<main id="home"><div class="empty"><span class="spin"></span></div></main>`;
     $("#menuBtn").onclick = openMenu;
+    wireModeToggle();
     loadStreak();
     let timer = null;
     cleanup = () => clearInterval(timer);
