@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Navigator Story Status</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a status sheet. Three counts, then one table; the table scrolls sideways on its own at phone width. */
+  :root {
+    --bg: #f4f5f7; --surface: #ffffff; --ink: #161b22; --ink-2: #55606e; --rule: #e1e5ea;
+    --done: #17663a; --done-soft: #e2f3e8; --prog: #8a5200; --prog-soft: #fdf0d6; --todo: #4b5563; --todo-soft: #e9ecf0;
+    --body: "Figtree", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1318; --surface: #181e26; --ink: #e7ebf0; --ink-2: #9ba7b5; --rule: #2a323d;
+    --done: #7ad59b; --done-soft: #17301f; --prog: #f1b95e; --prog-soft: #382a10; --todo: #b3bdc9; --todo-soft: #252c36; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1318; --surface: #181e26; --ink: #e7ebf0; --ink-2: #9ba7b5; --rule: #2a323d;
+    --done: #7ad59b; --done-soft: #17301f; --prog: #f1b95e; --prog-soft: #382a10; --todo: #b3bdc9; --todo-soft: #252c36; color-scheme: dark }
+
+  body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15.5px; line-height: 1.55; }
+  .page { max-width: 62rem; margin: 0 auto; padding-inline: 20px; padding-block: 44px 64px; display: flex; flex-direction: column; gap: 30px; }
+  .page > * { min-width: 0; }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  h1 { margin: 0; font-size: clamp(1.7rem, 5vw, 2.3rem); line-height: 1.12; font-weight: 800; letter-spacing: -0.02em; text-wrap: balance; }
+  h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+  p { margin: 0; }
+  .asof { font-family: var(--mono); font-size: 0.76rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+  .lede { color: var(--ink-2); max-width: 44rem; font-size: 1.05rem; }
+
+  .counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 12px; }
+  .count { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; display: flex; align-items: baseline; gap: 10px; }
+  .count b { font-size: 2rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .count.done b { color: var(--done); } .count.prog b { color: var(--prog); } .count.todo b { color: var(--todo); }
+  .count span { color: var(--ink-2); font-weight: 600; }
+
+  .scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; min-width: 46rem; }
+  th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-top: 1px solid var(--rule); }
+  thead th { border-top: 0; font-family: var(--mono); font-size: 0.7rem; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+  td.id { font-family: var(--mono); font-size: 0.82rem; color: var(--ink-2); white-space: nowrap; }
+  td.story { font-weight: 700; min-width: 11rem; }
+  td.txt { color: var(--ink-2); min-width: 15rem; }
+  .pill { display: inline-block; white-space: nowrap; font-size: 0.78rem; font-weight: 700; padding: 3px 11px; border-radius: 999px; }
+  .pill.done { background: var(--done-soft); color: var(--done); }
+  .pill.prog { background: var(--prog-soft); color: var(--prog); }
+  .pill.todo { background: var(--todo-soft); color: var(--todo); }
+  .none { color: var(--ink-2); opacity: 0.7; }
+
+  section { display: flex; flex-direction: column; gap: 10px; }
+  .notes { margin: 0; padding-left: 20px; color: var(--ink-2); display: flex; flex-direction: column; gap: 6px; max-width: 46rem; }
+  .notes strong { color: var(--ink); }
+</style>
+</head>
+<body style="margin:0">
+<main class="page">
+  <header>
+    <span class="asof">Status as of 7 October 2026</span>
+    <h1>Agent Navigator user story status</h1>
+    <p class="lede">Where each of the 15 proof-of-concept user stories stands, what is working today, and what remains.</p>
+  </header>
+
+  <div class="counts">
+    <div class="count done"><b>6</b><span>Complete</span></div>
+    <div class="count prog"><b>9</b><span>In progress</span></div>
+    <div class="count todo"><b>0</b><span>Not yet started</span></div>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>ID</th><th>User story</th><th>Status</th><th>Working today</th><th>Remaining</th></tr></thead>
+      <tbody>
+        <tr><td class="id">M01</td><td class="story">Knowledge Foundation</td><td><span class="pill done">Complete</span></td>
+          <td class="txt">Approved source documents are ingested, de-duplicated and searchable, with page-level source references.</td><td class="txt none">None</td></tr>
+        <tr><td class="id">M02</td><td class="story">Natural Language Search</td><td><span class="pill done">Complete</span></td>
+          <td class="txt">Agents ask questions in plain language. Questions unrelated to FlexLife are politely declined.</td><td class="txt none">None</td></tr>
+        <tr><td class="id">M03</td><td class="story">Citations</td><td><span class="pill done">Complete</span></td>
+          <td class="txt">Every answer lists its sources. When no approved source supports an answer, the agent is referred to NLG Support.</td><td class="txt none">None</td></tr>
+        <tr><td class="id">M04</td><td class="story">Follow-up Questions</td><td><span class="pill done">Complete</span></td>
+          <td class="txt">Follow-up questions are understood in the context of the conversation so far.</td><td class="txt none">None</td></tr>
+        <tr><td class="id">M05</td><td class="story">Voice / Text</td><td><span class="pill prog">In progress</span></td>
+          <td class="txt">Typed questions and answers. Spoken questions through the browser's microphone.</td><td class="txt">Spoken answers in chat, and the setting that chooses between voice and text.</td></tr>
+        <tr><td class="id">M06</td><td class="story">Explain Like… (answer preferences)</td><td><span class="pill prog">In progress</span></td>
+          <td class="txt">Agents choose answer length, format, tone and plain-language wording, applied to every answer.</td><td class="txt">Saving preferences to the agent's profile so they follow the agent across devices.</td></tr>
+        <tr><td class="id">M07</td><td class="story">Underwriting Technicals</td><td><span class="pill prog">In progress</span></td>
+          <td class="txt">Underwriting answers are grounded in the underwriting guide. For a described client, the app shows what the guide lays out, with page references and a "guidance only" notice, and never states an approval or rate class.</td><td class="txt">The "guidance only" notice on general underwriting questions, and automatic referral to NLG when an agent asks whether a specific client will be approved.</td></tr>
+        <tr><td class="id">M08</td><td class="story">Guiding Prompts</td><td><span class="pill done">Complete</span></td>
+          <td class="txt">When an agent describes a client, the app shows the facts it picked up, identifies what the underwriting guide treats as missing, and walks the agent through those questions without repeating itself.</td><td class="txt none">None</td></tr>
+        <tr><td class="id">M09</td><td class="story">Handoff</td><td><span class="pill done">Complete</span></td>
+          <td class="txt">Agents can prepare an editable request to NLG Support from any answer, pre-filled from the conversation. Offered automatically when the library cannot answer.</td><td class="txt none">None</td></tr>
+        <tr><td class="id">M10</td><td class="story">Provide Appropriate Links</td><td><span class="pill prog">In progress</span></td>
+          <td class="txt">Underwriting guide references open the guide at the cited page.</td><td class="txt">Opening the original document from every citation on a standard chat answer.</td></tr>
+        <tr><td class="id">M11</td><td class="story">Learning Library</td><td><span class="pill prog">In progress</span></td>
+          <td class="txt">The library of learning resources is listed in the Learn area.</td><td class="txt">Connecting each resource to its destination so it opens when selected.</td></tr>
+        <tr><td class="id">M12</td><td class="story">User Preferences</td><td><span class="pill prog">In progress</span></td>
+          <td class="txt">Agents can set how answers are written: a warm, neutral or formal tone, short or detailed length, bullets or prose, and plain-language wording.</td><td class="txt none">&mdash;</td></tr>
+        <tr><td class="id">M13</td><td class="story">Lesson Progress Tracking</td><td><span class="pill prog">In progress</span></td>
+          <td class="txt">Lessons resume where the agent left off, with a "Continue listening" shortcut.</td><td class="txt">Expiry of older lessons and their saved progress.</td></tr>
+        <tr><td class="id">M14</td><td class="story">Agent Profile and Progress</td><td><span class="pill prog">In progress</span></td>
+          <td class="txt">A profile screen showing the agent's practice level and skills from role-play sessions.</td><td class="txt none">&mdash;</td></tr>
+        <tr><td class="id">M15</td><td class="story">Specialized Learning</td><td><span class="pill prog">In progress</span></td>
+          <td class="txt">Agents request a custom lesson on any topic and receive an article or audio lesson built from the source library.</td><td class="txt">Telling the agent when the library does not cover a topic, and applying answer preferences to lessons.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <section>
+    <h2>Notes</h2>
+    <ul class="notes">
+      <li><strong>Complete</strong> means the story's acceptance criteria are met in the current build. <strong>In progress</strong> means part of the story is working and any items under Remaining are still open.</li>
+      <li><strong>M08 Guiding Prompts</strong> currently covers client details the underwriting guide distinguishes, such as age, coverage amount, tobacco use, build and medical conditions.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
