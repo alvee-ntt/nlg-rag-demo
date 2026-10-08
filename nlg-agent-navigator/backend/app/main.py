@@ -4,16 +4,17 @@ from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from app.models import ChatRequest, ChatResponse, SessionSummary
+from app.models import ChatRequest, ChatResponse, SessionSummary, SpeechRequest
 from app.orchestrator import AgentRunner, DemoAgentRunner, MicrosoftAgentFrameworkRunner
 from app.profiles import MemoryProfileStore, PostgresProfileStore, SavedUserProfile, UserProfile
 from app.prompt_configuration import load_agent_prompts
 from app.service import ChatService
 from app.settings import get_settings
+from app.speech import SpeechError, synthesize_speech
 from prompt_studio_api.trace_store import PostgresTraceWriter
 
 
@@ -105,6 +106,22 @@ def create_app(
             events(),
             media_type="application/x-ndjson",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @app.post("/api/speech/tts")
+    async def speech_tts(payload: SpeechRequest) -> Response:
+        if not settings.speech_is_configured:
+            raise HTTPException(status_code=503, detail="Speech synthesis is not configured.")
+        try:
+            audio = await synthesize_speech(settings, payload.text, payload.voice)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except SpeechError as error:
+            raise HTTPException(status_code=502, detail="Speech synthesis failed.") from error
+        return Response(
+            content=audio,
+            media_type="audio/mpeg",
+            headers={"Cache-Control": "no-store"},
         )
 
     @app.get("/api/sessions/{session_id}", response_model=SessionSummary)

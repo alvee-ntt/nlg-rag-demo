@@ -18,11 +18,23 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     prompt_database_url: SecretStr | None = None
 
+    # Azure Speech (text-to-speech for spoken replies). Shares the nlg-rag Speech
+    # resource; the DragonHD voices match the Learn narration and roleplay.
+    azure_speech_key: SecretStr | None = None
+    azure_speech_region: str = "eastus"
+    azure_speech_endpoint: str = "https://eastus.api.cognitive.microsoft.com"
+    azure_speech_voice_ava: str = "en-US-Ava:DragonHDLatestNeural"
+    azure_speech_voice_andrew: str = "en-US-Andrew:DragonHDLatestNeural"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def speech_is_configured(self) -> bool:
+        return bool(self.azure_speech_key and self.azure_speech_region)
 
     @property
     def foundry_is_configured(self) -> bool:

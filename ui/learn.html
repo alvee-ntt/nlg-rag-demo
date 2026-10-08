@@ -633,6 +633,19 @@
   .chat-input .micb svg { width: 14px; height: 14px; }
   .chat-input .sendb { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--g700); color: #fff; display: grid; place-items: center; cursor: pointer; flex: none; }
   .chat-input .sendb svg { width: 16px; height: 16px; }
+  /* Voice question: the composer gives way to a live transcript and a waveform bar. */
+  .listen { display: none; }
+  .listening .chat-foot .chips, .listening .chat-input { display: none; }
+  .listening .listen { display: block; }
+  .listen-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; max-height: 30dvh; overflow: auto; }
+  .listen-l { font-size: 11.5px; font-weight: 600; color: var(--g700); margin-bottom: 4px; }
+  .listen-t { font-size: 15px; line-height: 1.45; color: var(--ink); }
+  .listen-t .dim { color: var(--muted); }
+  .listen-bar { display: flex; align-items: center; gap: 12px; height: 44px; background: #0b3d1f; border-radius: 999px; padding: 0 6px 0 18px; }
+  .lwave { flex: 1; min-width: 0; display: flex; align-items: center; gap: 3px; height: 24px; overflow: hidden; }
+  .lwave i { width: 3px; flex: none; border-radius: 3px; background: #8cc63f; height: 16%; animation: wv 1.1s ease-in-out infinite; animation-delay: calc(var(--i) * -.09s); }
+  .listen-stop { width: 32px; height: 32px; border-radius: 50%; border: 0; background: #fff; display: grid; place-items: center; cursor: pointer; flex: none; }
+  .listen-stop i { width: 12px; height: 12px; border-radius: 3px; background: #0b3d1f; }
   .sheet .chat { padding: 0; }
   .sheet .chat-log { max-height: 40dvh; flex: none; }
   .sheet .chat-foot { background: var(--paper); padding-bottom: 4px; }
@@ -1419,13 +1432,31 @@
     return `<a class="ncite" href="${esc(c.url || "#")}" target="_blank" rel="noopener" data-n="${esc(c.n)}"><span class="ncite-doc"><svg viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/></svg></span><span class="ncite-t">${esc(c.title || c.url || "Source")}</span><span class="ncite-open">↗</span></a>`;
   }
 
-  // opts: { log, send(question, history) -> {text, sources?, citations?, follow_ups?}, chips?, intro?, placeholder?, pendingText?, persist? }
+  // opts: { log, send(question, history) -> {text, sources?, citations?, follow_ups?}, chips?, intro?, placeholder?, pendingText?, persist?,
+  //         speech?: Azure voice in and spoken answers (off for the in-call sheet, where the call owns the audio) }
   function mountChat(root, opts) {
     const log = opts.log;
+    const speechOn = !!opts.speech;
     root.innerHTML = `<div class="chat-log"></div><div class="chat-foot"><div class="chips"></div>
-      <div class="chat-input"><div class="field"><input placeholder="${esc(opts.placeholder || "Ask a question…")}" autocomplete="off" maxlength="1000"><button class="micb" title="Speak your question">${I.mic}</button></div><button class="sendb" title="Send">${I.send}</button></div></div>`;
+      <div class="chat-input"><div class="field"><input placeholder="${esc(opts.placeholder || "Ask a question…")}" autocomplete="off" maxlength="1000"><button class="micb" title="Speak your question">${I.mic}</button></div><button class="sendb" title="Send">${I.send}</button></div>
+      <div class="listen"><div class="listen-card"><div class="listen-l">Listening…</div><div class="listen-t"></div></div>
+        <div class="listen-bar"><div class="lwave">${Array.from({ length: 30 }, (_, i) => `<i style="--i:${i};--h:${[20, 45, 70, 35, 60, 25, 50, 65, 30, 55][i % 10]}"></i>`).join("")}</div><button class="listen-stop" title="Stop and send"><i></i></button></div></div></div>`;
     const logEl = root.querySelector(".chat-log"), chipsEl = root.querySelector(".chips"), input = root.querySelector("input"), micb = root.querySelector(".micb");
     const save = () => { if (opts.persist) opts.persist(); };
+    // Spoken answers: one at a time, started by a voice question or the answer's Listen link.
+    let speakingMsg = null, speakSeq = 0;
+    const paintSpeak = () => logEl.querySelectorAll('[data-act="speak"]').forEach((el) => {
+      const r = el.closest(".ai-row"); el.textContent = r && log[Number(r.dataset.i)] === speakingMsg ? "Stop" : "Listen";
+    });
+    const stopSpeaking = () => { if (!speakingMsg) return; speakSeq += 1; speakingMsg = null; stopAudio(); paintSpeak(); };
+    const speakMsg = async (m, quiet) => {
+      const text = plainForSpeech(m.text); if (!text) return;
+      stopSpeaking();
+      const id = ++speakSeq; speakingMsg = m; paintSpeak();
+      try { await chatSpeechReady(); if (id === speakSeq) { stopAudio(); await speak(text, speech.chatVoice || NAV_VOICE); } }
+      catch { if (!quiet) toast("Couldn't play the answer aloud"); }
+      if (id === speakSeq) { speakingMsg = null; paintSpeak(); }
+    };
     const paint = () => {
       const items = log.length ? log : [{ who: "ai", text: opts.intro || NAV_INTRO, intro: true }];
       logEl.innerHTML = items.map((m, i, arr) => {
@@ -1436,7 +1467,7 @@
         const card = rich && m.case_card && m.case_card.show ? m.case_card : null;
         const tools = m.pending || m.intro || card ? "" : m.failed
           ? `<div class="thumbs"><span class="act" data-act="retry" style="margin-left:0">Try again</span></div>`
-          : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${n ? `<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="menu">Options</span><span class="act" data-act="handoff">Ask NLG Support</span></div>`;
+          : `<div class="thumbs"><button data-act="up" class="${m.vote === "up" ? "on" : ""}" title="Helpful">${I.thumbUp}</button><button data-act="down" class="${m.vote === "down" ? "on" : ""}" title="Not helpful">${I.thumbDown}</button>${speechOn ? `<span class="act" data-act="speak">${m === speakingMsg ? "Stop" : "Listen"}</span>` : ""}${n ?`<span class="act" data-act="src">${m.open ? "Hide sources" : `Sources (${n})`}</span>` : ""}<span class="act" data-act="menu">Options</span><span class="act" data-act="handoff">Ask NLG Support</span></div>`;
         const banner = rich && m.banner ? `<div class="uw-banner">${UW_SHIELD}<span>${esc(m.banner)}</span></div>` : "";
         const body = card ? caseCardHtml(card, opts.thread && opts.thread.case) : rich ? banner + mdToHtml(m.text) + caseAnswerHtml(m) : esc(m.text);
         const handoffCta = (rich && m.escalate) ? `<div><button class="handoff-cta" data-act="handoff">${m.escalate_reason === "case_specific" ? "Ask NLG for a decision" : "Prepare a request to NLG Support"}</button></div>` : "";
@@ -1484,8 +1515,9 @@
       else if (id === "back") send("Back to the client.", "show");
       else if (id === "handoff") applyAct("handoff", log.indexOf(m));
     };
-    const send = async (q, caseAction) => {
+    const send = async (q, caseAction, spoken) => {
       q = (q || "").trim(); if (!q) return;
+      stopSpeaking();
       // Last few finished turns, oldest first, so follow-ups like "and the floor?" make sense.
       const history = log.filter((m) => !m.pending && !m.failed).slice(-8).map((m) => ({ role: m.who === "user" ? "user" : "assistant", text: m.text }));
       log.push({ who: "user", text: q });
@@ -1493,6 +1525,8 @@
       try { Object.assign(pending, await opts.send(q, history, { thread: opts.thread || null, caseAction: caseAction || null })); }
       catch (err) { pending.text = "I couldn't reach the source library just now."; pending.failed = true; pending.question = q; pending.caseAction = caseAction || null; toast(err.message || "Navigator unavailable"); }
       pending.pending = false; paint(); paintChips(); save();
+      // A spoken question gets its answer read aloud as well as shown.
+      if (spoken && speechOn && !pending.failed && !(pending.case_card && pending.case_card.show)) speakMsg(pending, true);
     };
     // Push a thumbs vote to the tracker so it shows in Question Insights. Best-effort:
     // a failure never disturbs the chat, the local vote still stands. Needs the turn's
@@ -1534,6 +1568,7 @@
       const m = log[i]; if (!m || m.pending) return;
       if (a === "copy") (navigator.clipboard ? navigator.clipboard.writeText(m.text) : Promise.reject()).then(() => toast("Answer copied"), () => toast("Couldn't copy"));
       else if (a === "src") { m.open = !m.open; paint(); }
+      else if (a === "speak") { if (m === speakingMsg) stopSpeaking(); else speakMsg(m); }
       else if (a === "menu") openAnswerMenu(i);
       else if (a === "up") {
         const cleared = m.vote === "up";
@@ -1588,22 +1623,81 @@
     const submit = () => { const q = input.value; input.value = ""; send(q); };
     root.querySelector(".sendb").onclick = submit;
     input.onkeydown = (e) => { if (e.key === "Enter") submit(); };
-    // Voice: Web Speech API where available; the recognised question sends itself.
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition; let rec = null;
-    const mic = () => {
+    // Voice: the composer becomes a live transcript until Stop, then the question sends
+    // itself down the same path as a typed one. Azure Speech where the chat has it, the
+    // browser's own recogniser otherwise.
+    const listenT = root.querySelector(".listen-t");
+    let hear = null, starting = false, azureOff = false;
+    const paintHeard = () => {
+      const said = hear.final || hear.interim;
+      if (said) root.querySelector(".listen-l").textContent = "Listening…";
+      listenT.innerHTML = said ? `${esc(hear.final)}<span class="dim">${esc((hear.final && hear.interim ? " " : "") + hear.interim)}</span>` : `<span class="dim">Go ahead…</span>`;
+    };
+    const startHearing = (stop) => {
+      const h = hear = { final: "", interim: "", stop, cap: setTimeout(() => { if (hear === h) h.stop(); }, 60000) };
+      root.classList.add("listening"); paintHeard();
+      // The waveform is decorative, so say so when nothing is coming through the mic.
+      const label = root.querySelector(".listen-l"); label.textContent = "Listening…";
+      setTimeout(() => { if (hear === h && !h.final && !h.interim) label.textContent = "I can't hear anything. Check your microphone."; }, 6000);
+      return h;
+    };
+    const endHearing = (sendIt) => {
+      const h = hear; if (!h) return;
+      hear = null; clearTimeout(h.cap); root.classList.remove("listening");
+      const q = `${h.final} ${h.interim}`.trim().slice(0, 1000);
+      if (sendIt && q) send(q, null, true);
+    };
+    const hearAzure = async () => {
+      const SDK = await chatSpeechReady();
+      const cfg = SDK.SpeechConfig.fromAuthorizationToken(speech.token, speech.region);
+      cfg.speechRecognitionLanguage = "en-US";
+      const rec = new SDK.SpeechRecognizer(cfg, SDK.AudioConfig.fromDefaultMicrophoneInput());
+      let h = null;
+      const close = (sendIt) => { try { rec.close(); } catch {} if (hear === h) endHearing(sendIt); };
+      h = startHearing(() => { try { rec.stopContinuousRecognitionAsync(() => close(true), () => close(true)); } catch { close(true); } });
+      rec.recognizing = (_, e) => { if (hear !== h) return; h.interim = e.result.text || ""; paintHeard(); };
+      rec.recognized = (_, e) => {
+        if (hear !== h) return;
+        if (e.result.reason === SDK.ResultReason.RecognizedSpeech && e.result.text) h.final = `${h.final} ${e.result.text}`.trim();
+        h.interim = ""; paintHeard();
+      };
+      rec.canceled = (_, e) => { if (e.reason !== SDK.CancellationReason.Error) return; speech.token = null; toast("Couldn't hear that. Try again."); close(false); };
+      rec.startContinuousRecognitionAsync(() => {}, () => { toast("Microphone unavailable. You can still type."); close(false); });
+    };
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const hearBrowser = () => {
       if (!SR) return toast("Voice input isn't available in this browser");
-      if (rec) { rec.stop(); return; }
-      rec = new SR(); rec.lang = "en-US"; rec.interimResults = true;
-      rec.onresult = (e) => { input.value = Array.from(e.results).map((r) => r[0].transcript).join(" "); };
-      rec.onend = () => { rec = null; micb.classList.remove("on"); if (input.value.trim()) submit(); };
-      rec.onerror = () => toast("Couldn't hear that. Try again.");
-      micb.classList.add("on"); rec.start();
+      const rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
+      const h = startHearing(() => { try { rec.stop(); } catch {} });
+      rec.onresult = (e) => {
+        if (hear !== h) return;
+        const parts = Array.from(e.results);
+        h.final = parts.filter((r) => r.isFinal).map((r) => r[0].transcript.trim()).join(" ");
+        h.interim = parts.filter((r) => !r.isFinal).map((r) => r[0].transcript.trim()).join(" ");
+        paintHeard();
+      };
+      rec.onerror = (e) => { if (e.error !== "no-speech" && e.error !== "aborted") toast("Couldn't hear that. Try again."); };
+      rec.onend = () => { if (hear === h) endHearing(true); };
+      rec.start();
+    };
+    const mic = async () => {
+      if (hear) return hear.stop();
+      if (starting) return;
+      stopSpeaking();
+      if (speechOn && !azureOff) {
+        starting = true; micb.classList.add("on");
+        try { await hearAzure(); return; }
+        catch { azureOff = true; }
+        finally { starting = false; micb.classList.remove("on"); }
+      }
+      hearBrowser();
     };
     micb.onclick = mic;
+    root.querySelector(".listen-stop").onclick = () => { if (hear) hear.stop(); };
     paint(); paintChips();
     return { send, mic, paint, focus: () => setTimeout(() => input.focus(), 50),
-      clear: () => { log.length = 0; if (opts.thread) opts.thread.case = null; save(); paint(); paintChips(); },
-      destroy: () => { if (rec) { try { rec.stop(); } catch {} } } };
+      clear: () => { stopSpeaking(); log.length = 0; if (opts.thread) opts.thread.case = null; save(); paint(); paintChips(); },
+      destroy: () => { stopSpeaking(); if (hear) { const h = hear; endHearing(false); h.stop(); } } };
   }
 
   // M09 — Handoff to NLG Support. Builds a draft support email from the chat log and
@@ -1652,7 +1746,7 @@
     w.innerHTML = `<div class="sheet"><div class="grab"></div><div class="sheet-h nav-h"><span class="orb sm"></span>Ask Navigator<span class="spacer"></span><button class="nav-ib" id="navClear" title="Clear chat">${I.trash}Clear</button><button class="nav-ib" id="navClose" title="Close">${I.x}</button></div><div class="chat" id="navChat"></div></div>`;
     $("#phone").appendChild(w);
     const t = activeThread();
-    const chat = mountChat(w.querySelector("#navChat"), { log: t.messages, thread: t, persist: () => onTurnSaved(t), chips: [], intro: NAV_INTRO, send: navSend });
+    const chat = mountChat(w.querySelector("#navChat"), { log: t.messages, thread: t, persist: () => onTurnSaved(t), chips: [], intro: NAV_INTRO, send: navSend, speech: true });
     const close = () => { chat.destroy(); w.remove(); };
     w.onclick = (e) => { if (e.target === w) close(); };
     w.querySelector("#navClose").onclick = close;
@@ -1679,7 +1773,7 @@
     view.innerHTML = header(`<button class="iconbtn" id="chatHist" title="Your chats">${I.menu}</button><button class="iconbtn" id="chatSet" title="Answer preferences">${I.gear}</button><button class="iconbtn" id="chatNew" title="New chat">${I.plus}</button><span class="spacer"></span>${modeToggle("chat")}`, "light chat-hdr") +
       `<main class="chatpage fade"><div class="chat" id="chatMain"></div></main>`;
     const chat = mountChat($("#chatMain"), {
-      log: t.messages, thread: t, chips: NAV_CHIPS, intro: NAV_INTRO, send: navSend,
+      log: t.messages, thread: t, chips: NAV_CHIPS, intro: NAV_INTRO, send: navSend, speech: true,
       persist: () => { onTurnSaved(t); const el = $("#chatTitle"); if (el) el.textContent = t.title || titleFrom(t.messages); },
     });
     const rerender = () => { chat.destroy(); renderChat(); };
@@ -2897,10 +2991,38 @@
 
   async function ensureSpeechToken() {
     const wantId = speech.profile ? speech.profile.id : "";
-    if (speech.token && speech.region && speech.tokenProfileId === wantId) return;
+    // Azure tokens last ten minutes; a chat can sit open far longer than a call.
+    const fresh = speech.tokenAt && Date.now() - speech.tokenAt < 8 * 60 * 1000;
+    if (speech.token && speech.region && speech.tokenProfileId === wantId && fresh) return;
     const data = await api("/v1/speech/token", { method: "POST", body: JSON.stringify({ profile_id: wantId }) });
-    speech.token = data.token; speech.region = data.region; speech.tokenProfileId = wantId;
+    speech.token = data.token; speech.region = data.region; speech.tokenProfileId = wantId; speech.tokenAt = Date.now();
     if (data.profile) speech.profile = data.profile;
+    if (data.voice) speech.chatVoice = data.voice;
+  }
+
+  // Ask Navigator speech: the default voice, never a roleplay persona's. Not during a call.
+  const NAV_VOICE = "en-US-Ava:DragonHDLatestNeural";
+  async function chatSpeechReady() {
+    if (live) throw new Error("Voice is busy with the call");
+    if (speech.profile) { speech.profile = null; speech.token = null; }
+    const SDK = await loadSpeechSdk();
+    await ensureSpeechToken();
+    return SDK;
+  }
+
+  // Answer Markdown as plain prose, so the voice doesn't read symbols or citation markers.
+  function plainForSpeech(md) {
+    return String(md || "")
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/\[\d+(?:\s*,\s*\d+)*\]|【[^】]*】/g, "")
+      .replace(/https?:\/\/\S+/g, "")
+      .replace(/^\s*\|?[\s:|-]+\|[\s:|-]*$/gm, "")
+      .replace(/^\s*\|\s*|\s*\|\s*$/gm, "")
+      .replace(/\s*\|\s*/g, ", ")
+      .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm, "")
+      .replace(/[*_`~#]/g, "")
+      .replace(/[ \t]+/g, " ").replace(/ +([.,;:!?])/g, "$1").replace(/\n{2,}/g, "\n").trim();
   }
 
   function teardownRecognizer() {

@@ -78,6 +78,11 @@ class ChatResponse(BaseModel):
     reply: AgentReply
 
 
+class SpeechRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=8_000)
+    voice: str | None = None
+
+
 class SessionSummary(BaseModel):
     session_id: str
     topic: str | None = None

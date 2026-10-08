@@ -1249,6 +1249,9 @@ class Roleplay:
         result: dict[str, Any] = {"token": response.text, "region": region}
         if profile is not None:
             result["profile"] = profile.as_public_dict()
+        else:
+            # No roleplay persona: the Ask Navigator chat speaks with the default voice.
+            result["voice"] = self.settings.azure_speech_voice_ava
         return result
 
     def voice_profiles(self) -> dict[str, Any]:

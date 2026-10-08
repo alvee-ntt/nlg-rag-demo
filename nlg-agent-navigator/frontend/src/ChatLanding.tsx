@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { ArrowUp } from 'lucide-react'
+import { ArrowUp, Loader2, Square, Volume2 } from 'lucide-react'
 import batteryIcon from './assets/ios-battery.svg'
 import signalIcon from './assets/ios-signal.svg'
 import wifiIcon from './assets/ios-wifi.svg'
@@ -12,7 +12,7 @@ import recentIcon from './assets/icon-recent.svg'
 import addIcon from './assets/icon-add.svg'
 import micIcon from './assets/icon-mic.svg'
 import sourceIcon from './assets/icon-source.svg'
-import { streamChat } from './api'
+import { streamChat, synthesizeSpeech } from './api'
 import type { AgentReply, Citation } from './api'
 import { isSignedIn } from './session'
 import './Onboarding.css'
@@ -138,6 +138,43 @@ type Message =
   | { id: string; role: 'user'; content: string }
   | { id: string; role: 'assistant'; reply: AgentReply }
 
+// The Web Speech API is not in the standard TS DOM lib, so declare the slice we use.
+interface SpeechRecognitionLike {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null
+  onend: (() => void) | null
+  onerror: ((event: { error: string }) => void) | null
+  start(): void
+  stop(): void
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike
+
+function speechRecognitionCtor(): SpeechRecognitionCtor | undefined {
+  const scope = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor
+    webkitSpeechRecognition?: SpeechRecognitionCtor
+  }
+  return scope.SpeechRecognition ?? scope.webkitSpeechRecognition
+}
+
+// A 0.05s silent WAV. Playing it on the shared <audio> element during a user
+// gesture "unlocks" that element, so a later programmatic play() (the spoken
+// reply, which arrives seconds after the agent answers) isn't blocked by the
+// browser's autoplay policy.
+const SILENT_WAV = 'data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA'
+
+// Strip citation markers (【3:1†doc】, [1], [2, 3]) before reading an answer aloud,
+// so the voice doesn't say "bracket one".
+function stripForSpeech(text: string): string {
+  return text
+    .replace(/【\d+:\d+†[^】]*】/g, '')
+    .replace(/\[\d+(?:\s*,\s*\d+)*\]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 export default function ChatLanding() {
   const signedIn = isSignedIn()
   const [messages, setMessages] = useState<Message[]>([])
@@ -148,9 +185,234 @@ export default function ChatLanding() {
   const sessionIdRef = useRef<string | undefined>(undefined)
   const messageEndRef = useRef<HTMLDivElement>(null)
 
+  // Spoken replies: `speakingId` is the message whose audio is loading or playing;
+  // `playingId` is set once audio actually starts (so the button shows a spinner first).
+  const [speakingId, setSpeakingId] = useState<string>()
+  const [playingId, setPlayingId] = useState<string>()
+  const speakingIdRef = useRef<string | undefined>(undefined)
+  const audioElRef = useRef<HTMLAudioElement | null>(null)
+  const audioPrimedRef = useRef(false)
+  const audioUrlRef = useRef<string | null>(null)
+  // True once the current draft came from the mic, so the reply is spoken back.
+  const voiceDraftRef = useRef(false)
+
+  const [recording, setRecording] = useState(false)
+  const recordingRef = useRef(false)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const rafRef = useRef<number | null>(null)
+  const barsRef = useRef<(HTMLSpanElement | null)[]>([])
+  const baseDraftRef = useRef('')
+
+  const stopRecording = useCallback(() => {
+    recordingRef.current = false
+    setRecording(false)
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    const recognition = recognitionRef.current
+    if (recognition) {
+      recognition.onend = null
+      try { recognition.stop() } catch { /* already stopped */ }
+      recognitionRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    if (audioCtxRef.current) {
+      void audioCtxRef.current.close().catch(() => {})
+      audioCtxRef.current = null
+    }
+  }, [])
+
+  function getAudioEl(): HTMLAudioElement {
+    if (!audioElRef.current) audioElRef.current = new Audio()
+    return audioElRef.current
+  }
+
+  // Unlock the shared audio element on a user gesture (see SILENT_WAV).
+  const primeAudio = useCallback(() => {
+    if (audioPrimedRef.current) return
+    audioPrimedRef.current = true
+    const el = getAudioEl()
+    el.muted = true
+    el.src = SILENT_WAV
+    const played = el.play()
+    if (played) {
+      played
+        .then(() => { el.pause(); el.currentTime = 0; el.muted = false })
+        .catch(() => { el.muted = false })
+    } else {
+      el.muted = false
+    }
+  }, [])
+
+  const stopSpeaking = useCallback(() => {
+    const el = audioElRef.current
+    if (el) {
+      el.onplay = null
+      el.onended = null
+      el.onerror = null
+      el.pause()
+      el.removeAttribute('src')
+      try { el.load() } catch { /* resetting media element */ }
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current)
+      audioUrlRef.current = null
+    }
+    speakingIdRef.current = undefined
+    setSpeakingId(undefined)
+    setPlayingId(undefined)
+  }, [])
+
+  const playSpeech = useCallback(async (id: string, rawText: string) => {
+    stopSpeaking()
+    const text = stripForSpeech(rawText)
+    if (!text) return
+    speakingIdRef.current = id
+    setSpeakingId(id)
+    try {
+      const blob = await synthesizeSpeech(text)
+      if (speakingIdRef.current !== id) return // a newer play/stop superseded this one
+      const url = URL.createObjectURL(blob)
+      audioUrlRef.current = url
+      const el = getAudioEl()
+      const finish = () => { if (speakingIdRef.current === id) stopSpeaking() }
+      el.onplay = () => { if (speakingIdRef.current === id) setPlayingId(id) }
+      el.onended = finish
+      el.onerror = finish
+      el.muted = false
+      el.src = url
+      el.currentTime = 0
+      await el.play()
+    } catch (caught) {
+      if (speakingIdRef.current === id) {
+        speakingIdRef.current = undefined
+        setSpeakingId(undefined)
+        setPlayingId(undefined)
+        setError(caught instanceof Error ? caught.message : 'Could not play the spoken reply.')
+      }
+    }
+  }, [stopSpeaking])
+
+  const toggleSpeech = useCallback((id: string, rawText: string) => {
+    primeAudio()
+    if (speakingIdRef.current === id) stopSpeaking()
+    else void playSpeech(id, rawText)
+  }, [playSpeech, stopSpeaking, primeAudio])
+
+  async function startRecording() {
+    if (pending || recordingRef.current) return
+
+    // Create the AudioContext synchronously, inside the click's user-gesture window,
+    // so the browser starts it "running". Created after an await it opens "suspended"
+    // and the analyser only ever reads zeros (a flat waveform).
+    const AudioCtx = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    const ctx = AudioCtx ? new AudioCtx() : null
+    if (ctx) void ctx.resume().catch(() => {})
+
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch {
+      if (ctx) void ctx.close().catch(() => {})
+      setError('Microphone access is needed for voice input.')
+      return
+    }
+    setError('')
+    streamRef.current = stream
+    baseDraftRef.current = draft.trim() ? `${draft.trimEnd()} ` : ''
+    recordingRef.current = true
+    setRecording(true)
+
+    if (ctx) {
+      audioCtxRef.current = ctx
+      void ctx.resume().catch(() => {})
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 128
+      analyser.smoothingTimeConstant = 0.72
+      const source = ctx.createMediaStreamSource(stream)
+      source.connect(analyser)
+      // Pull the graph to the destination through a muted gain so the analyser is
+      // guaranteed to process audio (no audible output: gain is 0).
+      const sink = ctx.createGain()
+      sink.gain.value = 0
+      analyser.connect(sink)
+      sink.connect(ctx.destination)
+      const data = new Uint8Array(analyser.frequencyBinCount)
+      let peak = 0
+      const draw = () => {
+        analyser.getByteFrequencyData(data)
+        const bars = barsRef.current
+        const binsPerBar = Math.max(1, Math.floor(data.length / Math.max(1, bars.length)))
+        for (let i = 0; i < bars.length; i += 1) {
+          let sum = 0
+          for (let j = 0; j < binsPerBar; j += 1) sum += data[i * binsPerBar + j] ?? 0
+          const avg = sum / binsPerBar
+          if (avg > peak) peak = avg
+          const scale = Math.max(0.12, Math.min(1, Math.pow(avg / 255, 0.6) * 1.6))
+          const bar = bars[i]
+          if (bar) bar.style.transform = `scaleY(${scale})`
+        }
+        rafRef.current = requestAnimationFrame(draw)
+      }
+      rafRef.current = requestAnimationFrame(draw)
+      // If the selected microphone emits pure silence (e.g. a virtual device like
+      // "Steam Streaming Microphone"), say so instead of showing a dead waveform.
+      const micLabel = stream.getAudioTracks()[0]?.label ?? 'your microphone'
+      window.setTimeout(() => {
+        if (recordingRef.current && peak < 1) {
+          setError(`No sound from "${micLabel}". Pick a different mic from the icon in the address bar.`)
+        }
+      }, 1600)
+    }
+
+    const RecognitionCtor = speechRecognitionCtor()
+    if (RecognitionCtor) {
+      const recognition = new RecognitionCtor()
+      recognition.lang = 'en-US'
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.onresult = (event) => {
+        let transcript = ''
+        for (let i = 0; i < event.results.length; i += 1) transcript += event.results[i][0].transcript
+        if (transcript.trim()) voiceDraftRef.current = true
+        setDraft(baseDraftRef.current + transcript)
+      }
+      recognition.onend = () => {
+        if (recordingRef.current) {
+          try { recognition.start() } catch { /* restart race, ignore */ }
+        }
+      }
+      recognition.onerror = (event) => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setError('Microphone access is needed for voice input.')
+          stopRecording()
+        } else if (event.error === 'network') {
+          setError('Speech recognition is unreachable — check your connection.')
+        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          setError(`Voice input error: ${event.error}`)
+        }
+      }
+      recognitionRef.current = recognition
+      try { recognition.start() } catch { /* already starting */ }
+    } else {
+      setError("This browser can't transcribe speech — try Chrome or Edge.")
+    }
+  }
+
   useEffect(() => {
     if (!signedIn) window.location.replace('/learn')
   }, [signedIn])
+
+  useEffect(() => () => {
+    stopRecording()
+    stopSpeaking()
+  }, [stopRecording, stopSpeaking])
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ block: 'end' })
@@ -160,6 +422,14 @@ export default function ChatLanding() {
     const value = message.trim()
     if (!value || pending) return
 
+    if (recordingRef.current) stopRecording()
+    stopSpeaking()
+    // "Voice in → voice out": speak the reply only when this question was dictated.
+    const spoken = voiceDraftRef.current
+    voiceDraftRef.current = false
+    // Unlock audio now, inside the send gesture, so auto-play works when the
+    // answer (and its synthesis) arrive seconds later.
+    if (spoken) primeAudio()
     setDraft('')
     setError('')
     setPending(true)
@@ -171,7 +441,7 @@ export default function ChatLanding() {
 
     const assistantMessageId = crypto.randomUUID()
     try {
-      await streamChat(value, sessionIdRef.current, (response) => {
+      const result = await streamChat(value, sessionIdRef.current, (response) => {
         sessionIdRef.current = response.session_id
         setStreamingMessageId(assistantMessageId)
         setMessages((current) => current.some((item) => item.id === assistantMessageId)
@@ -180,6 +450,7 @@ export default function ChatLanding() {
             : item)
           : [...current, { id: assistantMessageId, role: 'assistant', reply: response.reply }])
       })
+      if (spoken && result.reply.content.trim()) void playSpeech(assistantMessageId, result.reply.content)
     } catch (caught) {
       setMessages((current) => current.filter((item) => item.id !== assistantMessageId))
       setError(caught instanceof Error ? caught.message : 'The service is unavailable.')
@@ -260,6 +531,20 @@ export default function ChatLanding() {
                       {answerWithSources(message.reply.content, message.reply.citations)}
                       {streamingMessageId === message.id && <span className="mobile-stream-cursor" aria-hidden="true" />}
                     </p>
+                    {streamingMessageId !== message.id && message.reply.content.trim() && (
+                      <button
+                        type="button"
+                        className={`speak-btn${playingId === message.id ? ' is-playing' : ''}`}
+                        onClick={() => toggleSpeech(message.id, message.reply.content)}
+                        aria-label={speakingId === message.id ? 'Stop reading answer aloud' : 'Read answer aloud'}
+                      >
+                        {speakingId === message.id && playingId !== message.id
+                          ? <Loader2 size={14} className="speak-spin" />
+                          : playingId === message.id
+                            ? <Square size={12} fill="currentColor" />
+                            : <Volume2 size={14} />}
+                      </button>
+                    )}
                     {message.reply.warning && <p className="mobile-warning">{message.reply.warning}</p>}
                     {message.reply.suggestions.length > 0 && (
                       <div className="mobile-suggestions">
@@ -282,20 +567,43 @@ export default function ChatLanding() {
             </section>
           )}
           {error && <p className="chat-error" role="alert">{error}</p>}
-          <form className="chat-input" onSubmit={handleSubmit}>
-            <img src={addIcon} alt="" />
-            <input
-              type="text"
-              aria-label="Ask Navigator"
-              placeholder="Ask Navigator..."
-              value={draft}
-              disabled={pending}
-              onChange={(event) => setDraft(event.target.value)}
-            />
-            <button type="submit" disabled={!draft.trim() || pending} aria-label="Send message">
-              {draft.trim() ? <ArrowUp size={20} /> : <img src={micIcon} alt="" />}
-            </button>
-          </form>
+          {recording ? (
+            <div className="voice-capture" role="group" aria-label="Listening">
+              <div className="voice-wave" aria-hidden="true">
+                {Array.from({ length: 36 }, (_, index) => (
+                  <span key={index} ref={(element) => { barsRef.current[index] = element }} />
+                ))}
+              </div>
+              <button type="button" className="voice-stop" onClick={stopRecording} aria-label="Stop listening">
+                <span aria-hidden="true" />
+              </button>
+            </div>
+          ) : (
+            <form className="chat-input" onSubmit={handleSubmit}>
+              <img src={addIcon} alt="" />
+              <input
+                type="text"
+                aria-label="Ask Navigator"
+                placeholder="Ask Navigator..."
+                value={draft}
+                disabled={pending}
+                onChange={(event) => {
+                  const next = event.target.value
+                  if (!next.trim()) voiceDraftRef.current = false
+                  setDraft(next)
+                }}
+              />
+              {draft.trim() ? (
+                <button type="submit" disabled={pending} aria-label="Send message">
+                  <ArrowUp size={20} />
+                </button>
+              ) : (
+                <button type="button" onClick={() => void startRecording()} disabled={pending} aria-label="Start voice input">
+                  <img src={micIcon} alt="" />
+                </button>
+              )}
+            </form>
+          )}
         </main>
       </div>
     </div>

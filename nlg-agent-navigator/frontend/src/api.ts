@@ -149,6 +149,19 @@ export async function streamChat(
   return current
 }
 
+export async function synthesizeSpeech(text: string, signal?: AbortSignal): Promise<Blob> {
+  const response = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/speech/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+    signal,
+  })
+  if (!response.ok) {
+    throw new Error(response.status === 503 ? 'Spoken replies are not configured.' : 'Could not play the spoken reply.')
+  }
+  return response.blob()
+}
+
 async function promptRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/prompt-api${path}`, {
     ...init,
